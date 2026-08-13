@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth, signOut } from "@/auth";
 import { getTeamsForUser } from "@/lib/teams";
@@ -116,11 +117,24 @@ export default async function DashboardPage({
               >
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
-                    <p className="font-semibold text-foreground">{team.name}</p>
+                    <p className="font-semibold text-foreground">
+                      <Link
+                        href={`/dashboard/teams/${team.id}`}
+                        className="hover:text-accent"
+                      >
+                        {team.name}
+                      </Link>
+                    </p>
                     <p className="mt-1 text-sm text-muted">
                       {team._count.members} members · {team._count.clients}{" "}
                       clients · {team._count.forms} forms
                     </p>
+                    <Link
+                      href={`/dashboard/teams/${team.id}`}
+                      className="mt-2 inline-block text-sm font-medium text-accent hover:text-accent-hover"
+                    >
+                      Open clients →
+                    </Link>
                   </div>
                   <DeleteTeamButton
                     teamId={team.id}
