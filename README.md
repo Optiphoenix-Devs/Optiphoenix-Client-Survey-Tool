@@ -6,29 +6,39 @@ Survey tool built with Next.js — PMs create and publish forms; clients submit 
 
 - Next.js (App Router) + TypeScript
 - Tailwind CSS
-- MySQL + Prisma (Step 2)
+- MySQL + Prisma
 - Zod validation (later steps)
 
 ## Prerequisites on your Mac
 
-- **Node.js** — installed (via nvm)
-- **Homebrew** — installed
-- **MySQL** — not installed yet (Step 2)
+| Tool | Status |
+|------|--------|
+| Node.js (nvm) | Installed |
+| Homebrew | Installed |
+| MySQL | **Install via XAMPP** — see [docs/MYSQL_SETUP.md](docs/MYSQL_SETUP.md) (no Xcode needed) |
 
 ## Run locally
 
 ```bash
-cd Optiphoenix-Client-Survey-Tool
+cd /Users/safatkamal/Desktop/ABTests/Optiphoenix-Client-Survey-Tool
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) in your browser.
+Open [http://localhost:3000](http://localhost:3000)
+
+## Database commands
+
+| Command | What it does |
+|---------|----------------|
+| `npm run db:generate` | Regenerate Prisma client after schema changes |
+| `npm run db:migrate` | Create/update MySQL tables from schema |
+| `npm run db:studio` | Visual database browser (port 5555) |
 
 ## Other commands
 
 | Command | What it does |
 |---------|----------------|
-| `npm run dev` | Start development server (hot reload) |
-| `npm run build` | Production build (checks for errors) |
-| `npm run start` | Run production build locally |
-| `npm run lint` | Check code style / common mistakes |
+| `npm run dev` | Development server |
+| `npm run build` | Production build |
+| `npm run start` | Run production build |
+| `npm run lint` | Lint code |

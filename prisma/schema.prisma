@@ -1,0 +1,92 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "mysql"
+}
+
+// PM / admin who manages forms
+enum UserRole {
+  ADMIN
+  PM
+}
+
+enum FormStatus {
+  DRAFT
+  PUBLISHED
+}
+
+enum QuestionType {
+  SHORT_TEXT
+  LONG_TEXT
+  SINGLE_CHOICE
+  MULTIPLE_CHOICE
+  RATING
+  YES_NO
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  name      String
+  role      UserRole @default(PM)
+  forms     Form[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Form {
+  id          String     @id @default(cuid())
+  title       String
+  description String?    @db.Text
+  status      FormStatus @default(DRAFT)
+  publicToken String     @unique @default(cuid())
+  createdById String
+  createdBy   User       @relation(fields: [createdById], references: [id])
+  questions   Question[]
+  responses   Response[]
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  publishedAt DateTime?
+}
+
+model Question {
+  id          String       @id @default(cuid())
+  formId      String
+  form        Form         @relation(fields: [formId], references: [id], onDelete: Cascade)
+  type        QuestionType
+  label       String
+  description String?      @db.Text
+  order       Int
+  required    Boolean      @default(false)
+  options     Json?
+  answers     Answer[]
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@index([formId, order])
+}
+
+model Response {
+  id          String   @id @default(cuid())
+  formId      String
+  form        Form     @relation(fields: [formId], references: [id], onDelete: Cascade)
+  answers     Answer[]
+  submittedAt DateTime @default(now())
+
+  @@index([formId])
+}
+
+model Answer {
+  id         String   @id @default(cuid())
+  responseId String
+  response   Response @relation(fields: [responseId], references: [id], onDelete: Cascade)
+  questionId String
+  question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  value      String   @db.Text
+
+  @@unique([responseId, questionId])
+}
