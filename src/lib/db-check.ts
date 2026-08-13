@@ -5,7 +5,10 @@ export type DatabaseCheckResult = {
   message: string;
   counts: {
     users: number;
+    teams: number;
+    clients: number;
     forms: number;
+    surveys: number;
     questions: number;
     responses: number;
     answers: number;
@@ -16,18 +19,31 @@ export async function checkDatabase(): Promise<DatabaseCheckResult> {
   try {
     await prisma.$queryRaw`SELECT 1`;
 
-    const [users, forms, questions, responses, answers] = await Promise.all([
-      prisma.user.count(),
-      prisma.form.count(),
-      prisma.question.count(),
-      prisma.response.count(),
-      prisma.answer.count(),
-    ]);
+    const [users, teams, clients, forms, surveys, questions, responses, answers] =
+      await Promise.all([
+        prisma.user.count(),
+        prisma.team.count(),
+        prisma.client.count(),
+        prisma.form.count(),
+        prisma.clientSurvey.count(),
+        prisma.question.count(),
+        prisma.response.count(),
+        prisma.answer.count(),
+      ]);
 
     return {
       ok: true,
       message: "Next.js connected to MySQL successfully.",
-      counts: { users, forms, questions, responses, answers },
+      counts: {
+        users,
+        teams,
+        clients,
+        forms,
+        surveys,
+        questions,
+        responses,
+        answers,
+      },
     };
   } catch (error) {
     const message =

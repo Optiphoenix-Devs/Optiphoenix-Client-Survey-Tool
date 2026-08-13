@@ -7,15 +7,31 @@ datasource db {
   provider = "mysql"
 }
 
-// PM / admin who manages forms
+// Org Admin = sees every team
+// Team Lead = sees only teams they belong to (created or invited)
 enum UserRole {
   ADMIN
-  PM
+  TEAM_LEAD
 }
 
-enum FormStatus {
+enum InviteStatus {
+  PENDING
+  ACCEPTED
+  REVOKED
+}
+
+// Form builder: still editing vs live template
+enum FormBuilderStatus {
   DRAFT
   PUBLISHED
+}
+
+// One form sent to one client
+enum SurveyStatus {
+  UPCOMING
+  OPENED
+  IN_PROGRESS
+  CLOSED
 }
 
 enum QuestionType {
@@ -32,25 +48,114 @@ model User {
   email     String   @unique
   password  String
   name      String
-  role      UserRole @default(PM)
-  forms     Form[]
+  role      UserRole @default(TEAM_LEAD)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  createdTeams Team[]            @relation("TeamCreator")
+  memberships  TeamMembership[]
+  sentInvites  TeamInvite[]      @relation("InviteSender")
+  createdForms Form[]            @relation("FormCreator")
+  createdClients Client[]        @relation("ClientCreator")
+}
+
+model Team {
+  id          String   @id @default(cuid())
+  name        String
+  createdById String
+  createdBy   User     @relation("TeamCreator", fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  members  TeamMembership[]
+  invites  TeamInvite[]
+  clients  Client[]
+  forms    Form[]
+}
+
+// Accepted membership: this user can see this team's data
+model TeamMembership {
+  id        String   @id @default(cuid())
+  teamId    String
+  team      Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([teamId, userId])
+  @@index([userId])
+}
+
+// Admin or Team Lead invites someone into a team
+model TeamInvite {
+  id          String       @id @default(cuid())
+  teamId      String
+  team        Team         @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  email       String
+  invitedById String
+  invitedBy   User         @relation("InviteSender", fields: [invitedById], references: [id])
+  status      InviteStatus @default(PENDING)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@index([teamId, email])
+  @@index([email])
+}
+
+model Client {
+  id          String   @id @default(cuid())
+  teamId      String
+  team        Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  createdById String
+  createdBy   User     @relation("ClientCreator", fields: [createdById], references: [id])
+  name        String
+  email       String?
+  company     String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  surveys ClientSurvey[]
+
+  @@index([teamId])
 }
 
 model Form {
-  id          String     @id @default(cuid())
-  title       String
-  description String?    @db.Text
-  status      FormStatus @default(DRAFT)
-  publicToken String     @unique @default(cuid())
+  id          String            @id @default(cuid())
+  teamId      String
+  team        Team              @relation(fields: [teamId], references: [id], onDelete: Cascade)
   createdById String
-  createdBy   User       @relation(fields: [createdById], references: [id])
-  questions   Question[]
-  responses   Response[]
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
+  createdBy   User              @relation("FormCreator", fields: [createdById], references: [id])
+  title       String
+  description String?           @db.Text
+  status      FormBuilderStatus @default(DRAFT)
   publishedAt DateTime?
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  questions Question[]
+  surveys   ClientSurvey[]
+
+  @@index([teamId])
+}
+
+// Form assigned to one client + unique public link
+model ClientSurvey {
+  id          String       @id @default(cuid())
+  formId      String
+  form        Form         @relation(fields: [formId], references: [id], onDelete: Cascade)
+  clientId    String
+  client      Client       @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  publicToken String       @unique @default(cuid())
+  status      SurveyStatus @default(UPCOMING)
+  openedAt    DateTime?
+  submittedAt DateTime?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  responses Response[]
+
+  @@index([clientId, status])
+  @@index([formId])
 }
 
 model Question {
@@ -71,13 +176,13 @@ model Question {
 }
 
 model Response {
-  id          String   @id @default(cuid())
-  formId      String
-  form        Form     @relation(fields: [formId], references: [id], onDelete: Cascade)
-  answers     Answer[]
-  submittedAt DateTime @default(now())
+  id             String       @id @default(cuid())
+  clientSurveyId String
+  clientSurvey   ClientSurvey @relation(fields: [clientSurveyId], references: [id], onDelete: Cascade)
+  answers        Answer[]
+  submittedAt    DateTime     @default(now())
 
-  @@index([formId])
+  @@index([clientSurveyId])
 }
 
 model Answer {

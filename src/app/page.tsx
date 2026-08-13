@@ -6,35 +6,61 @@ export default async function Home() {
   const result = await checkDatabase();
 
   return (
-    <main className="mx-auto flex min-h-full w-full max-w-2xl flex-col gap-6 px-6 py-16">
-      <p className="text-sm uppercase tracking-wide text-zinc-500">
+    <main className="mx-auto flex min-h-full w-full max-w-2xl flex-col gap-6 px-6 py-16 text-foreground">
+      <p className="text-sm font-medium uppercase tracking-wide text-muted">
         OptiPhoenix Client Survey Tool
       </p>
-      <h1 className="text-3xl font-semibold tracking-tight">
-        Step 3 — Database connection test
+      <h1 className="text-3xl font-semibold tracking-tight text-foreground">
+        Survey tool setup
       </h1>
-      <p className="text-zinc-600">
-        This page asks Next.js to talk to MySQL through Prisma. If you see
-        Connected below, Aiven (or later MAMP) is working.
+      <p className="text-base leading-7 text-muted">
+        Next.js is talking to MAMP MySQL. Sign in as Admin or Team Lead to
+        create teams. Clients never log in.
+      </p>
+
+      <p>
+        <a
+          href="/login"
+          className="inline-block rounded-lg bg-accent px-4 py-2.5 text-sm font-medium text-white hover:bg-accent-hover"
+        >
+          Go to sign in
+        </a>
       </p>
 
       <section
         className={`rounded-xl border p-5 ${
           result.ok
-            ? "border-emerald-200 bg-emerald-50"
-            : "border-rose-200 bg-rose-50"
+            ? "border-emerald-700 bg-emerald-50"
+            : "border-rose-700 bg-rose-50"
         }`}
       >
-        <p className="font-medium">{result.ok ? "Connected" : "Not connected"}</p>
-        <p className="mt-1 text-sm text-zinc-700">{result.message}</p>
+        <p
+          className={`font-semibold ${
+            result.ok ? "text-emerald-900" : "text-rose-900"
+          }`}
+        >
+          {result.ok ? "Connected" : "Not connected"}
+        </p>
+        <p
+          className={`mt-1 text-sm ${
+            result.ok ? "text-emerald-800" : "text-rose-800"
+          }`}
+        >
+          {result.message}
+        </p>
       </section>
 
       {result.counts && (
-        <section className="rounded-xl border border-zinc-200 bg-white p-5">
-          <h2 className="mb-3 font-medium">Row counts (empty is OK)</h2>
-          <ul className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-3">
+        <section className="rounded-xl border border-border bg-card p-5 text-foreground">
+          <h2 className="mb-3 font-semibold text-foreground">
+            Row counts (empty is OK)
+          </h2>
+          <ul className="grid grid-cols-2 gap-2 text-sm text-muted sm:grid-cols-3">
             <li>Users: {result.counts.users}</li>
+            <li>Teams: {result.counts.teams}</li>
+            <li>Clients: {result.counts.clients}</li>
             <li>Forms: {result.counts.forms}</li>
+            <li>Surveys: {result.counts.surveys}</li>
             <li>Questions: {result.counts.questions}</li>
             <li>Responses: {result.counts.responses}</li>
             <li>Answers: {result.counts.answers}</li>
@@ -42,9 +68,9 @@ export default async function Home() {
         </section>
       )}
 
-      <p className="text-sm text-zinc-500">
+      <p className="text-sm text-muted">
         JSON version:{" "}
-        <a className="underline" href="/api/db-check">
+        <a className="font-medium text-accent underline hover:text-accent-hover" href="/api/db-check">
           /api/db-check
         </a>
       </p>

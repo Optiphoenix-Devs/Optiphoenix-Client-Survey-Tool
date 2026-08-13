@@ -15,18 +15,18 @@ function createAdapter() {
   const parsed = new URL(databaseUrl);
   const isLocal =
     parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1";
+  const databaseName = (parsed.pathname ?? "")
+    .replace(/^\//, "")
+    .split("?")[0];
 
-  // Cloud MySQL (Aiven) requires SSL. Strict CA checks are off for now so
-  // you don't need Aiven's ca.pem. Local MAMP/Homebrew stays without SSL.
   return new PrismaMariaDb({
     host: parsed.hostname,
     port: Number(parsed.port || 3306),
     user: decodeURIComponent(parsed.username),
     password: decodeURIComponent(parsed.password),
-    database: parsed.pathname.replace(/^\//, "").split("?")[0],
+    database: databaseName,
     connectTimeout: 15000,
     acquireTimeout: 15000,
-    family: 4,
     ssl: isLocal ? undefined : { rejectUnauthorized: false },
   });
 }
