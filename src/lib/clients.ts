@@ -24,7 +24,7 @@ export async function getTeamWithClients(
       clients: {
         orderBy: { createdAt: "desc" },
         include: {
-          _count: { select: { surveys: true } },
+          _count: { select: { forms: true } },
         },
       },
       _count: { select: { forms: true, members: true, clients: true } },
@@ -97,10 +97,20 @@ export async function deleteClientForTeam(
 
   const client = await prisma.client.findFirst({
     where: { id: clientId, teamId },
+    include: {
+      surveys: { include: { _count: { select: { responses: true } } } },
+    },
   });
 
   if (!client) {
     throw new Error("Client not found in this team.");
+  }
+
+  const hasFilled = client.surveys.some((survey) => survey._count.responses > 0);
+  if (hasFilled) {
+    throw new Error(
+      "This client has submitted feedback. Keep the client so filled forms stay retrievable."
+    );
   }
 
   return prisma.client.delete({

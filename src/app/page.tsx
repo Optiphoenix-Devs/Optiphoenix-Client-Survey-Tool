@@ -21,7 +21,7 @@ export default async function Home() {
       <p>
         <a
           href="/login"
-          className="inline-block rounded-lg bg-accent px-4 py-2.5 text-sm font-medium text-white hover:bg-accent-hover"
+          className="inline-block rounded-lg bg-accent px-4 py-2.5 text-sm font-medium text-on-accent hover:bg-accent-hover"
         >
           Go to sign in
         </a>

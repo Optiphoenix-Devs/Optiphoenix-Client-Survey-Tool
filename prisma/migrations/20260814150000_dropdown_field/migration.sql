@@ -1,0 +1,13 @@
+ALTER TABLE `Question`
+  MODIFY `type` ENUM(
+    'SHORT_TEXT',
+    'LONG_TEXT',
+    'SINGLE_CHOICE',
+    'MULTIPLE_CHOICE',
+    'DROPDOWN',
+    'COMMENT',
+    'SUGGESTION',
+    'RATING',
+    'RESOURCE_RATING',
+    'YES_NO'
+  ) NOT NULL;

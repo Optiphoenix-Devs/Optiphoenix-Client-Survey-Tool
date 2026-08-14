@@ -39,7 +39,11 @@ enum QuestionType {
   LONG_TEXT
   SINGLE_CHOICE
   MULTIPLE_CHOICE
+  DROPDOWN
+  COMMENT
+  SUGGESTION
   RATING
+  RESOURCE_RATING
   YES_NO
 }
 
@@ -114,20 +118,38 @@ model Client {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  surveys ClientSurvey[]
+  surveys   ClientSurvey[]
+  forms     Form[]
+  resources Resource[]
 
   @@index([teamId])
+}
+
+// People the client can rate on this account (not the same as login users)
+model Resource {
+  id        String   @id @default(cuid())
+  clientId  String
+  client    Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  name      String
+  title     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([clientId])
 }
 
 model Form {
   id          String            @id @default(cuid())
   teamId      String
   team        Team              @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  clientId    String
+  client      Client            @relation(fields: [clientId], references: [id], onDelete: Cascade)
   createdById String
   createdBy   User              @relation("FormCreator", fields: [createdById], references: [id])
   title       String
   description String?           @db.Text
   status      FormBuilderStatus @default(DRAFT)
+  publicToken String            @unique @default(cuid())
   publishedAt DateTime?
   createdAt   DateTime          @default(now())
   updatedAt   DateTime          @updatedAt
@@ -136,21 +158,22 @@ model Form {
   surveys   ClientSurvey[]
 
   @@index([teamId])
+  @@index([clientId])
 }
 
-// Form assigned to one client + unique public link
+// One public fill session for a client-owned form. Unpublish does not delete this.
 model ClientSurvey {
-  id          String       @id @default(cuid())
-  formId      String
-  form        Form         @relation(fields: [formId], references: [id], onDelete: Cascade)
-  clientId    String
-  client      Client       @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  publicToken String       @unique @default(cuid())
-  status      SurveyStatus @default(UPCOMING)
-  openedAt    DateTime?
-  submittedAt DateTime?
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
+  id           String       @id @default(cuid())
+  formId       String
+  form         Form         @relation(fields: [formId], references: [id], onDelete: Cascade)
+  clientId     String
+  client       Client       @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  publicToken  String       @unique @default(cuid())
+  status       SurveyStatus @default(UPCOMING)
+  openedAt     DateTime?
+  submittedAt  DateTime?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
 
   responses Response[]
 
@@ -190,7 +213,7 @@ model Answer {
   responseId String
   response   Response @relation(fields: [responseId], references: [id], onDelete: Cascade)
   questionId String
-  question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  question   Question @relation(fields: [questionId], references: [id], onDelete: Restrict)
   value      String   @db.Text
 
   @@unique([responseId, questionId])

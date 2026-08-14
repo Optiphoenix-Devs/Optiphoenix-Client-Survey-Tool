@@ -36,7 +36,7 @@ export default async function TeamClientsPage({
   }
 
   return (
-    <main className="mx-auto flex min-h-full w-full max-w-3xl flex-col gap-8 px-6 py-12 text-foreground">
+    <main className="mx-auto flex min-h-full w-full max-w-5xl flex-col gap-8 px-4 py-10 sm:px-8 text-foreground">
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="text-sm font-medium uppercase tracking-wide text-muted">
@@ -86,8 +86,8 @@ export default async function TeamClientsPage({
       <section className="rounded-xl border border-border bg-card p-5">
         <h2 className="font-semibold text-foreground">Add a client</h2>
         <p className="mt-1 text-sm leading-6 text-muted">
-          Clients belong to this team only. Later you will assign feedback forms
-          to each client.
+          Clients belong to this team. Open a client to create their feedback
+          forms.
         </p>
         <form action={createClient} className="mt-4 grid gap-3 sm:grid-cols-2">
           <input type="hidden" name="teamId" value={team.id} />
@@ -122,7 +122,7 @@ export default async function TeamClientsPage({
           <div className="sm:col-span-2">
             <button
               type="submit"
-              className="rounded-lg bg-accent px-4 py-2.5 text-sm font-medium text-white hover:bg-accent-hover"
+              className="rounded-lg bg-accent px-4 py-2.5 text-sm font-medium text-on-accent hover:bg-accent-hover"
             >
               Add client
             </button>
@@ -145,12 +145,25 @@ export default async function TeamClientsPage({
               >
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
-                    <p className="font-semibold text-foreground">{client.name}</p>
+                    <p className="font-semibold text-foreground">
+                      <Link
+                        href={`/dashboard/teams/${team.id}/clients/${client.id}`}
+                        className="hover:text-accent"
+                      >
+                        {client.name}
+                      </Link>
+                    </p>
                     <p className="mt-1 text-sm text-muted">
                       {client.email || "No email"} ·{" "}
-                      {client.company || "No company"} · {client._count.surveys}{" "}
-                      surveys
+                      {client.company || "No company"} · {client._count.forms}{" "}
+                      forms
                     </p>
+                    <Link
+                      href={`/dashboard/teams/${team.id}/clients/${client.id}`}
+                      className="mt-2 inline-block text-sm font-medium text-accent hover:text-accent-hover"
+                    >
+                      Open client & forms →
+                    </Link>
                   </div>
                   <DeleteClientButton
                     teamId={team.id}

@@ -1,7 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { auth } from "@/auth";
+import { auth, signOut } from "@/auth";
 import {
   createTeamSchema,
   deleteTeamSchema,
@@ -12,6 +12,10 @@ import {
   deleteTeamForUser,
   updateTeamForUser,
 } from "@/lib/teams";
+
+export async function logout() {
+  await signOut({ redirectTo: "/login" });
+}
 
 async function requireSession() {
   const session = await auth();

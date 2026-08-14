@@ -38,7 +38,10 @@ export default async function LoginPage({
 
   return (
     <main className="mx-auto flex min-h-full w-full max-w-md flex-col justify-center px-6 py-16 text-foreground">
-      <p className="text-sm font-medium uppercase tracking-wide text-muted">
+      <span className="grid h-10 w-10 place-items-center rounded-xl bg-accent text-sm font-semibold text-on-accent">
+        OP
+      </span>
+      <p className="mt-6 text-sm font-medium uppercase tracking-wide text-sage">
         OptiPhoenix
       </p>
       <h1 className="mt-2 text-3xl font-semibold tracking-tight text-foreground">
@@ -82,7 +85,7 @@ export default async function LoginPage({
         </label>
         <button
           type="submit"
-          className="rounded-lg bg-accent px-4 py-2.5 text-sm font-medium text-white hover:bg-accent-hover"
+          className="rounded-lg bg-accent px-4 py-2.5 text-sm font-medium text-on-accent hover:bg-accent-hover"
         >
           Sign in
         </button>

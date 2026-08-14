@@ -1,13 +1,16 @@
 @import "tailwindcss";
 
+/* OptiPhoenix: cream canvas, forest green type/buttons, sage highlights */
 :root {
-  --background: #f4f1ea;
-  --foreground: #1a1a1a;
+  --background: #f9f8f3;
+  --foreground: #14261c;
   --card: #ffffff;
-  --muted: #4b5563;
-  --border: #d6d3d1;
-  --accent: #c2410c;
-  --accent-hover: #9a3412;
+  --muted: #3d4f44;
+  --border: #d8d4c8;
+  --accent: #1c3d2e;
+  --accent-hover: #14261c;
+  --sage: #7d9e86;
+  --on-accent: #f4efe4;
 }
 
 @theme inline {
@@ -18,18 +21,23 @@
   --color-border: var(--border);
   --color-accent: var(--accent);
   --color-accent-hover: var(--accent-hover);
+  --color-sage: var(--sage);
+  --color-on-accent: var(--on-accent);
 }
 
 body {
-  background: var(--background);
+  background-color: var(--background);
+  background-image:
+    linear-gradient(to right, rgba(20, 38, 28, 0.035) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(20, 38, 28, 0.035) 1px, transparent 1px);
+  background-size: 56px 56px;
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans), Arial, Helvetica, sans-serif;
 }
 
 input,
 textarea,
-select,
-button {
+select {
   color: var(--foreground);
 }
 

@@ -1,6 +1,43 @@
 import { prisma } from "@/lib/prisma";
 import type { UserRole } from "@/generated/prisma/client";
 
+export async function getDashboardOverview(userId: string, role: UserRole) {
+  const teams = await getTeamsForUser(userId, role);
+  const teamIds = teams.map((team) => team.id);
+
+  if (teamIds.length === 0) {
+    return {
+      teams,
+      teamCount: 0,
+      clientCount: 0,
+      formCount: 0,
+      publishedCount: 0,
+      responseCount: 0,
+    };
+  }
+
+  const [clientCount, formCount, publishedCount, responseCount] =
+    await Promise.all([
+      prisma.client.count({ where: { teamId: { in: teamIds } } }),
+      prisma.form.count({ where: { teamId: { in: teamIds } } }),
+      prisma.form.count({
+        where: { teamId: { in: teamIds }, status: "PUBLISHED" },
+      }),
+      prisma.response.count({
+        where: { clientSurvey: { form: { teamId: { in: teamIds } } } },
+      }),
+    ]);
+
+  return {
+    teams,
+    teamCount: teams.length,
+    clientCount,
+    formCount,
+    publishedCount,
+    responseCount,
+  };
+}
+
 export async function getTeamsForUser(userId: string, role: UserRole) {
   if (role === "ADMIN") {
     return prisma.team.findMany({

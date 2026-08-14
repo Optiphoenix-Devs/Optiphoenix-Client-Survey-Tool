@@ -91,3 +91,74 @@ export const deleteClientSchema = z.object({
   teamId: z.string().min(1),
   clientId: z.string().min(1),
 });
+
+const fieldTypeSchema = z.enum([
+  "SHORT_TEXT",
+  "LONG_TEXT",
+  "SINGLE_CHOICE",
+  "MULTIPLE_CHOICE",
+  "DROPDOWN",
+  "SUGGESTION",
+  "RATING",
+  "RESOURCE_RATING",
+]);
+
+export const createFormSchema = z.object({
+  teamId: z.string().min(1),
+  clientId: z.string().min(1),
+  title: z.string().trim().min(2, "Title is required").max(160),
+});
+
+export const updateFormSchema = z.object({
+  teamId: z.string().min(1),
+  clientId: z.string().min(1),
+  formId: z.string().min(1),
+  title: z.string().trim().min(2, "Title is required").max(160),
+});
+
+export const deleteFormSchema = z.object({
+  teamId: z.string().min(1),
+  clientId: z.string().min(1),
+  formId: z.string().min(1),
+});
+
+export const publishFormSchema = z.object({
+  teamId: z.string().min(1),
+  clientId: z.string().min(1),
+  formId: z.string().min(1),
+  action: z.enum(["publish", "unpublish"]),
+});
+
+export const addFieldSchema = z.object({
+  teamId: z.string().min(1),
+  clientId: z.string().min(1),
+  formId: z.string().min(1),
+  type: fieldTypeSchema,
+});
+
+export const updateFieldSchema = z.object({
+  teamId: z.string().min(1),
+  clientId: z.string().min(1),
+  formId: z.string().min(1),
+  fieldId: z.string().min(1),
+  label: z.string().trim().min(2).max(300),
+  required: z
+    .union([z.literal("on"), z.literal("true"), z.literal("false"), z.null()])
+    .optional()
+    .transform((value) => value === "on" || value === "true"),
+  optionsText: optionalText,
+});
+
+export const deleteFieldSchema = z.object({
+  teamId: z.string().min(1),
+  clientId: z.string().min(1),
+  formId: z.string().min(1),
+  fieldId: z.string().min(1),
+});
+
+export const reorderFieldsSchema = z.object({
+  teamId: z.string().min(1),
+  clientId: z.string().min(1),
+  formId: z.string().min(1),
+  orderedIds: z.array(z.string().min(1)).min(1),
+});
