@@ -1,12 +1,78 @@
 import { prisma } from "@/lib/prisma";
 import type { UserRole } from "@/generated/prisma/client";
-import { userCanManageTeam } from "@/lib/teams";
+import {
+  UniqueNameError,
+  getTeamsForUser,
+  namesMatch,
+  userCanManageTeam,
+} from "@/lib/teams";
 
 export type ClientInput = {
   name: string;
   email?: string | null;
   company?: string | null;
 };
+
+export type ClientDirectoryRow = {
+  id: string;
+  name: string;
+  email: string | null;
+  company: string | null;
+  teamId: string;
+  teamName: string;
+  formCount: number;
+  href: string;
+};
+
+export async function getClientsForUser(userId: string, role: UserRole) {
+  const teams = await getTeamsForUser(userId, role);
+  const teamIds = teams.map((team) => team.id);
+  if (teamIds.length === 0) return [] as ClientDirectoryRow[];
+
+  const clients = await prisma.client.findMany({
+    where: { teamId: { in: teamIds } },
+    orderBy: { updatedAt: "desc" },
+    include: {
+      team: { select: { id: true, name: true } },
+      _count: { select: { forms: true } },
+    },
+  });
+
+  return clients.map((client) => ({
+    id: client.id,
+    name: client.name,
+    email: client.email,
+    company: client.company,
+    teamId: client.team.id,
+    teamName: client.team.name,
+    formCount: client._count.forms,
+    href: `/dashboard/teams/${client.team.id}/clients/${client.id}`,
+  }));
+}
+
+export async function assertUniqueClientName(
+  userId: string,
+  role: UserRole,
+  name: string,
+  excludeId?: string
+) {
+  const teams = await getTeamsForUser(userId, role);
+  const teamIds = teams.map((team) => team.id);
+  if (teamIds.length === 0) return;
+
+  const clients = await prisma.client.findMany({
+    where: { teamId: { in: teamIds } },
+    select: { id: true, name: true },
+  });
+  const taken = clients.some(
+    (client) => client.id !== excludeId && namesMatch(client.name, name)
+  );
+  if (taken) {
+    throw new UniqueNameError(
+      `A client named "${name.trim()}" already exists.`
+    );
+  }
+}
 
 export async function getTeamWithClients(
   userId: string,
@@ -43,11 +109,13 @@ export async function createClientForTeam(
     throw new Error("You do not have access to this team.");
   }
 
+  await assertUniqueClientName(userId, role, data.name);
+
   return prisma.client.create({
     data: {
       teamId,
       createdById: userId,
-      name: data.name,
+      name: data.name.trim(),
       email: data.email || null,
       company: data.company || null,
     },
@@ -74,10 +142,12 @@ export async function updateClientForTeam(
     throw new Error("Client not found in this team.");
   }
 
+  await assertUniqueClientName(userId, role, data.name, clientId);
+
   return prisma.client.update({
     where: { id: clientId },
     data: {
-      name: data.name,
+      name: data.name.trim(),
       email: data.email || null,
       company: data.company || null,
     },

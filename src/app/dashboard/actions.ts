@@ -1,7 +1,9 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { auth, signOut } from "@/auth";
+import type { ActionResult } from "@/lib/action-result";
 import {
   createTeamSchema,
   deleteTeamSchema,
@@ -10,6 +12,7 @@ import {
 import {
   createTeamForUser,
   deleteTeamForUser,
+  isUniqueNameError,
   updateTeamForUser,
 } from "@/lib/teams";
 
@@ -27,7 +30,13 @@ async function requireSession() {
   return session;
 }
 
-export async function createTeam(formData: FormData) {
+function revalidateWorkspace() {
+  revalidatePath("/dashboard");
+  revalidatePath("/dashboard/teams");
+  revalidatePath("/dashboard/clients");
+}
+
+export async function createTeam(formData: FormData): Promise<ActionResult> {
   const session = await requireSession();
 
   const parsed = createTeamSchema.safeParse({
@@ -35,14 +44,21 @@ export async function createTeam(formData: FormData) {
   });
 
   if (!parsed.success) {
-    redirect("/dashboard?error=Enter+a+valid+team+name");
+    return { error: "Enter a valid team name." };
   }
 
-  await createTeamForUser(session.user.id, parsed.data.name);
-  redirect("/dashboard?created=1");
+  try {
+    await createTeamForUser(session.user.id, session.user.role, parsed.data.name);
+  } catch (error) {
+    if (isUniqueNameError(error)) return { error: error.message };
+    return { error: "Could not create this team." };
+  }
+
+  revalidateWorkspace();
+  return {};
 }
 
-export async function updateTeam(formData: FormData) {
+export async function updateTeam(formData: FormData): Promise<ActionResult> {
   const session = await requireSession();
 
   const parsed = updateTeamSchema.safeParse({
@@ -51,7 +67,7 @@ export async function updateTeam(formData: FormData) {
   });
 
   if (!parsed.success) {
-    redirect("/dashboard?error=Enter+a+valid+team+name");
+    return { error: "Enter a valid team name." };
   }
 
   try {
@@ -61,14 +77,16 @@ export async function updateTeam(formData: FormData) {
       parsed.data.teamId,
       parsed.data.name
     );
-  } catch {
-    redirect("/dashboard?error=You+cannot+edit+this+team");
+  } catch (error) {
+    if (isUniqueNameError(error)) return { error: error.message };
+    return { error: "You cannot edit this team." };
   }
 
-  redirect("/dashboard?updated=1");
+  revalidateWorkspace();
+  return {};
 }
 
-export async function deleteTeam(formData: FormData) {
+export async function deleteTeam(formData: FormData): Promise<ActionResult> {
   const session = await requireSession();
 
   const parsed = deleteTeamSchema.safeParse({
@@ -76,7 +94,7 @@ export async function deleteTeam(formData: FormData) {
   });
 
   if (!parsed.success) {
-    redirect("/dashboard?error=Team+not+found");
+    return { error: "Team not found." };
   }
 
   try {
@@ -86,8 +104,9 @@ export async function deleteTeam(formData: FormData) {
       parsed.data.teamId
     );
   } catch {
-    redirect("/dashboard?error=You+cannot+delete+this+team");
+    return { error: "You cannot delete this team." };
   }
 
-  redirect("/dashboard?deleted=1");
+  revalidateWorkspace();
+  return {};
 }

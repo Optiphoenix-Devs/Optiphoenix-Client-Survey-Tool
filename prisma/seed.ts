@@ -26,12 +26,18 @@ async function main() {
         name: user.name,
         role: user.role,
         password,
+        status: "APPROVED",
+        failedLoginAttempts: 0,
+        lockedUntil: null,
       },
       create: {
         email: user.email,
         name: user.name,
         role: user.role,
         password,
+        status: "APPROVED",
+        failedLoginAttempts: 0,
+        lockedUntil: null,
       },
     });
   }

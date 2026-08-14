@@ -54,7 +54,7 @@ export function ChoiceOptionEditor({
             value={option}
             onChange={(event) => updateAt(index, event.target.value)}
             placeholder={`Option ${index + 1}`}
-            className="min-w-0 flex-1 rounded-lg border border-border bg-white px-2.5 py-2 text-sm outline-none focus:border-accent"
+            className="min-w-0 flex-1 rounded-lg border border-border bg-surface px-2.5 py-2 text-sm outline-none focus:border-accent"
           />
           <button
             type="button"
@@ -106,7 +106,7 @@ export function ResourceRatingEditor({
               value={name}
               onChange={(event) => updateAt(index, event.target.value)}
               placeholder={`Name ${index + 1}`}
-              className="min-w-0 flex-1 rounded-lg border border-border bg-white px-2 py-1.5 text-sm outline-none focus:border-accent"
+              className="min-w-0 flex-1 rounded-lg border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-accent"
             />
             <button
               type="button"

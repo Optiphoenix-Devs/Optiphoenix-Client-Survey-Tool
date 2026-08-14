@@ -1,7 +1,9 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
+import type { ActionResult } from "@/lib/action-result";
 import {
   createClientSchema,
   deleteClientSchema,
@@ -12,6 +14,7 @@ import {
   deleteClientForTeam,
   updateClientForTeam,
 } from "@/lib/clients";
+import { isUniqueNameError } from "@/lib/teams";
 
 async function requireSession() {
   const session = await auth();
@@ -23,20 +26,14 @@ async function requireSession() {
   return session;
 }
 
-function teamPath(
-  teamId: string,
-  query?: { error?: string; created?: string; updated?: string; deleted?: string }
-) {
-  const params = new URLSearchParams();
-  if (query?.error) params.set("error", query.error);
-  if (query?.created) params.set("created", query.created);
-  if (query?.updated) params.set("updated", query.updated);
-  if (query?.deleted) params.set("deleted", query.deleted);
-  const suffix = params.toString();
-  return `/dashboard/teams/${teamId}${suffix ? `?${suffix}` : ""}`;
+function revalidateWorkspace(teamId?: string) {
+  revalidatePath("/dashboard");
+  revalidatePath("/dashboard/teams");
+  revalidatePath("/dashboard/clients");
+  if (teamId) revalidatePath(`/dashboard/teams/${teamId}`);
 }
 
-export async function createClient(formData: FormData) {
+export async function createClient(formData: FormData): Promise<ActionResult> {
   const session = await requireSession();
   const teamId = String(formData.get("teamId") ?? "");
 
@@ -48,7 +45,7 @@ export async function createClient(formData: FormData) {
   });
 
   if (!parsed.success) {
-    redirect(teamPath(teamId, { error: "Check+client+name+and+email" }));
+    return { error: "Check client name, team, and email." };
   }
 
   try {
@@ -62,14 +59,16 @@ export async function createClient(formData: FormData) {
         company: parsed.data.company,
       }
     );
-  } catch {
-    redirect(teamPath(teamId, { error: "You+cannot+add+clients+to+this+team" }));
+  } catch (error) {
+    if (isUniqueNameError(error)) return { error: error.message };
+    return { error: "You cannot add clients to this team." };
   }
 
-  redirect(teamPath(parsed.data.teamId, { created: "1" }));
+  revalidateWorkspace(parsed.data.teamId);
+  return {};
 }
 
-export async function updateClient(formData: FormData) {
+export async function updateClient(formData: FormData): Promise<ActionResult> {
   const session = await requireSession();
   const teamId = String(formData.get("teamId") ?? "");
 
@@ -82,7 +81,7 @@ export async function updateClient(formData: FormData) {
   });
 
   if (!parsed.success) {
-    redirect(teamPath(teamId, { error: "Check+client+name+and+email" }));
+    return { error: "Check client name and email." };
   }
 
   try {
@@ -97,14 +96,16 @@ export async function updateClient(formData: FormData) {
         company: parsed.data.company,
       }
     );
-  } catch {
-    redirect(teamPath(teamId, { error: "You+cannot+edit+this+client" }));
+  } catch (error) {
+    if (isUniqueNameError(error)) return { error: error.message };
+    return { error: "You cannot edit this client." };
   }
 
-  redirect(teamPath(parsed.data.teamId, { updated: "1" }));
+  revalidateWorkspace(parsed.data.teamId);
+  return {};
 }
 
-export async function deleteClient(formData: FormData) {
+export async function deleteClient(formData: FormData): Promise<ActionResult> {
   const session = await requireSession();
   const teamId = String(formData.get("teamId") ?? "");
 
@@ -114,7 +115,7 @@ export async function deleteClient(formData: FormData) {
   });
 
   if (!parsed.success) {
-    redirect(teamPath(teamId, { error: "Client+not+found" }));
+    return { error: "Client not found." };
   }
 
   try {
@@ -124,9 +125,11 @@ export async function deleteClient(formData: FormData) {
       parsed.data.teamId,
       parsed.data.clientId
     );
-  } catch {
-    redirect(teamPath(teamId, { error: "You+cannot+delete+this+client" }));
+  } catch (error) {
+    if (error instanceof Error) return { error: error.message };
+    return { error: "You cannot delete this client." };
   }
 
-  redirect(teamPath(parsed.data.teamId, { deleted: "1" }));
+  revalidateWorkspace(parsed.data.teamId);
+  return {};
 }

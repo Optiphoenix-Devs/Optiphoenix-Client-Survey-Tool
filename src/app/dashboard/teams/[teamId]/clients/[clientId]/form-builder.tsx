@@ -33,6 +33,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { Tooltip } from "@/components/ui/tooltip";
 import {
   FIELD_TYPES,
   fieldNeedsOptions,
@@ -223,7 +224,7 @@ function FieldSettings({
           name="label"
           required
           defaultValue={field.label}
-          className="rounded-xl border border-border bg-white px-3 py-2.5 text-sm outline-none focus:border-accent"
+          className="rounded-xl border border-border bg-surface px-3 py-2.5 text-sm outline-none focus:border-accent"
         />
       </label>
       {field.type === "RATING" ? (
@@ -325,14 +326,16 @@ export function FormBuilder({
           </button>
         </form>
         <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setPreview((value) => !value)}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-white px-3 py-2 text-sm font-medium hover:bg-background"
-          >
-            {preview ? <Pencil className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-            <span className="hidden sm:inline">{preview ? "Edit" : "Preview"}</span>
-          </button>
+          <Tooltip label={preview ? "Edit form" : "Preview form"} side="bottom">
+            <button
+              type="button"
+              onClick={() => setPreview((value) => !value)}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-surface px-3 py-2 text-sm font-medium transition hover:bg-background"
+            >
+              {preview ? <Pencil className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              <span className="hidden sm:inline">{preview ? "Edit" : "Preview"}</span>
+            </button>
+          </Tooltip>
           <form action={togglePublishForm}>
             <input type="hidden" name="teamId" value={teamId} />
             <input type="hidden" name="clientId" value={clientId} />
@@ -360,7 +363,7 @@ export function FormBuilder({
               href={publicFormUrl}
               target="_blank"
               rel="noreferrer"
-              className="inline-flex items-center rounded-lg border border-border bg-white px-3 py-2 text-sm font-medium hover:bg-background"
+              className="inline-flex items-center rounded-lg border border-border bg-surface px-3 py-2 text-sm font-medium hover:bg-background"
             >
               Open form
             </a>
@@ -415,11 +418,13 @@ export function FormBuilder({
                     <input type="hidden" name="type" value={type.value} />
                     <button
                       type="submit"
-                      className="flex w-full items-center gap-2.5 rounded-xl px-2 py-2 text-left hover:bg-background"
+                      className="flex w-full items-center gap-2.5 rounded-xl px-2 py-2 text-left transition duration-150 hover:bg-background"
                     >
-                      <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-background text-accent">
-                        <Icon className="h-4 w-4" />
-                      </span>
+                      <Tooltip label={type.label} side="right">
+                        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-background text-accent">
+                          <Icon className="h-4 w-4" />
+                        </span>
+                      </Tooltip>
                       <span className="min-w-0">
                         <span className="block truncate text-sm font-medium">
                           {type.label}

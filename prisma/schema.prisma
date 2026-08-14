@@ -14,6 +14,12 @@ enum UserRole {
   TEAM_LEAD
 }
 
+enum AccountStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 enum InviteStatus {
   PENDING
   ACCEPTED
@@ -48,19 +54,41 @@ enum QuestionType {
 }
 
 model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  password  String
-  name      String
-  role      UserRole @default(TEAM_LEAD)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id                   String        @id @default(cuid())
+  email                String        @unique
+  password             String
+  name                 String
+  role                 UserRole      @default(TEAM_LEAD)
+  status               AccountStatus @default(APPROVED)
+  avatarUrl            String?
+  failedLoginAttempts  Int           @default(0)
+  lockedUntil          DateTime?
+  resetRequestedAt     DateTime?
+  signupTokenHash      String?
+  signupTokenExpiresAt DateTime?
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
 
-  createdTeams Team[]            @relation("TeamCreator")
-  memberships  TeamMembership[]
-  sentInvites  TeamInvite[]      @relation("InviteSender")
-  createdForms Form[]            @relation("FormCreator")
-  createdClients Client[]        @relation("ClientCreator")
+  createdTeams         Team[]              @relation("TeamCreator")
+  memberships          TeamMembership[]
+  sentInvites          TeamInvite[]        @relation("InviteSender")
+  createdForms         Form[]              @relation("FormCreator")
+  createdClients       Client[]            @relation("ClientCreator")
+  passwordResetTokens  PasswordResetToken[]
+
+  @@index([signupTokenHash])
+}
+
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
 }
 
 model Team {

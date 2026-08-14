@@ -13,7 +13,7 @@ export function StatCard({
   hint?: string;
 }) {
   return (
-    <div className="rounded-2xl border border-border bg-card p-5">
+    <div className="card-enter rounded-2xl border border-border bg-card p-5">
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-sm font-medium text-muted">{label}</p>

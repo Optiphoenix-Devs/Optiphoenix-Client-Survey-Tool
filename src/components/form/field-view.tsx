@@ -18,6 +18,37 @@ export type ViewField = {
   options: unknown;
 };
 
+function ChoiceControl({
+  type,
+  checked,
+  disabled,
+}: {
+  type: "radio" | "checkbox";
+  checked?: boolean;
+  disabled?: boolean;
+}) {
+  return (
+    <span
+      className={cn(
+        "grid h-5 w-5 shrink-0 place-items-center border-2 transition duration-200",
+        type === "radio" ? "rounded-full" : "rounded-md",
+        checked
+          ? "border-accent bg-accent"
+          : "border-border bg-surface group-hover:border-sage",
+        disabled && "opacity-60"
+      )}
+    >
+      {checked ? (
+        type === "radio" ? (
+          <span className="h-1.5 w-1.5 rounded-full bg-on-accent" />
+        ) : (
+          <span className="block h-2 w-3 -translate-y-px rotate-45 border-b-2 border-r-2 border-on-accent" />
+        )
+      ) : null}
+    </span>
+  );
+}
+
 function StarRating({
   name,
   disabled,
@@ -32,11 +63,11 @@ function StarRating({
   const [hovered, setHovered] = useState(0);
   const [selected, setSelected] = useState(0);
   const active = hovered || selected;
-  const iconClass = size === "sm" ? "h-4 w-4" : "h-6 w-6";
+  const iconClass = size === "sm" ? "h-4 w-4" : "h-7 w-7";
 
   return (
     <div
-      className="flex items-center gap-0.5"
+      className="flex items-center gap-1"
       onMouseLeave={() => setHovered(0)}
     >
       {RATING_SCALE.map((score, index) => {
@@ -45,7 +76,10 @@ function StarRating({
         return (
           <label
             key={score}
-            className={cn(disabled ? "cursor-default" : "cursor-pointer")}
+            className={cn(
+              "transition duration-150",
+              disabled ? "cursor-default" : "cursor-pointer hover:scale-110"
+            )}
           >
             <input
               type="radio"
@@ -59,6 +93,7 @@ function StarRating({
             <Star
               className={cn(
                 iconClass,
+                "transition duration-150",
                 filled ? "fill-sage text-sage" : "fill-transparent text-border"
               )}
               strokeWidth={1.6}
@@ -66,7 +101,9 @@ function StarRating({
                 if (!disabled) setHovered(value);
               }}
             />
-            <span className="sr-only">{value} star{value === 1 ? "" : "s"}</span>
+            <span className="sr-only">
+              {value} star{value === 1 ? "" : "s"}
+            </span>
           </label>
         );
       })}
@@ -107,6 +144,66 @@ export function RatingMatrix({
   );
 }
 
+function ChoiceList({
+  type,
+  name,
+  options,
+  disabled,
+  required,
+}: {
+  type: "radio" | "checkbox";
+  name: string;
+  options: string[];
+  disabled?: boolean;
+  required?: boolean;
+}) {
+  const [selected, setSelected] = useState<string[]>(() => []);
+
+  function toggle(option: string) {
+    if (disabled) return;
+    if (type === "radio") {
+      setSelected([option]);
+      return;
+    }
+    setSelected((current) =>
+      current.includes(option)
+        ? current.filter((item) => item !== option)
+        : [...current, option]
+    );
+  }
+
+  return (
+    <div className="mt-2 flex flex-col gap-2">
+      {options.map((option) => {
+        const checked = selected.includes(option);
+        return (
+          <label
+            key={option}
+            className={cn(
+              "group flex cursor-pointer items-center gap-3 rounded-xl border border-border bg-surface px-3 py-2.5 text-sm transition duration-200 hover:border-sage/70",
+              checked && "border-accent bg-sage/10",
+              disabled && "cursor-default opacity-70"
+            )}
+          >
+            <input
+              type={type}
+              name={name}
+              value={option}
+              disabled={disabled}
+              required={type === "radio" && required && !disabled}
+              className="sr-only"
+              checked={checked}
+              onChange={() => toggle(option)}
+            />
+            <ChoiceControl type={type} checked={checked} disabled={disabled} />
+            {option}
+          </label>
+        );
+      })}
+    </div>
+  );
+}
+
 export function FieldView({
   field,
   mode,
@@ -118,7 +215,7 @@ export function FieldView({
   const options = parseOptionList(field.options);
   const name = `q_${field.id}`;
   const inputClass =
-    "mt-2 w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm outline-none focus:border-accent disabled:text-muted";
+    "mt-2 w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm outline-none transition duration-200 focus:border-accent disabled:text-muted";
 
   if (field.type === "RATING") {
     return (
@@ -145,40 +242,24 @@ export function FieldView({
 
   if (field.type === "SINGLE_CHOICE") {
     return (
-      <div className="mt-2 flex flex-col gap-2">
-        {options.map((option) => (
-          <label key={option} className="flex items-center gap-2 text-sm">
-            <input
-              type="radio"
-              name={name}
-              value={option}
-              disabled={disabled}
-              required={field.required && !disabled}
-              className="accent-accent"
-            />
-            {option}
-          </label>
-        ))}
-      </div>
+      <ChoiceList
+        type="radio"
+        name={name}
+        options={options}
+        disabled={disabled}
+        required={field.required}
+      />
     );
   }
 
   if (field.type === "MULTIPLE_CHOICE") {
     return (
-      <div className="mt-2 flex flex-col gap-2">
-        {options.map((option) => (
-          <label key={option} className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              name={`${name}[]`}
-              value={option}
-              disabled={disabled}
-              className="accent-accent"
-            />
-            {option}
-          </label>
-        ))}
-      </div>
+      <ChoiceList
+        type="checkbox"
+        name={`${name}[]`}
+        options={options}
+        disabled={disabled}
+      />
     );
   }
 
@@ -233,7 +314,7 @@ export function FormSubmitButton({ disabled }: { disabled?: boolean }) {
       type="submit"
       disabled={disabled}
       className={cn(
-        "mt-2 rounded-xl bg-accent px-5 py-2.5 text-sm font-medium text-on-accent hover:bg-accent-hover",
+        "mt-2 rounded-xl bg-accent px-5 py-2.5 text-sm font-medium text-on-accent transition duration-200 hover:bg-accent-hover",
         disabled && "cursor-not-allowed opacity-70"
       )}
     >

@@ -75,7 +75,7 @@ export default async function ClientPage({
             required
             minLength={2}
             placeholder="Form title, e.g. Q1 delivery feedback"
-            className="flex-1 rounded-xl border border-border bg-white px-3 py-2.5 text-sm outline-none focus:border-accent"
+            className="flex-1 rounded-xl border border-border bg-surface px-3 py-2.5 text-sm outline-none focus:border-accent"
           />
           <button
             type="submit"
