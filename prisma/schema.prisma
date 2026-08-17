@@ -74,6 +74,7 @@ model User {
   sentInvites          TeamInvite[]        @relation("InviteSender")
   createdForms         Form[]              @relation("FormCreator")
   createdClients       Client[]            @relation("ClientCreator")
+  createdTemplates     FormTemplate[]      @relation("TemplateCreator")
   passwordResetTokens  PasswordResetToken[]
 
   @@index([signupTokenHash])
@@ -167,26 +168,59 @@ model Resource {
 }
 
 model Form {
-  id          String            @id @default(cuid())
-  teamId      String
-  team        Team              @relation(fields: [teamId], references: [id], onDelete: Cascade)
-  clientId    String
-  client      Client            @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  createdById String
-  createdBy   User              @relation("FormCreator", fields: [createdById], references: [id])
-  title       String
-  description String?           @db.Text
-  status      FormBuilderStatus @default(DRAFT)
-  publicToken String            @unique @default(cuid())
-  publishedAt DateTime?
-  createdAt   DateTime          @default(now())
-  updatedAt   DateTime          @updatedAt
+  id               String            @id @default(cuid())
+  teamId           String?
+  team             Team?             @relation(fields: [teamId], references: [id], onDelete: SetNull)
+  clientId         String?
+  client           Client?           @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  createdById      String
+  createdBy        User              @relation("FormCreator", fields: [createdById], references: [id])
+  sourceTemplateId String?
+  sourceTemplate   FormTemplate?     @relation(fields: [sourceTemplateId], references: [id], onDelete: SetNull)
+  title            String
+  description      String?           @db.Text
+  status           FormBuilderStatus @default(DRAFT)
+  publicToken      String            @unique @default(cuid())
+  publishedAt      DateTime?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
 
   questions Question[]
   surveys   ClientSurvey[]
 
   @@index([teamId])
   @@index([clientId])
+  @@index([createdById])
+  @@index([sourceTemplateId])
+}
+
+model FormTemplate {
+  id          String   @id @default(cuid())
+  name        String
+  description String?  @db.Text
+  createdById String
+  createdBy   User     @relation("TemplateCreator", fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  questions FormTemplateQuestion[]
+  forms     Form[]
+
+  @@index([createdById])
+}
+
+model FormTemplateQuestion {
+  id          String       @id @default(cuid())
+  templateId  String
+  template    FormTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  type        QuestionType
+  label       String
+  description String?      @db.Text
+  order       Int
+  required    Boolean      @default(false)
+  options     Json?
+
+  @@index([templateId, order])
 }
 
 // One public fill session for a client-owned form. Unpublish does not delete this.
@@ -194,8 +228,8 @@ model ClientSurvey {
   id           String       @id @default(cuid())
   formId       String
   form         Form         @relation(fields: [formId], references: [id], onDelete: Cascade)
-  clientId     String
-  client       Client       @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  clientId     String?
+  client       Client?      @relation(fields: [clientId], references: [id], onDelete: SetNull)
   publicToken  String       @unique @default(cuid())
   status       SurveyStatus @default(UPCOMING)
   openedAt     DateTime?

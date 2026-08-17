@@ -55,56 +55,30 @@ const optionalText = z
   .optional()
   .transform((value) => (value && value.length > 0 ? value : undefined));
 
-export const createClientSchema = z
-  .object({
-    teamId: z.string().min(1),
-    name: clientNameSchema,
-    email: optionalText,
-    company: z
-      .string()
-      .trim()
-      .max(120, "Company name is too long")
-      .optional()
-      .transform((value) => (value && value.length > 0 ? value : undefined)),
-  })
-  .superRefine((data, ctx) => {
-    if (data.email) {
-      const result = z.email().safeParse(data.email);
-      if (!result.success) {
-        ctx.addIssue({
-          code: "custom",
-          message: "Enter a valid email",
-          path: ["email"],
-        });
-      }
-    }
-  });
+export const createClientSchema = z.object({
+  teamId: z.string().min(1),
+  name: clientNameSchema,
+  email: z.email("Enter a valid email"),
+  company: z
+    .string()
+    .trim()
+    .max(120, "Company name is too long")
+    .optional()
+    .transform((value) => (value && value.length > 0 ? value : undefined)),
+});
 
-export const updateClientSchema = z
-  .object({
-    teamId: z.string().min(1),
-    clientId: z.string().min(1),
-    name: clientNameSchema,
-    email: optionalText,
-    company: z
-      .string()
-      .trim()
-      .max(120, "Company name is too long")
-      .optional()
-      .transform((value) => (value && value.length > 0 ? value : undefined)),
-  })
-  .superRefine((data, ctx) => {
-    if (data.email) {
-      const result = z.email().safeParse(data.email);
-      if (!result.success) {
-        ctx.addIssue({
-          code: "custom",
-          message: "Enter a valid email",
-          path: ["email"],
-        });
-      }
-    }
-  });
+export const updateClientSchema = z.object({
+  teamId: z.string().min(1),
+  clientId: z.string().min(1),
+  name: clientNameSchema,
+  email: z.email("Enter a valid email"),
+  company: z
+    .string()
+    .trim()
+    .max(120, "Company name is too long")
+    .optional()
+    .transform((value) => (value && value.length > 0 ? value : undefined)),
+});
 
 export const deleteClientSchema = z.object({
   teamId: z.string().min(1),
@@ -123,41 +97,43 @@ const fieldTypeSchema = z.enum([
 ]);
 
 export const createFormSchema = z.object({
-  teamId: z.string().min(1),
-  clientId: z.string().min(1),
   title: z.string().trim().min(2, "Title is required").max(160),
+  templateId: z.string().optional(),
+  teamId: z.string().optional(),
+  clientId: z.string().optional(),
 });
 
 export const updateFormSchema = z.object({
-  teamId: z.string().min(1),
-  clientId: z.string().min(1),
+  teamId: z.string().optional(),
+  clientId: z.string().optional(),
   formId: z.string().min(1),
   title: z.string().trim().min(2, "Title is required").max(160),
+  description: z.string().max(500).optional(),
 });
 
 export const deleteFormSchema = z.object({
-  teamId: z.string().min(1),
-  clientId: z.string().min(1),
+  teamId: z.string().optional(),
+  clientId: z.string().optional(),
   formId: z.string().min(1),
 });
 
 export const publishFormSchema = z.object({
-  teamId: z.string().min(1),
-  clientId: z.string().min(1),
+  teamId: z.string().optional(),
+  clientId: z.string().optional(),
   formId: z.string().min(1),
   action: z.enum(["publish", "unpublish"]),
 });
 
 export const addFieldSchema = z.object({
-  teamId: z.string().min(1),
-  clientId: z.string().min(1),
+  teamId: z.string().optional(),
+  clientId: z.string().optional(),
   formId: z.string().min(1),
   type: fieldTypeSchema,
 });
 
 export const updateFieldSchema = z.object({
-  teamId: z.string().min(1),
-  clientId: z.string().min(1),
+  teamId: z.string().optional(),
+  clientId: z.string().optional(),
   formId: z.string().min(1),
   fieldId: z.string().min(1),
   label: z.string().trim().min(2).max(300),
@@ -169,15 +145,30 @@ export const updateFieldSchema = z.object({
 });
 
 export const deleteFieldSchema = z.object({
-  teamId: z.string().min(1),
-  clientId: z.string().min(1),
+  teamId: z.string().optional(),
+  clientId: z.string().optional(),
   formId: z.string().min(1),
   fieldId: z.string().min(1),
 });
 
 export const reorderFieldsSchema = z.object({
-  teamId: z.string().min(1),
-  clientId: z.string().min(1),
+  teamId: z.string().optional(),
+  clientId: z.string().optional(),
   formId: z.string().min(1),
   orderedIds: z.array(z.string().min(1)).min(1),
+});
+
+export const saveTemplateSchema = z.object({
+  formId: z.string().min(1),
+  name: z.string().trim().min(2, "Template name is required").max(160),
+  description: z.string().max(500).optional(),
+});
+
+export const createTemplateSchema = z.object({
+  name: z.string().trim().min(2, "Template name is required").max(160),
+  description: z.string().max(500).optional(),
+});
+
+export const deleteTemplateSchema = z.object({
+  templateId: z.string().min(1),
 });

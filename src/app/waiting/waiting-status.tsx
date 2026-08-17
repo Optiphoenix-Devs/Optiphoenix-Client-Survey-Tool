@@ -32,7 +32,10 @@ export function WaitingStatus({ token }: { token: string }) {
           const result = await completeSignupAction(token);
           if (result.error) {
             signingIn.current = false;
-            toast(result.error, { tone: "error" });
+            toast("Sign in failed", {
+              description: result.error,
+              tone: "error",
+            });
           }
         });
       }
@@ -61,7 +64,7 @@ export function WaitingStatus({ token }: { token: string }) {
     return (
       <div className="mt-6 space-y-3 text-sm text-muted">
         <p>This account was not approved. Contact an admin if you think that is a mistake.</p>
-        <Link href="/login" className="font-medium text-accent hover:text-accent-hover">
+        <Link href="/login" className="inline-flex w-full items-center justify-center rounded-lg border border-border bg-surface px-4 py-2.5 text-sm font-medium transition hover:bg-background">
           Back to login
         </Link>
       </div>
@@ -69,13 +72,19 @@ export function WaitingStatus({ token }: { token: string }) {
   }
 
   return (
-    <div className="mt-6 space-y-3">
+    <div className="mt-6 space-y-4">
       <div className="skeleton h-1.5 w-full rounded-full" />
       <p className="text-sm text-muted">
         {pending || status === "APPROVED"
           ? "Approved. Signing you in…"
-          : "Please wait. Keep this page open."}
+          : "We are waiting for the approval."}
       </p>
+      <Link
+        href="/login"
+        className="inline-flex w-full items-center justify-center rounded-lg border border-border bg-surface px-4 py-2.5 text-sm font-medium transition hover:bg-background"
+      >
+        Back to login
+      </Link>
     </div>
   );
 }

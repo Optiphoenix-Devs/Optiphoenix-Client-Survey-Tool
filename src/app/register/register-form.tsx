@@ -3,13 +3,19 @@
 import { useActionState, useEffect } from "react";
 import Link from "next/link";
 import { registerAction } from "../login/actions";
+import { PasswordInput } from "@/components/ui/password-input";
 import { toast } from "@/components/ui/toaster";
 
 export function RegisterForm() {
   const [state, action, pending] = useActionState(registerAction, {});
 
   useEffect(() => {
-    if (state.error) toast(state.error, { tone: "error" });
+    if (state.error) {
+      toast("Could not create account", {
+        description: state.error,
+        tone: "error",
+      });
+    }
   }, [state.error]);
 
   return (
@@ -36,20 +42,8 @@ export function RegisterForm() {
         </label>
         <label className="flex flex-col gap-1.5 text-sm font-semibold">
           Password
-          <input
-            type="password"
-            name="password"
-            required
-            minLength={8}
-            autoComplete="new-password"
-            className="rounded-lg border border-border bg-surface px-3 py-2.5 text-sm outline-none transition focus:border-accent"
-          />
+          <PasswordInput autoComplete="new-password" />
         </label>
-        {state.error ? (
-          <p className="rounded-lg border border-rose-700 bg-rose-50 px-3 py-2 text-sm text-rose-900">
-            {state.error}
-          </p>
-        ) : null}
         <button
           type="submit"
           disabled={pending}

@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useCallback, useContext, useSyncExternalStore } from "react";
 
 type Theme = "light" | "dark";
 
@@ -12,31 +12,38 @@ const ThemeContext = createContext<{
   toggleTheme: () => {},
 });
 
+const listeners = new Set<() => void>();
+
+function emit() {
+  listeners.forEach((listener) => listener());
+}
+
+function subscribe(listener: () => void) {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
+}
+
+function readTheme(): Theme {
+  const stored = window.localStorage.getItem("optiphoenix.theme");
+  if (stored === "dark" || stored === "light") return stored;
+  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+}
+
 function applyTheme(theme: Theme) {
   document.documentElement.classList.toggle("dark", theme === "dark");
 }
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setTheme] = useState<Theme>("light");
+  const theme = useSyncExternalStore(subscribe, readTheme, () => "light");
 
-  useEffect(() => {
-    const stored = window.localStorage.getItem("optiphoenix.theme");
-    const next: Theme =
-      stored === "dark" || stored === "light"
-        ? stored
-        : window.matchMedia("(prefers-color-scheme: dark)").matches
-          ? "dark"
-          : "light";
-    setTheme(next);
-    applyTheme(next);
-  }, []);
-
-  function toggleTheme() {
-    const next: Theme = theme === "dark" ? "light" : "dark";
-    setTheme(next);
+  const toggleTheme = useCallback(() => {
+    const next: Theme = readTheme() === "dark" ? "light" : "dark";
     window.localStorage.setItem("optiphoenix.theme", next);
     applyTheme(next);
-  }
+    emit();
+  }, []);
 
   return (
     <ThemeContext.Provider value={{ theme, toggleTheme }}>

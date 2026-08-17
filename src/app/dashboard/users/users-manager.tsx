@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import type { ActionResult } from "@/lib/action-result";
 import { toast } from "@/components/ui/toaster";
 
-export type AdminUserRow = {
+type AdminUserRow = {
   id: string;
   name: string;
   email: string;

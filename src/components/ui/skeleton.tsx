@@ -75,7 +75,7 @@ export function DashboardSkeleton() {
   );
 }
 
-export function FormCardSkeleton() {
+function FormCardSkeleton() {
   return (
     <div className="rounded-3xl border border-border bg-card p-5">
       <div className="flex justify-between">

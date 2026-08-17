@@ -31,7 +31,7 @@ export async function loginAction(
   const user = await prisma.user.findUnique({ where: { email } });
 
   if (!user) {
-    return { error: "Invalid email or password." };
+    return { error: "That email or password is incorrect." };
   }
 
   if (user.status === "PENDING") {
@@ -39,7 +39,7 @@ export async function loginAction(
   }
 
   if (user.status === "REJECTED") {
-    return { error: "This account was not approved." };
+    return { error: "This account was not approved. Contact an admin." };
   }
 
   if (isLocked(user.lockedUntil)) {
@@ -57,7 +57,7 @@ export async function loginAction(
     });
   } catch (error) {
     if (error instanceof AuthError) {
-      return { error: "Invalid email or password." };
+      return { error: "That email or password is incorrect." };
     }
     throw error;
   }
@@ -119,6 +119,13 @@ export async function requestPasswordResetAction(
     return { error: "No account was found for that email." };
   }
 
+  if (user.status === "PENDING") {
+    return {
+      error:
+        "Wait for the approval. You can reset once the account is approved by the admin. Please wait.",
+    };
+  }
+
   const token = await createPasswordResetToken(user.id);
   await prisma.user.update({
     where: { id: user.id },
@@ -151,7 +158,7 @@ export async function resetPasswordAction(
     };
   }
 
-  redirect("/login?notice=Password+updated.+You+can+sign+in.");
+  return { ok: true };
 }
 
 export async function completeSignupAction(token: string): Promise<ActionResult> {

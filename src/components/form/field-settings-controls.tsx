@@ -1,7 +1,8 @@
 "use client";
 
-import { Plus, Star, Trash2 } from "lucide-react";
+import { ChevronDown, Plus, Star, Trash2 } from "lucide-react";
 import { RESOURCE_SCALE, RESOURCE_SCALE_LEGEND, minOptionsForType } from "@/lib/question-types";
+import { Tooltip } from "@/components/ui/tooltip";
 
 export function ChoiceOptionEditor({
   type,
@@ -30,12 +31,18 @@ export function ChoiceOptionEditor({
         {type === "DROPDOWN" ? "Dropdown options" : "Options"}
       </p>
       {type === "DROPDOWN" ? (
-        <select disabled className="rounded-xl border border-border bg-background px-3 py-2 text-sm text-muted">
-          <option>Select an option</option>
-          {options.map((option, index) => (
-            <option key={`${option}-${index}`}>{option || `Option ${index + 1}`}</option>
-          ))}
-        </select>
+        <div className="relative">
+          <select
+            disabled
+            className="w-full appearance-none bg-none rounded-xl border border-border bg-background py-2 pl-3 pr-10 text-sm text-muted"
+          >
+            <option>Choose an option</option>
+            {options.map((option, index) => (
+              <option key={`${option}-${index}`}>{option || `Option ${index + 1}`}</option>
+            ))}
+          </select>
+          <ChevronDown className="pointer-events-none absolute top-1/2 right-3.5 h-4 w-4 -translate-y-1/2 text-muted" />
+        </div>
       ) : null}
       {options.map((option, index) => (
         <div key={index} className="flex items-center gap-2">
@@ -56,15 +63,19 @@ export function ChoiceOptionEditor({
             placeholder={`Option ${index + 1}`}
             className="min-w-0 flex-1 rounded-lg border border-border bg-surface px-2.5 py-2 text-sm outline-none focus:border-accent"
           />
-          <button
-            type="button"
-            onClick={() => removeAt(index)}
-            disabled={options.length <= minimum}
-            className="grid h-8 w-8 place-items-center rounded-lg text-muted hover:bg-rose-50 hover:text-rose-800 disabled:opacity-30"
-            aria-label="Remove option"
-          >
-            <Trash2 className="h-4 w-4" />
-          </button>
+          <Tooltip label="Remove option" side="bottom">
+            <span>
+              <button
+                type="button"
+                onClick={() => removeAt(index)}
+                disabled={options.length <= minimum}
+                className="grid h-8 w-8 place-items-center rounded-lg text-muted hover:bg-rose-50 hover:text-rose-800 disabled:opacity-30"
+                aria-label="Remove option"
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
+            </span>
+          </Tooltip>
         </div>
       ))}
       <button
@@ -108,15 +119,19 @@ export function ResourceRatingEditor({
               placeholder={`Name ${index + 1}`}
               className="min-w-0 flex-1 rounded-lg border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-accent"
             />
-            <button
-              type="button"
-              onClick={() => removeAt(index)}
-              disabled={options.length <= 1}
-              className="grid h-7 w-7 shrink-0 place-items-center rounded-md text-muted hover:bg-rose-50 hover:text-rose-800 disabled:opacity-30"
-              aria-label="Remove name"
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-            </button>
+            <Tooltip label="Remove name" side="bottom">
+              <span>
+                <button
+                  type="button"
+                  onClick={() => removeAt(index)}
+                  disabled={options.length <= 1}
+                  className="grid h-7 w-7 shrink-0 place-items-center rounded-md text-muted hover:bg-rose-50 hover:text-rose-800 disabled:opacity-30"
+                  aria-label="Remove name"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              </span>
+            </Tooltip>
           </div>
           <div className="flex shrink-0 items-center gap-0.5" aria-hidden>
             {RESOURCE_SCALE.map((score) => (

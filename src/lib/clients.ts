@@ -9,7 +9,7 @@ import {
 
 export type ClientInput = {
   name: string;
-  email?: string | null;
+  email: string;
   company?: string | null;
 };
 
@@ -116,7 +116,7 @@ export async function createClientForTeam(
       teamId,
       createdById: userId,
       name: data.name.trim(),
-      email: data.email || null,
+      email: data.email.trim(),
       company: data.company || null,
     },
   });
@@ -148,7 +148,7 @@ export async function updateClientForTeam(
     where: { id: clientId },
     data: {
       name: data.name.trim(),
-      email: data.email || null,
+      email: data.email.trim(),
       company: data.company || null,
     },
   });

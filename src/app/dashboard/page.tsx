@@ -35,9 +35,7 @@ export default async function DashboardPage({
     session.user.id,
     session.user.role
   );
-  const isAdmin = session.user.role === "ADMIN";
   const firstName = session.user.name?.split(" ")[0] ?? "there";
-  const createHref = overview.createFormHref;
 
   return (
     <main className="mx-auto flex w-full max-w-6xl flex-col gap-8 px-4 py-8 sm:px-8 sm:py-10">
@@ -45,13 +43,11 @@ export default async function DashboardPage({
         <div>
           <DashboardGreeting name={firstName} />
           <p className="mt-1 max-w-xl text-sm leading-6 text-muted">
-            {isAdmin
-              ? "You can see every team. Open a client to build that client’s form."
-              : "You only see teams you belong to. Open a client to build that client’s form."}
+            Create a form, save it as a template, and share a new link each month.
           </p>
         </div>
         <Link
-          href={createHref}
+          href="/dashboard/forms"
           className="inline-flex items-center gap-2 rounded-full bg-accent px-4 py-2.5 text-sm font-medium text-on-accent hover:bg-accent-hover"
         >
           <Plus className="h-4 w-4" />
@@ -61,7 +57,7 @@ export default async function DashboardPage({
 
       <section className="grid gap-4 lg:grid-cols-4">
         <Link
-          href={createHref}
+          href="/dashboard/forms"
           className="relative overflow-hidden rounded-3xl bg-accent p-6 text-on-accent lg:col-span-2 card-enter"
         >
           <span className="pointer-events-none absolute -right-8 -bottom-10 h-36 w-36 rounded-full bg-on-accent/10" />
@@ -70,8 +66,7 @@ export default async function DashboardPage({
           </span>
           <p className="mt-6 text-xl font-semibold tracking-tight">Create a form</p>
           <p className="mt-1 max-w-sm text-sm leading-6 text-on-accent/80">
-            Open a client, then build that client’s survey. Forms stay isolated
-            per client.
+            Create a form from scratch or a template. Each public link can be submitted once.
           </p>
           <span className="mt-6 inline-flex h-9 w-9 items-center justify-center rounded-full bg-on-accent text-accent">
             <Plus className="h-4 w-4" />
@@ -116,11 +111,13 @@ export default async function DashboardPage({
       </section>
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <StatCard
-          icon={Inbox}
-          label="Responses"
-          value={overview.responseCount}
-        />
+        <Link href="/dashboard/responses" className="block rounded-2xl">
+          <StatCard
+            icon={Inbox}
+            label="Responses"
+            value={overview.responseCount}
+          />
+        </Link>
         <StatCard icon={Users} label="Teams" value={overview.teamCount} />
         <StatCard
           icon={CheckCircle2}

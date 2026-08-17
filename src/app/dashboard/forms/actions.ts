@@ -1,9 +1,10 @@
 "use server";
 
+import { revalidatePath, revalidateTag } from "next/cache";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { createFormSchema } from "@/lib/validations";
-import { createClientForm } from "@/lib/forms";
+import { createFormForUser } from "@/lib/forms";
 import type { ActionResult } from "@/lib/action-result";
 
 export async function createFormFromList(
@@ -15,29 +16,25 @@ export async function createFormFromList(
   }
 
   const parsed = createFormSchema.safeParse({
-    teamId: formData.get("teamId"),
-    clientId: formData.get("clientId"),
     title: formData.get("title"),
+    templateId: String(formData.get("templateId") ?? "") || undefined,
+    teamId: String(formData.get("teamId") ?? "") || undefined,
+    clientId: String(formData.get("clientId") ?? "") || undefined,
   });
 
   if (!parsed.success) {
-    return { error: "Choose a client and enter a form title." };
+    return { error: "Enter a form title." };
   }
 
   let form;
   try {
-    form = await createClientForm(
-      session.user.id,
-      session.user.role,
-      parsed.data.teamId,
-      parsed.data.clientId,
-      parsed.data.title
-    );
-  } catch {
-    return { error: "Could not create this form." };
+    form = await createFormForUser(session.user.id, session.user.role, parsed.data);
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Could not create this form." };
   }
 
-  redirect(
-    `/dashboard/teams/${parsed.data.teamId}/clients/${parsed.data.clientId}/forms/${form.id}`
-  );
+  revalidateTag("dashboard-shell", "max");
+  revalidatePath("/dashboard/forms");
+  revalidatePath("/dashboard");
+  return { formId: form.id };
 }

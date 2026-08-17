@@ -30,7 +30,7 @@ export function ProfileForm({
             toast(result.error, { tone: "error" });
             return;
           }
-          toast("Profile updated", { tone: "success" });
+          toast("Profile saved", { tone: "success" });
         });
       }}
     >

@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import type { ActionResult } from "@/lib/action-result";
@@ -27,6 +27,7 @@ async function requireSession() {
 }
 
 function revalidateWorkspace(teamId?: string) {
+  revalidateTag("dashboard-shell", "max");
   revalidatePath("/dashboard");
   revalidatePath("/dashboard/teams");
   revalidatePath("/dashboard/clients");
@@ -45,7 +46,7 @@ export async function createClient(formData: FormData): Promise<ActionResult> {
   });
 
   if (!parsed.success) {
-    return { error: "Check client name, team, and email." };
+    return { error: "Enter a client name, team, and email." };
   }
 
   try {
@@ -81,7 +82,7 @@ export async function updateClient(formData: FormData): Promise<ActionResult> {
   });
 
   if (!parsed.success) {
-    return { error: "Check client name and email." };
+    return { error: "Enter a client name and email." };
   }
 
   try {

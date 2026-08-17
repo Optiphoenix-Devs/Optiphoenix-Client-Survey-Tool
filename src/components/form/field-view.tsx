@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Star } from "lucide-react";
+import { Check, ChevronDown, Star } from "lucide-react";
 import { cn } from "@/lib/cn";
 import {
   RATING_SCALE,
@@ -42,7 +42,7 @@ function ChoiceControl({
         type === "radio" ? (
           <span className="h-1.5 w-1.5 rounded-full bg-on-accent" />
         ) : (
-          <span className="block h-2 w-3 -translate-y-px rotate-45 border-b-2 border-r-2 border-on-accent" />
+          <Check className="h-3.5 w-3.5 text-on-accent" strokeWidth={3} />
         )
       ) : null}
     </span>
@@ -265,22 +265,25 @@ export function FieldView({
 
   if (field.type === "DROPDOWN") {
     return (
-      <select
-        name={name}
-        disabled={disabled}
-        required={field.required && !disabled}
-        defaultValue=""
-        className={inputClass}
-      >
-        <option value="" disabled>
-          Select an option
-        </option>
-        {options.map((option) => (
-          <option key={option} value={option}>
-            {option}
+      <div className="relative mt-2">
+        <select
+          name={name}
+          disabled={disabled}
+          required={field.required && !disabled}
+          defaultValue=""
+          className="w-full appearance-none bg-none rounded-xl border border-border bg-background py-2.5 pl-3 pr-10 text-sm outline-none transition duration-200 focus:border-accent disabled:text-muted"
+        >
+          <option value="" disabled>
+            Choose an option
           </option>
-        ))}
-      </select>
+          {options.map((option) => (
+            <option key={option} value={option}>
+              {option}
+            </option>
+          ))}
+        </select>
+        <ChevronDown className="pointer-events-none absolute top-1/2 right-3.5 h-4 w-4 -translate-y-1/2 text-muted" />
+      </div>
     );
   }
 
@@ -291,7 +294,11 @@ export function FieldView({
         disabled={disabled}
         required={field.required && !disabled}
         rows={3}
-        placeholder={fieldTypeMeta(field.type)?.hint}
+        placeholder={
+          field.type === "SUGGESTION"
+            ? "Ideas or suggestion"
+            : "Write your response here"
+        }
         className={inputClass}
       />
     );

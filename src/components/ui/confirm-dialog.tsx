@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { Spinner } from "@/components/ui/pending-button";
 
 type ConfirmDialogProps = {
   open: boolean;
@@ -8,7 +9,6 @@ type ConfirmDialogProps = {
   description: string;
   confirmLabel?: string;
   pending?: boolean;
-  error?: string | null;
   onCancel: () => void;
   onConfirm: () => void;
 };
@@ -19,7 +19,6 @@ export function ConfirmDialog({
   description,
   confirmLabel = "Continue",
   pending,
-  error,
   onCancel,
   onConfirm,
 }: ConfirmDialogProps) {
@@ -56,11 +55,6 @@ export function ConfirmDialog({
           {title}
         </h2>
         <p className="mt-2 text-sm leading-6 text-muted">{description}</p>
-        {error ? (
-          <p className="mt-3 rounded-lg border border-rose-700 bg-rose-50 px-3 py-2 text-sm text-rose-900">
-            {error}
-          </p>
-        ) : null}
         <div className="mt-6 flex justify-end gap-2">
           <button
             type="button"
@@ -73,8 +67,9 @@ export function ConfirmDialog({
             type="button"
             onClick={onConfirm}
             disabled={pending}
-            className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-on-accent transition hover:bg-accent-hover disabled:opacity-60"
+            className="inline-flex items-center justify-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-on-accent transition hover:bg-accent-hover disabled:opacity-60"
           >
+            {pending ? <Spinner /> : null}
             {pending ? "Working…" : confirmLabel}
           </button>
         </div>

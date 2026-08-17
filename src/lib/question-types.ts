@@ -67,7 +67,7 @@ export const FIELD_TYPES = [
   {
     value: "SUGGESTION",
     label: "Suggestion",
-    hint: "Ideas or improvements",
+    hint: "Ideas or suggestion",
     needsOptions: false,
     minOptions: 0,
     defaultLabel: "Suggestions",

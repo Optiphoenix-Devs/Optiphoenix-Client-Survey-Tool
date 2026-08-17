@@ -14,7 +14,7 @@ export default async function LoginPage({
         Login to your account
       </h1>
       <p className="mt-1 text-sm text-muted">
-        Enter your email below to login to your account
+        Enter your credentials below to login to your account
       </p>
       <LoginForm notice={notice} />
     </AuthShell>

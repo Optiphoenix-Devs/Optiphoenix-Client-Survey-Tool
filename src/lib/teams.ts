@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import type { UserRole } from "@/generated/prisma/client";
+import { formsAccessibleWhere } from "@/lib/forms";
 
 export type DashboardFormRow = {
   id: string;
@@ -19,33 +20,22 @@ export type DashboardFormRow = {
 export async function getDashboardOverview(userId: string, role: UserRole) {
   const teams = await getTeamsForUser(userId, role);
   const teamIds = teams.map((team) => team.id);
+  const formAccess = formsAccessibleWhere(userId, role, teamIds);
 
-  if (teamIds.length === 0) {
-    return {
-      teams,
-      teamCount: 0,
-      clientCount: 0,
-      formCount: 0,
-      publishedCount: 0,
-      draftCount: 0,
-      responseCount: 0,
-      forms: [] as DashboardFormRow[],
-      createFormHref: "/dashboard/teams",
-    };
-  }
-
-  const [clientCount, formCount, publishedCount, responseCount, formRows, firstClient] =
+  const [clientCount, formCount, publishedCount, responseCount, formRows] =
     await Promise.all([
-      prisma.client.count({ where: { teamId: { in: teamIds } } }),
-      prisma.form.count({ where: { teamId: { in: teamIds } } }),
+      teamIds.length === 0
+        ? Promise.resolve(0)
+        : prisma.client.count({ where: { teamId: { in: teamIds } } }),
+      prisma.form.count({ where: formAccess }),
       prisma.form.count({
-        where: { teamId: { in: teamIds }, status: "PUBLISHED" },
+        where: { AND: [formAccess, { status: "PUBLISHED" }] },
       }),
       prisma.response.count({
-        where: { clientSurvey: { form: { teamId: { in: teamIds } } } },
+        where: { clientSurvey: { form: formAccess } },
       }),
       prisma.form.findMany({
-        where: { teamId: { in: teamIds } },
+        where: formAccess,
         orderBy: { updatedAt: "desc" },
         include: {
           client: { select: { id: true, name: true } },
@@ -53,11 +43,6 @@ export async function getDashboardOverview(userId: string, role: UserRole) {
           _count: { select: { questions: true } },
           surveys: { select: { _count: { select: { responses: true } } } },
         },
-      }),
-      prisma.client.findFirst({
-        where: { teamId: { in: teamIds } },
-        orderBy: { createdAt: "desc" },
-        select: { id: true, teamId: true },
       }),
     ]);
 
@@ -67,21 +52,17 @@ export async function getDashboardOverview(userId: string, role: UserRole) {
     description: form.description,
     status: form.status,
     updatedAt: form.updatedAt.toISOString(),
-    teamId: form.team.id,
-    teamName: form.team.name,
-    clientId: form.client.id,
-    clientName: form.client.name,
+    teamId: form.teamId ?? "",
+    teamName: form.team?.name ?? "—",
+    clientId: form.clientId ?? "",
+    clientName: form.client?.name ?? "—",
     fieldCount: form._count.questions,
     responseCount: form.surveys.reduce(
       (sum, survey) => sum + survey._count.responses,
       0
     ),
-    href: `/dashboard/teams/${form.team.id}/clients/${form.client.id}/forms/${form.id}`,
+    href: `/dashboard/forms/${form.id}`,
   }));
-
-  const createFormHref = firstClient
-    ? `/dashboard/teams/${firstClient.teamId}/clients/${firstClient.id}`
-    : `/dashboard/teams/${teams[0].id}`;
 
   return {
     teams,
@@ -92,7 +73,6 @@ export async function getDashboardOverview(userId: string, role: UserRole) {
     draftCount: formCount - publishedCount,
     responseCount,
     forms,
-    createFormHref,
   };
 }
 
@@ -157,16 +137,24 @@ export function namesMatch(left: string, right: string) {
 export async function getSidebarCounts(userId: string, role: UserRole) {
   const teams = await getTeamsForUser(userId, role);
   const teamIds = teams.map((team) => team.id);
+  const formAccess = formsAccessibleWhere(userId, role, teamIds);
   const clientCount =
     teamIds.length === 0
       ? 0
       : await prisma.client.count({ where: { teamId: { in: teamIds } } });
-  const formCount =
-    teamIds.length === 0
-      ? 0
-      : await prisma.form.count({ where: { teamId: { in: teamIds } } });
+  const formCount = await prisma.form.count({ where: formAccess });
+  const responseCount = await prisma.response.count({
+    where: { clientSurvey: { form: formAccess } },
+  });
+  const templateCount = await prisma.formTemplate.count().catch(() => 0);
 
-  return { teamCount: teams.length, clientCount, formCount };
+  return {
+    teamCount: teams.length,
+    clientCount,
+    formCount,
+    responseCount,
+    templateCount,
+  };
 }
 
 export async function assertUniqueTeamName(

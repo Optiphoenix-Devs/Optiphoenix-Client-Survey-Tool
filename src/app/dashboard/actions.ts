@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import { redirect } from "next/navigation";
 import { auth, signOut } from "@/auth";
 import type { ActionResult } from "@/lib/action-result";
@@ -31,6 +31,7 @@ async function requireSession() {
 }
 
 function revalidateWorkspace() {
+  revalidateTag("dashboard-shell", "max");
   revalidatePath("/dashboard");
   revalidatePath("/dashboard/teams");
   revalidatePath("/dashboard/clients");

@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { createContext, useContext, useEffect, useMemo, useRef, useState, useTransition } from "react";
+import Link from "next/link";
 import {
   DndContext,
   PointerSensor,
@@ -18,8 +19,11 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import {
   AlignLeft,
+  ArrowLeft,
   CheckSquare,
   ChevronDownSquare,
+  Bookmark,
+  ChevronDown,
   CircleDot,
   Eye,
   Globe,
@@ -34,6 +38,9 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { Tooltip } from "@/components/ui/tooltip";
+import { PendingButton } from "@/components/ui/pending-button";
+import { toast } from "@/components/ui/toaster";
+import type { ActionResult } from "@/lib/action-result";
 import {
   FIELD_TYPES,
   fieldNeedsOptions,
@@ -41,19 +48,50 @@ import {
   parseOptionList,
   type FieldTypeValue,
 } from "@/lib/question-types";
+import { DrawerActions, SideDrawer } from "@/components/ui/side-drawer";
 import { FieldView, FormSubmitButton } from "@/components/form/field-view";
 import {
   ChoiceOptionEditor,
   ResourceRatingEditor,
 } from "@/components/form/field-settings-controls";
 import {
-  addField,
-  deleteField,
-  reorderFields,
-  togglePublishForm,
-  updateField,
-  updateForm,
+  addField as addFormField,
+  deleteField as deleteFormField,
+  reorderFields as reorderFormFields,
+  togglePublishForm as toggleFormPublish,
+  updateField as updateFormField,
+  updateForm as updateFormMeta,
+  saveAsTemplate as saveFormAsTemplate,
 } from "./actions";
+import * as templateActions from "@/app/dashboard/templates/actions";
+
+type BuilderAction = (formData: FormData) => Promise<ActionResult>;
+
+type BuilderActions = {
+  addField: BuilderAction;
+  deleteField: BuilderAction;
+  reorderFields: BuilderAction;
+  togglePublishForm: BuilderAction;
+  updateField: BuilderAction;
+  updateForm: BuilderAction;
+  saveAsTemplate: BuilderAction;
+};
+
+const formActions: BuilderActions = {
+  addField: addFormField,
+  deleteField: deleteFormField,
+  reorderFields: reorderFormFields,
+  togglePublishForm: toggleFormPublish,
+  updateField: updateFormField,
+  updateForm: updateFormMeta,
+  saveAsTemplate: saveFormAsTemplate,
+};
+
+const BuilderActionsContext = createContext<BuilderActions>(formActions);
+
+function useBuilderActions() {
+  return useContext(BuilderActionsContext);
+}
 
 type BuilderField = {
   id: string;
@@ -69,10 +107,14 @@ type FormBuilderProps = {
   clientId: string;
   formId: string;
   title: string;
+  description: string | null;
   status: "DRAFT" | "PUBLISHED";
+  hasResponse?: boolean;
   publicFormUrl: string;
   focusFieldId?: string;
   fields: BuilderField[];
+  backHref?: string;
+  variant?: "form" | "template";
 };
 
 const FIELD_ICONS: Record<FieldTypeValue, LucideIcon> = {
@@ -90,24 +132,40 @@ function fieldIcon(type: string) {
   return FIELD_ICONS[type as FieldTypeValue] ?? Type;
 }
 
+async function notifyAction(
+  action: (formData: FormData) => Promise<ActionResult>,
+  formData: FormData,
+  success?: string
+) {
+  const result = await action(formData);
+  if (result.error) {
+    toast(result.error, { tone: "error" });
+    return result;
+  }
+  if (success) toast(success, { tone: "success" });
+  return result;
+}
+
 function SortableFieldCard({
   field,
   selected,
-  onSelect,
+  onToggle,
   teamId,
   clientId,
   formId,
 }: {
   field: BuilderField;
   selected: boolean;
-  onSelect: () => void;
+  onToggle: () => void;
   teamId: string;
   clientId: string;
   formId: string;
 }) {
+  const { deleteField } = useBuilderActions();
   const meta = fieldTypeMeta(field.type);
   const Icon = fieldIcon(field.type);
   const cardRef = useRef<HTMLDivElement | null>(null);
+  const [, startTransition] = useTransition();
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: field.id });
 
@@ -116,6 +174,18 @@ function SortableFieldCard({
       cardRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
     }
   }, [selected]);
+
+  function removeField(event: React.MouseEvent) {
+    event.stopPropagation();
+    const formData = new FormData();
+    formData.set("teamId", teamId);
+    formData.set("clientId", clientId);
+    formData.set("formId", formId);
+    formData.set("fieldId", field.id);
+    startTransition(() => {
+      void notifyAction(deleteField, formData, "Field removed.");
+    });
+  }
 
   return (
     <div
@@ -128,50 +198,87 @@ function SortableFieldCard({
         transition,
         zIndex: isDragging ? 20 : undefined,
       }}
-      onClick={onSelect}
       className={cn(
-        "cursor-pointer rounded-2xl border bg-card p-4 transition",
+        "group rounded-2xl border bg-card transition",
         selected
           ? "border-accent ring-2 ring-accent/15"
           : "border-border hover:border-sage",
         isDragging && "opacity-60"
       )}
     >
-      <div className="flex items-center gap-2">
-        <button
-          type="button"
-          className="grid h-8 w-8 cursor-grab place-items-center rounded-lg text-muted hover:bg-background"
-          aria-label="Drag to reorder"
-          onClick={(event) => event.stopPropagation()}
-          {...attributes}
-          {...listeners}
-        >
-          <GripVertical className="h-4 w-4" />
-        </button>
-        <span className="grid h-8 w-8 place-items-center rounded-lg bg-background text-accent">
+      <div className="flex items-center gap-2 px-3 py-3">
+        <Tooltip label="Drag to reorder" side="bottom">
+          <button
+            type="button"
+            className="flex h-8 w-8 shrink-0 cursor-grab items-center justify-center rounded-lg text-muted hover:bg-background"
+            aria-label="Drag to reorder"
+            onClick={(event) => event.stopPropagation()}
+            {...attributes}
+            {...listeners}
+          >
+            <GripVertical className="h-4 w-4" />
+          </button>
+        </Tooltip>
+        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-background text-accent">
           <Icon className="h-4 w-4" />
         </span>
-        <p className="flex-1 truncate text-sm font-semibold">
-          {field.label}
-          {field.required ? <span className="ml-1 text-rose-600">*</span> : null}
-        </p>
-        <span className="hidden rounded-full bg-background px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted sm:inline">
-          {meta?.label ?? field.type}
-        </span>
-        <form action={deleteField} onClick={(event) => event.stopPropagation()}>
-          <input type="hidden" name="teamId" value={teamId} />
-          <input type="hidden" name="clientId" value={clientId} />
-          <input type="hidden" name="formId" value={formId} />
-          <input type="hidden" name="fieldId" value={field.id} />
+        <button
+          type="button"
+          onClick={onToggle}
+          className="flex min-w-0 flex-1 items-center gap-2 text-left"
+          aria-expanded={selected}
+        >
+          <p className="min-w-0 flex-1 truncate text-sm font-semibold">
+            {field.label}
+            {field.required ? <span className="ml-1 text-rose-600">*</span> : null}
+          </p>
+          <span className="hidden shrink-0 text-[10px] font-semibold tracking-wide text-muted uppercase sm:inline">
+            {meta?.label ?? field.type}
+          </span>
+        </button>
+        <div className="flex h-8 shrink-0 items-center">
+          <Tooltip label="Remove field" side="bottom" className="flex h-8 w-8 items-center justify-center">
+            <button
+              type="button"
+              onClick={removeField}
+              className={cn(
+                "flex h-8 w-8 items-center justify-center rounded-lg text-muted transition hover:bg-rose-50 hover:text-rose-800",
+                selected
+                  ? "opacity-100"
+                  : "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100"
+              )}
+              aria-label="Remove field"
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+          </Tooltip>
           <button
-            type="submit"
-            className="grid h-8 w-8 place-items-center rounded-lg text-muted hover:bg-rose-50 hover:text-rose-800"
-            aria-label="Remove field"
+            type="button"
+            onClick={onToggle}
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-muted hover:bg-background"
+            aria-label={selected ? "Collapse field" : "Expand field"}
           >
-            <Trash2 className="h-4 w-4" />
+            <ChevronDown
+              className={cn(
+                "h-4 w-4 transition-transform duration-200",
+                selected && "rotate-180"
+              )}
+            />
           </button>
-        </form>
+        </div>
       </div>
+
+      {selected ? (
+        <div className="border-t border-border px-4 py-4">
+          <FieldSettings
+            key={field.id}
+            field={field}
+            teamId={teamId}
+            clientId={clientId}
+            formId={formId}
+          />
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -187,6 +294,7 @@ function FieldSettings({
   clientId: string;
   formId: string;
 }) {
+  const { updateField } = useBuilderActions();
   const labelRef = useRef<HTMLInputElement>(null);
   const [options, setOptions] = useState(() => {
     const parsed = parseOptionList(field.options);
@@ -211,7 +319,12 @@ function FieldSettings({
       : null;
 
   return (
-    <form action={updateField} className="grid gap-4">
+    <form
+      action={async (formData) => {
+        await notifyAction(updateField, formData, "Field saved.");
+      }}
+      className="grid gap-4"
+    >
       <input type="hidden" name="teamId" value={teamId} />
       <input type="hidden" name="clientId" value={clientId} />
       <input type="hidden" name="formId" value={formId} />
@@ -252,12 +365,75 @@ function FieldSettings({
         <input type="checkbox" name="required" defaultChecked={field.required} />
         Required
       </label>
-      <button
-        type="submit"
-        className="rounded-xl bg-accent px-3 py-2.5 text-sm font-medium text-on-accent hover:bg-accent-hover"
+      <PendingButton
+        className="justify-center rounded-xl bg-accent px-3 py-2.5 text-sm font-medium text-on-accent hover:bg-accent-hover"
+        pendingLabel="Saving…"
       >
         Save field
-      </button>
+      </PendingButton>
+    </form>
+  );
+}
+
+function FormIdentityCard({
+  teamId,
+  clientId,
+  formId,
+  title,
+  description,
+  isTemplate = false,
+}: {
+  teamId: string;
+  clientId: string;
+  formId: string;
+  title: string;
+  description: string | null;
+  isTemplate?: boolean;
+}) {
+  const { updateForm } = useBuilderActions();
+  function submitIfChanged(form: HTMLFormElement) {
+    const data = new FormData(form);
+    const nextTitle = String(data.get("title") ?? "").trim();
+    const nextDescription = String(data.get("description") ?? "");
+    if (nextTitle === title.trim() && nextDescription === (description ?? "")) return;
+    form.requestSubmit();
+  }
+
+  return (
+    <form
+      action={async (formData) => {
+        await notifyAction(updateForm, formData, "Saved.");
+      }}
+      onBlur={(event) => {
+        if (event.currentTarget.contains(event.relatedTarget as Node | null)) return;
+        submitIfChanged(event.currentTarget);
+      }}
+      className="rounded-2xl border border-border bg-card px-5 py-5"
+    >
+      <input type="hidden" name="teamId" value={teamId} />
+      <input type="hidden" name="clientId" value={clientId} />
+      <input type="hidden" name="formId" value={formId} />
+      <input
+        name="title"
+        required
+        defaultValue={title}
+        aria-label={isTemplate ? "Template name" : "Form title"}
+        placeholder={isTemplate ? "Template name" : "Form title"}
+        className="w-full bg-transparent text-2xl font-semibold tracking-tight outline-none placeholder:text-muted"
+      />
+      <textarea
+        name="description"
+        defaultValue={description ?? ""}
+        maxLength={500}
+        rows={2}
+        aria-label={isTemplate ? "Template description" : "Form description"}
+        placeholder={
+          isTemplate
+            ? "Optional description for your team..."
+            : "Add a short description for clients..."
+        }
+        className="mt-2 w-full resize-none bg-transparent text-sm leading-6 text-muted outline-none placeholder:text-muted/80"
+      />
     </form>
   );
 }
@@ -267,19 +443,34 @@ export function FormBuilder({
   clientId,
   formId,
   title,
+  description,
   status,
+  hasResponse = false,
   publicFormUrl,
   focusFieldId,
   fields,
+  backHref = "/dashboard/forms",
+  variant = "form",
 }: FormBuilderProps) {
+  const isTemplate = variant === "template";
+  const actions = isTemplate ? templateActions : formActions;
   const [preview, setPreview] = useState(false);
+  const [templateOpen, setTemplateOpen] = useState(false);
   const [items, setItems] = useState(fields);
   const [selectedId, setSelectedId] = useState(
     focusFieldId ?? fields[0]?.id ?? null
   );
   const [, startTransition] = useTransition();
   const isPublished = status === "PUBLISHED";
-  const selected = items.find((item) => item.id === selectedId) ?? null;
+  const canPublish = isPublished || items.length > 0;
+
+  // Sync builder cards after server actions add, save, or reorder fields.
+  /* eslint-disable react-hooks/set-state-in-effect -- props to local drag state */
+  useEffect(() => {
+    setItems(fields);
+    if (focusFieldId) setSelectedId(focusFieldId);
+  }, [fields, focusFieldId]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } })
@@ -301,42 +492,60 @@ export function FormBuilder({
     formData.set("formId", formId);
     formData.set("orderedIds", JSON.stringify(next.map((item) => item.id)));
     startTransition(() => {
-      void reorderFields(formData);
+      void notifyAction(actions.reorderFields, formData);
     });
   }
 
   return (
-    <div className="flex h-full min-h-[calc(100vh-3.5rem)] flex-col lg:min-h-screen">
-      <header className="flex flex-wrap items-center gap-3 border-b border-border bg-card px-4 py-3">
-        <form action={updateForm} className="flex min-w-0 flex-1 items-center gap-2">
-          <input type="hidden" name="teamId" value={teamId} />
-          <input type="hidden" name="clientId" value={clientId} />
-          <input type="hidden" name="formId" value={formId} />
-          <input
-            name="title"
-            required
-            defaultValue={title}
-            className="min-w-0 flex-1 rounded-lg bg-transparent px-2 py-1.5 text-sm font-semibold outline-none hover:bg-background focus:bg-background"
-          />
+    <BuilderActionsContext.Provider value={actions}>
+    <div className="flex min-h-0 flex-1 flex-col">
+      <header className="flex items-center gap-3 border-b border-border bg-card px-4 py-3">
+        <Link
+          href={backHref}
+          className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-border bg-surface px-3 py-2 text-sm font-medium transition hover:bg-background"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Back
+        </Link>
+        <p className="min-w-0 truncate text-sm text-muted">
+          {isTemplate
+            ? "Template"
+            : hasResponse
+              ? "Submitted"
+              : isPublished
+                ? "Published"
+                : "Draft"}
+        </p>
+        <div className="ml-auto flex min-w-0 items-center justify-end gap-2 overflow-x-auto">
+          {isTemplate ? null : (
           <button
-            type="submit"
-            className="hidden rounded-lg border border-border px-3 py-1.5 text-xs font-medium sm:inline"
+            type="button"
+            onClick={() => setTemplateOpen(true)}
+            disabled={items.length === 0}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-surface px-3 py-2 text-sm font-medium transition hover:bg-background disabled:opacity-50"
           >
-            Save
+            <Bookmark className="h-4 w-4" />
+            Save as template
           </button>
-        </form>
-        <div className="flex items-center gap-2">
-          <Tooltip label={preview ? "Edit form" : "Preview form"} side="bottom">
-            <button
-              type="button"
-              onClick={() => setPreview((value) => !value)}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-surface px-3 py-2 text-sm font-medium transition hover:bg-background"
-            >
-              {preview ? <Pencil className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-              <span className="hidden sm:inline">{preview ? "Edit" : "Preview"}</span>
-            </button>
-          </Tooltip>
-          <form action={togglePublishForm}>
+          )}
+          <button
+            type="button"
+            onClick={() => setPreview((value) => !value)}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-surface px-3 py-2 text-sm font-medium transition hover:bg-background"
+          >
+            {preview ? <Pencil className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            {preview ? "Edit" : "Preview"}
+          </button>
+          {isTemplate ? null : (
+          <form
+            action={async (formData) => {
+              await notifyAction(
+                actions.togglePublishForm,
+                formData,
+                isPublished ? "Form unpublished." : "Form published."
+              );
+            }}
+          >
             <input type="hidden" name="teamId" value={teamId} />
             <input type="hidden" name="clientId" value={clientId} />
             <input type="hidden" name="formId" value={formId} />
@@ -345,20 +554,36 @@ export function FormBuilder({
               name="action"
               value={isPublished ? "unpublish" : "publish"}
             />
-            <button
-              type="submit"
-              className={cn(
-                "inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium text-on-accent",
-                isPublished
-                  ? "bg-stone-700 hover:bg-stone-800"
-                  : "bg-accent hover:bg-accent-hover"
-              )}
-            >
-              <Globe className="h-4 w-4" />
-              {isPublished ? "Unpublish" : "Publish"}
-            </button>
+            {canPublish ? (
+              <PendingButton
+                className={cn(
+                  "inline-flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium",
+                  isPublished
+                    ? "border border-border bg-surface text-foreground hover:bg-background"
+                    : "bg-accent text-on-accent hover:bg-accent-hover"
+                )}
+                pendingLabel={isPublished ? "Unpublishing…" : "Publishing…"}
+              >
+                <Globe className="h-4 w-4" />
+                {isPublished ? "Unpublish" : "Publish"}
+              </PendingButton>
+            ) : (
+              <Tooltip label="Add at least one field to publish" side="bottom">
+                <span>
+                  <PendingButton
+                    disabled
+                    className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-accent px-3 py-2 text-sm font-medium text-on-accent hover:bg-accent-hover"
+                    pendingLabel="Publishing…"
+                  >
+                    <Globe className="h-4 w-4" />
+                    Publish
+                  </PendingButton>
+                </span>
+              </Tooltip>
+            )}
           </form>
-          {isPublished ? (
+          )}
+          {!isTemplate && isPublished ? (
             <a
               href={publicFormUrl}
               target="_blank"
@@ -370,6 +595,12 @@ export function FormBuilder({
           ) : null}
         </div>
       </header>
+      {hasResponse && !isTemplate ? (
+        <p className="border-b border-border bg-sage/10 px-4 py-2 text-sm text-muted">
+          This public link already has a response and cannot be submitted again.
+          Save this form as a template, then create a new form from the library for next month.
+        </p>
+      ) : null}
 
       {preview ? (
         <div className="flex-1 overflow-auto px-4 py-8">
@@ -378,6 +609,9 @@ export function FormBuilder({
               Client preview
             </p>
             <h2 className="mt-2 text-2xl font-semibold">{title}</h2>
+            {description ? (
+              <p className="mt-2 text-sm leading-6 text-muted">{description}</p>
+            ) : null}
             <div className="mt-6 space-y-6">
               {items.length === 0 ? (
                 <p className="text-sm text-muted">No fields to preview yet.</p>
@@ -404,27 +638,29 @@ export function FormBuilder({
           </section>
         </div>
       ) : (
-        <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
-          <aside className="border-b border-border bg-card p-4 lg:w-64 lg:shrink-0 lg:overflow-y-auto lg:border-b-0 lg:border-r">
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden lg:flex-row">
+          <aside className="border-b border-border bg-card p-4 lg:h-full lg:w-64 lg:shrink-0 lg:overflow-y-auto lg:border-b-0 lg:border-r">
             <p className="mb-3 text-sm font-semibold">Add fields</p>
-            <div className="grid grid-cols-2 gap-2 lg:grid-cols-1">
+            <div className="grid grid-cols-1 gap-1">
               {FIELD_TYPES.map((type) => {
                 const Icon = fieldIcon(type.value);
                 return (
-                  <form action={addField} key={type.value}>
+                  <form
+                    action={async (formData) => {
+                      const result = await notifyAction(actions.addField, formData, "Field added.");
+                      if (result.fieldId) setSelectedId(result.fieldId);
+                    }}
+                    key={type.value}
+                    className="w-full"
+                  >
                     <input type="hidden" name="teamId" value={teamId} />
                     <input type="hidden" name="clientId" value={clientId} />
                     <input type="hidden" name="formId" value={formId} />
                     <input type="hidden" name="type" value={type.value} />
-                    <button
-                      type="submit"
-                      className="flex w-full items-center gap-2.5 rounded-xl px-2 py-2 text-left transition duration-150 hover:bg-background"
-                    >
-                      <Tooltip label={type.label} side="right">
-                        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-background text-accent">
-                          <Icon className="h-4 w-4" />
-                        </span>
-                      </Tooltip>
+                    <PendingButton className="grid w-full grid-cols-[2rem_minmax(0,1fr)] items-center gap-2.5 rounded-xl px-2 py-2 text-left transition duration-150 hover:bg-background">
+                      <span className="grid h-8 w-8 place-items-center rounded-lg bg-background text-accent">
+                        <Icon className="h-4 w-4" />
+                      </span>
                       <span className="min-w-0">
                         <span className="block truncate text-sm font-medium">
                           {type.label}
@@ -433,21 +669,31 @@ export function FormBuilder({
                           {type.hint}
                         </span>
                       </span>
-                    </button>
+                    </PendingButton>
                   </form>
                 );
               })}
             </div>
           </aside>
 
-          <main className="min-w-0 flex-1 overflow-y-auto px-4 py-6">
+          <main className="min-w-0 flex-1 overflow-auto px-4 py-6">
             <div className="mx-auto max-w-2xl">
+              <FormIdentityCard
+                teamId={teamId}
+                clientId={clientId}
+                formId={formId}
+                title={title}
+                description={description}
+                isTemplate={isTemplate}
+              />
+
               {items.length === 0 ? (
-                <div className="rounded-2xl border-2 border-dashed border-border px-6 py-16 text-center">
-                  <p className="font-semibold">This form is empty</p>
+                <div className="mt-4 rounded-2xl border-2 border-dashed border-border px-6 py-16 text-center">
+                  <p className="font-semibold">{isTemplate ? "This template is empty" : "This form is empty"}</p>
                   <p className="mt-1 text-sm text-muted">
-                    Add a field type from the left. It belongs only to this
-                    client.
+                    {isTemplate
+                      ? "Add a field type from the left to start this template."
+                      : "Add a field type from the left to start building this form."}
                   </p>
                 </div>
               ) : (
@@ -457,13 +703,17 @@ export function FormBuilder({
                   onDragEnd={onDragEnd}
                 >
                   <SortableContext items={ids} strategy={verticalListSortingStrategy}>
-                    <div className="space-y-3">
+                    <div className="mt-4 space-y-3">
                       {items.map((field) => (
                         <SortableFieldCard
                           key={field.id}
                           field={field}
                           selected={selectedId === field.id}
-                          onSelect={() => setSelectedId(field.id)}
+                          onToggle={() =>
+                            setSelectedId((current) =>
+                              current === field.id ? null : field.id
+                            )
+                          }
                           teamId={teamId}
                           clientId={clientId}
                           formId={formId}
@@ -473,59 +723,63 @@ export function FormBuilder({
                   </SortableContext>
                 </DndContext>
               )}
-
-              {selected && items.length > 0 ? (
-                <div className="mt-6 rounded-2xl border border-border bg-card p-5 xl:hidden">
-                  <p className="mb-3 text-sm font-semibold">Field settings</p>
-                  <FieldSettings
-                    key={selected.id}
-                    field={selected}
-                    teamId={teamId}
-                    clientId={clientId}
-                    formId={formId}
-                  />
-                </div>
-              ) : null}
             </div>
           </main>
-
-          <aside className="hidden w-[26rem] shrink-0 overflow-y-auto border-l border-border bg-card p-5 xl:block">
-            <p className="mb-3 text-sm font-semibold">Field settings</p>
-            {selected ? (
-              <FieldSettings
-                key={selected.id}
-                field={selected}
-                teamId={teamId}
-                clientId={clientId}
-                formId={formId}
-              />
-            ) : (
-              <p className="text-sm text-muted">
-                Add a field from the left. Its label opens here automatically.
-              </p>
-            )}
-            <div className="mt-8 rounded-xl bg-background p-3 text-xs text-muted">
-              <p className="font-medium text-foreground">Published form URL</p>
-              {isPublished ? (
-                <p className="mt-1 break-all">
-                  <a
-                    href={publicFormUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="font-medium text-accent hover:text-accent-hover"
-                  >
-                    {publicFormUrl}
-                  </a>
-                </p>
-              ) : (
-                <p className="mt-1">
-                  Publish this form to get a shareable client link.
-                </p>
-              )}
-            </div>
-          </aside>
         </div>
       )}
+
+      <SideDrawer
+        open={templateOpen}
+        title="Save as template"
+        description="Keep these questions in your library. Next month, create a new form from this template for a fresh public link."
+        onClose={() => setTemplateOpen(false)}
+      >
+        <form
+          action={async (formData) => {
+            const result = await notifyAction(actions.saveAsTemplate, formData, "Template saved.");
+            if (!result.error) setTemplateOpen(false);
+          }}
+        >
+          <input type="hidden" name="formId" value={formId} />
+          <label className="flex flex-col gap-1.5 text-sm font-medium">
+            Template name
+            <input
+              name="name"
+              required
+              minLength={2}
+              maxLength={160}
+              defaultValue={title}
+              className="rounded-xl border border-border bg-surface px-3 py-2.5 text-sm outline-none focus:border-accent"
+            />
+          </label>
+          <label className="mt-4 flex flex-col gap-1.5 text-sm font-medium">
+            Description
+            <textarea
+              name="description"
+              maxLength={500}
+              rows={3}
+              placeholder="Optional note for your team"
+              className="rounded-xl border border-border bg-surface px-3 py-2.5 text-sm outline-none focus:border-accent"
+            />
+          </label>
+          <DrawerActions>
+            <button
+              type="button"
+              onClick={() => setTemplateOpen(false)}
+              className="rounded-full border border-border bg-surface px-4 py-2 text-sm font-medium hover:bg-hover"
+            >
+              Cancel
+            </button>
+            <PendingButton
+              className="justify-center rounded-full bg-accent px-4 py-2 text-sm font-medium text-on-accent hover:bg-accent-hover"
+              pendingLabel="Saving…"
+            >
+              Save template
+            </PendingButton>
+          </DrawerActions>
+        </form>
+      </SideDrawer>
     </div>
+    </BuilderActionsContext.Provider>
   );
 }

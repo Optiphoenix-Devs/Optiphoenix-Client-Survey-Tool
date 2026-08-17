@@ -4,6 +4,50 @@ import { Prisma } from "@/generated/prisma/client";
 import { userCanManageTeam } from "@/lib/teams";
 import { fieldNeedsOptions, fieldTypeMeta, minOptionsForType, parseOptionList } from "@/lib/question-types";
 
+export function formsAccessibleWhere(
+  userId: string,
+  role: UserRole,
+  teamIds: string[]
+): Prisma.FormWhereInput {
+  if (role === "ADMIN") return {};
+  return {
+    OR: [
+      { createdById: userId },
+      ...(teamIds.length > 0 ? [{ teamId: { in: teamIds } }] : []),
+    ],
+  };
+}
+
+export async function userCanAccessFormRecord(
+  userId: string,
+  role: UserRole,
+  form: { createdById: string; teamId: string | null }
+) {
+  if (role === "ADMIN") return true;
+  if (form.createdById === userId) return true;
+  if (form.teamId) return userCanManageTeam(userId, role, form.teamId);
+  return false;
+}
+
+export async function requireFormAccess(
+  userId: string,
+  role: UserRole,
+  formId: string
+) {
+  const form = await prisma.form.findUnique({ where: { id: formId } });
+  if (!form) throw new Error("Form not found");
+  if (!(await userCanAccessFormRecord(userId, role, form))) {
+    throw new Error("No access");
+  }
+  return form;
+}
+
+export function formHasSubmission(
+  surveys: Array<{ _count: { responses: number } }>
+) {
+  return surveys.some((survey) => survey._count.responses > 0);
+}
+
 export async function getClientWorkspace(
   userId: string,
   role: UserRole,
@@ -21,30 +65,105 @@ export async function getClientWorkspace(
         orderBy: { updatedAt: "desc" },
         include: {
           _count: { select: { questions: true } },
+          surveys: { select: { _count: { select: { responses: true } } } },
         },
       },
     },
   });
 }
 
-export async function getClientFormBuilder(
+export async function getFormBuilder(
   userId: string,
   role: UserRole,
-  teamId: string,
-  clientId: string,
   formId: string
 ) {
-  const allowed = await userCanManageTeam(userId, role, teamId);
-  if (!allowed) return null;
-
-  return prisma.form.findFirst({
-    where: { id: formId, teamId, clientId },
+  const form = await prisma.form.findUnique({
+    where: { id: formId },
     include: {
       client: true,
       team: true,
       questions: { orderBy: { order: "asc" } },
+      surveys: { include: { _count: { select: { responses: true } } } },
     },
   });
+  if (!form) return null;
+  if (!(await userCanAccessFormRecord(userId, role, form))) return null;
+  return form;
+}
+
+export async function getClientFormBuilder(
+  userId: string,
+  role: UserRole,
+  _teamId?: string,
+  _clientId?: string,
+  formId: string
+) {
+  return getFormBuilder(userId, role, formId);
+}
+
+export async function createFormForUser(
+  userId: string,
+  role: UserRole,
+  data: {
+    title: string;
+    templateId?: string;
+    teamId?: string;
+    clientId?: string;
+  }
+) {
+  let teamId: string | null = data.teamId || null;
+  let clientId: string | null = data.clientId || null;
+
+  if (teamId && clientId) {
+    const allowed = await userCanManageTeam(userId, role, teamId);
+    if (!allowed) throw new Error("No access");
+    const client = await prisma.client.findFirst({
+      where: { id: clientId, teamId },
+    });
+    if (!client) throw new Error("Client not found");
+  } else {
+    teamId = null;
+    clientId = null;
+  }
+
+  const template = data.templateId
+    ? await prisma.formTemplate.findUnique({
+        where: { id: data.templateId },
+        include: { questions: { orderBy: { order: "asc" } } },
+      })
+    : null;
+
+  if (data.templateId && !template) throw new Error("Template not found");
+
+  const form = await prisma.form.create({
+    data: {
+      teamId,
+      clientId,
+      createdById: userId,
+      title: data.title,
+      status: "DRAFT",
+      sourceTemplateId: template?.id ?? null,
+    },
+  });
+
+  if (template && template.questions.length > 0) {
+    await prisma.question.createMany({
+      data: template.questions.map((question) => ({
+        formId: form.id,
+        type: question.type,
+        label: question.label,
+        description: question.description,
+        order: question.order,
+        required: question.required,
+        options:
+          question.options === null
+            ? Prisma.JsonNull
+            : (question.options as Prisma.InputJsonValue),
+      })),
+    });
+  }
+
+  return form;
 }
 
 export async function createClientForm(
@@ -54,59 +173,40 @@ export async function createClientForm(
   clientId: string,
   title: string
 ) {
-  const allowed = await userCanManageTeam(userId, role, teamId);
-  if (!allowed) throw new Error("No access");
-
-  const client = await prisma.client.findFirst({
-    where: { id: clientId, teamId },
-  });
-  if (!client) throw new Error("Client not found");
-
-  return prisma.form.create({
-    data: {
-      teamId,
-      clientId,
-      createdById: userId,
-      title,
-      status: "DRAFT",
-    },
-  });
+  return createFormForUser(userId, role, { title, teamId, clientId });
 }
 
 export async function updateClientForm(
   userId: string,
   role: UserRole,
-  teamId: string,
-  clientId: string,
+  _teamId?: string,
+  _clientId?: string,
   formId: string,
-  title: string
+  title: string,
+  description?: string | null
 ) {
-  const allowed = await userCanManageTeam(userId, role, teamId);
-  if (!allowed) throw new Error("No access");
-
-  const form = await prisma.form.findFirst({
-    where: { id: formId, teamId, clientId },
-  });
-  if (!form) throw new Error("Form not found");
+  await requireFormAccess(userId, role, formId);
 
   return prisma.form.update({
     where: { id: formId },
-    data: { title },
+    data: {
+      title,
+      description: description?.trim() ? description.trim() : null,
+    },
   });
 }
 
 export async function deleteClientForm(
   userId: string,
   role: UserRole,
-  teamId: string,
-  clientId: string,
+  _teamId?: string,
+  _clientId?: string,
   formId: string
 ) {
-  const allowed = await userCanManageTeam(userId, role, teamId);
-  if (!allowed) throw new Error("No access");
+  await requireFormAccess(userId, role, formId);
 
-  const form = await prisma.form.findFirst({
-    where: { id: formId, teamId, clientId },
+  const form = await prisma.form.findUnique({
+    where: { id: formId },
     include: {
       surveys: { include: { _count: { select: { responses: true } } } },
     },
@@ -126,16 +226,15 @@ export async function deleteClientForm(
 export async function setClientFormPublish(
   userId: string,
   role: UserRole,
-  teamId: string,
-  clientId: string,
+  _teamId?: string,
+  _clientId?: string,
   formId: string,
   publish: boolean
 ) {
-  const allowed = await userCanManageTeam(userId, role, teamId);
-  if (!allowed) throw new Error("No access");
+  await requireFormAccess(userId, role, formId);
 
-  const form = await prisma.form.findFirst({
-    where: { id: formId, teamId, clientId },
+  const form = await prisma.form.findUnique({
+    where: { id: formId },
     include: { questions: { orderBy: { order: "asc" } } },
   });
   if (!form) throw new Error("Form not found");
@@ -151,14 +250,14 @@ export async function setClientFormPublish(
     });
 
     const existing = await prisma.clientSurvey.findFirst({
-      where: { formId, clientId },
+      where: { formId },
     });
 
     if (!existing) {
       await prisma.clientSurvey.create({
         data: {
           formId,
-          clientId,
+          clientId: form.clientId,
           status: "UPCOMING",
         },
       });
@@ -176,19 +275,18 @@ export async function setClientFormPublish(
 export async function addFieldToForm(
   userId: string,
   role: UserRole,
-  teamId: string,
-  clientId: string,
+  _teamId?: string,
+  _clientId?: string,
   formId: string,
   type: QuestionType
 ) {
-  const allowed = await userCanManageTeam(userId, role, teamId);
-  if (!allowed) throw new Error("No access");
+  await requireFormAccess(userId, role, formId);
 
   const meta = fieldTypeMeta(type);
   if (!meta) throw new Error("Unknown field type");
 
-  const form = await prisma.form.findFirst({
-    where: { id: formId, teamId, clientId },
+  const form = await prisma.form.findUnique({
+    where: { id: formId },
     include: { questions: { select: { order: true } } },
   });
   if (!form) throw new Error("Form not found");
@@ -222,11 +320,10 @@ export async function updateFieldOnForm(
   fieldId: string,
   data: { label: string; required: boolean; optionsText?: string }
 ) {
-  const allowed = await userCanManageTeam(userId, role, teamId);
-  if (!allowed) throw new Error("No access");
+  await requireFormAccess(userId, role, formId);
 
   const field = await prisma.question.findFirst({
-    where: { id: fieldId, formId, form: { teamId, clientId } },
+    where: { id: fieldId, formId },
   });
   if (!field) throw new Error("Field not found");
 
@@ -265,11 +362,10 @@ export async function deleteFieldOnForm(
   formId: string,
   fieldId: string
 ) {
-  const allowed = await userCanManageTeam(userId, role, teamId);
-  if (!allowed) throw new Error("No access");
+  await requireFormAccess(userId, role, formId);
 
   const field = await prisma.question.findFirst({
-    where: { id: fieldId, formId, form: { teamId, clientId } },
+    where: { id: fieldId, formId },
     include: { _count: { select: { answers: true } } },
   });
   if (!field) throw new Error("Field not found");
@@ -305,11 +401,10 @@ export async function reorderFieldsOnForm(
   formId: string,
   orderedIds: string[]
 ) {
-  const allowed = await userCanManageTeam(userId, role, teamId);
-  if (!allowed) throw new Error("No access");
+  await requireFormAccess(userId, role, formId);
 
   const fields = await prisma.question.findMany({
-    where: { formId, form: { teamId, clientId } },
+    where: { formId },
   });
 
   const allowedIds = new Set(fields.map((item) => item.id));
@@ -351,6 +446,9 @@ export async function submitPublicForm(
   const form = await getPublishedFormByToken(token);
   if (!form || form.status !== "PUBLISHED") {
     throw new Error("This form is not accepting responses.");
+  }
+  if (formHasSubmission(form.surveys)) {
+    throw new Error("This form has already been submitted.");
   }
 
   let survey = form.surveys[0];
@@ -400,6 +498,13 @@ export async function submitPublicForm(
   }
 
   await prisma.$transaction(async (tx) => {
+    const already = await tx.response.count({
+      where: { clientSurvey: { formId: form.id } },
+    });
+    if (already > 0) {
+      throw new Error("This form has already been submitted.");
+    }
+
     const response = await tx.response.create({
       data: { clientSurveyId: survey.id },
     });

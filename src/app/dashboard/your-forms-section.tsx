@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { LayoutGrid, Plus, Search, Table2 } from "lucide-react";
@@ -12,15 +12,16 @@ import { Pagination, usePaged } from "@/components/ui/pagination";
 import { DrawerActions, SideDrawer } from "@/components/ui/side-drawer";
 import { toast } from "@/components/ui/toaster";
 import { Stagger } from "@/components/ui/skeleton";
+import { Select } from "@/components/ui/select";
+import { Tooltip } from "@/components/ui/tooltip";
+import { usePersistedValue } from "@/lib/use-persisted-value";
 
 type FormsFilter = "all" | "published" | "drafts";
-type FormsView = "grid" | "table";
 
-export type FormClientOption = {
+type TemplateOption = {
   id: string;
   name: string;
-  teamId: string;
-  teamName: string;
+  fieldCount: number;
 };
 
 const VIEW_STORAGE_KEY = "optiphoenix.formsView";
@@ -39,37 +40,26 @@ function parseFilter(value: string | null): FormsFilter {
 export function YourFormsSection({
   forms,
   title = "Your forms",
-  clients = [],
+  templates = [],
   createAction,
 }: {
   forms: DashboardFormRow[];
   title?: string;
-  clients?: FormClientOption[];
+  templates?: TemplateOption[];
   createAction?: (formData: FormData) => Promise<ActionResult>;
 }) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const filter = parseFilter(searchParams.get("forms"));
-  const [view, setView] = useState<FormsView>("grid");
+  const [view, setView] = usePersistedValue(VIEW_STORAGE_KEY, "grid", [
+    "grid",
+    "table",
+  ]);
   const [query, setQuery] = useState("");
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [clientId, setClientId] = useState(clients[0]?.id ?? "");
-  const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const canCreate = Boolean(createAction);
-
-  useEffect(() => {
-    const stored = window.localStorage.getItem(VIEW_STORAGE_KEY);
-    if (stored === "grid" || stored === "table") {
-      setView(stored);
-    }
-  }, []);
-
-  function setFormsView(next: FormsView) {
-    setView(next);
-    window.localStorage.setItem(VIEW_STORAGE_KEY, next);
-  }
 
   function setFilter(next: FormsFilter) {
     const params = new URLSearchParams(searchParams.toString());
@@ -86,23 +76,25 @@ export function YourFormsSection({
 
   const visible = filterForms(forms, filter, query);
   const paged = usePaged(visible);
-  const selectedClient = clients.find((client) => client.id === clientId);
 
   function closeDrawer() {
     setDrawerOpen(false);
-    setError(null);
   }
 
   function submitCreate(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!createAction) return;
     const formData = new FormData(event.currentTarget);
-    setError(null);
     startTransition(async () => {
       const result = await createAction(formData);
       if (result?.error) {
-        setError(result.error);
         toast(result.error, { tone: "error" });
+        return;
+      }
+      toast("Form created.", { tone: "success" });
+      closeDrawer();
+      if (result.formId) {
+        router.push(`/dashboard/forms/${result.formId}`);
       }
     });
   }
@@ -153,48 +145,44 @@ export function YourFormsSection({
             role="group"
             aria-label="Forms layout"
           >
-            <button
-              type="button"
-              onClick={() => setFormsView("grid")}
-              aria-pressed={view === "grid"}
-              className={cn(
-                "grid h-8 w-8 place-items-center rounded-full",
-                view === "grid"
-                  ? "bg-accent text-on-accent"
-                  : "text-muted hover:text-foreground"
-              )}
-              title="Card grid"
-            >
-              <LayoutGrid className="h-4 w-4" />
-              <span className="sr-only">Card grid</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setFormsView("table")}
-              aria-pressed={view === "table"}
-              className={cn(
-                "grid h-8 w-8 place-items-center rounded-full",
-                view === "table"
-                  ? "bg-accent text-on-accent"
-                  : "text-muted hover:text-foreground"
-              )}
-              title="Table"
-            >
-              <Table2 className="h-4 w-4" />
-              <span className="sr-only">Table</span>
-            </button>
+            <Tooltip label="Card grid" side="bottom">
+              <button
+                type="button"
+                onClick={() => setView("grid")}
+                aria-pressed={view === "grid"}
+                className={cn(
+                  "grid h-8 w-8 place-items-center rounded-full",
+                  view === "grid"
+                    ? "bg-accent text-on-accent"
+                    : "text-muted hover:text-foreground"
+                )}
+              >
+                <LayoutGrid className="h-4 w-4" />
+                <span className="sr-only">Card grid</span>
+              </button>
+            </Tooltip>
+            <Tooltip label="Table" side="bottom">
+              <button
+                type="button"
+                onClick={() => setView("table")}
+                aria-pressed={view === "table"}
+                className={cn(
+                  "grid h-8 w-8 place-items-center rounded-full",
+                  view === "table"
+                    ? "bg-accent text-on-accent"
+                    : "text-muted hover:text-foreground"
+                )}
+              >
+                <Table2 className="h-4 w-4" />
+                <span className="sr-only">Table</span>
+              </button>
+            </Tooltip>
           </div>
           {canCreate ? (
             <button
               type="button"
-              disabled={clients.length === 0}
-              title={clients.length === 0 ? "Add a client first" : undefined}
-              onClick={() => {
-                setError(null);
-                setClientId(clients[0]?.id ?? "");
-                setDrawerOpen(true);
-              }}
-              className="inline-flex items-center justify-center gap-2 rounded-full bg-accent px-4 py-2.5 text-sm font-medium text-on-accent hover:bg-accent-hover disabled:opacity-50"
+              onClick={() => setDrawerOpen(true)}
+              className="inline-flex items-center justify-center gap-2 rounded-full bg-accent px-4 py-2.5 text-sm font-medium text-on-accent hover:bg-accent-hover"
             >
               <Plus className="h-4 w-4" />
               New form
@@ -205,13 +193,15 @@ export function YourFormsSection({
 
       {visible.length === 0 ? (
         <p className="mt-4 rounded-2xl border border-dashed border-border bg-card px-4 py-8 text-center text-sm text-muted">
-          {forms.length === 0
-            ? canCreate
-              ? clients.length === 0
-                ? "Add a client first, then create a form for them."
-                : "No forms yet. Create the first one."
-              : "No forms yet. Open a client to create the first one."
-            : "No forms match this filter."}
+          {forms.length === 0 ? (
+            canCreate ? (
+              "No forms yet. Create a blank form or start from a template."
+            ) : (
+              "No forms yet."
+            )
+          ) : (
+            "No forms match this filter."
+          )}
         </p>
       ) : view === "grid" ? (
         <ul className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
@@ -225,21 +215,21 @@ export function YourFormsSection({
         </ul>
       ) : (
         <div className="card-enter mt-4 overflow-x-auto rounded-2xl border border-border bg-card">
-          <table className="w-full min-w-[40rem] text-left text-sm">
+          <table className="w-full min-w-[44rem] table-fixed text-sm">
             <thead className="border-b border-border text-muted">
               <tr>
-                <th className="px-4 py-3 font-medium">Form</th>
-                <th className="px-4 py-3 font-medium">Client</th>
-                <th className="px-4 py-3 font-medium">Status</th>
-                <th className="px-4 py-3 font-medium">Team</th>
-                <th className="px-4 py-3 text-right font-medium">Fields</th>
-                <th className="px-4 py-3 text-right font-medium">Responses</th>
+                <th className="w-[28%] px-4 py-3 text-left font-medium">Form</th>
+                <th className="w-[18%] px-4 py-3 text-left font-medium">Client</th>
+                <th className="w-[12%] px-4 py-3 text-left font-medium">Status</th>
+                <th className="w-[16%] px-4 py-3 text-left font-medium">Team</th>
+                <th className="w-[13%] px-4 py-3 text-center font-medium">Fields</th>
+                <th className="w-[13%] px-4 py-3 text-center font-medium">Responses</th>
               </tr>
             </thead>
             <tbody>
               {paged.slice.map((form) => (
                 <tr key={form.id} className="border-b border-border last:border-0">
-                  <td className="px-4 py-3">
+                  <td className="px-4 py-3 align-middle">
                     <Link href={form.href} className="font-medium hover:text-accent">
                       {form.title}
                     </Link>
@@ -247,13 +237,20 @@ export function YourFormsSection({
                       {formatRelativeTime(form.updatedAt)}
                     </p>
                   </td>
-                  <td className="px-4 py-3 text-muted">{form.clientName}</td>
-                  <td className="px-4 py-3">
+                  <td className="px-4 py-3 align-middle text-muted">{form.clientName}</td>
+                  <td className="px-4 py-3 align-middle">
                     <StatusBadge status={form.status} />
                   </td>
-                  <td className="px-4 py-3 text-muted">{form.teamName}</td>
-                  <td className="px-4 py-3 text-right tabular-nums">{form.fieldCount}</td>
-                  <td className="px-4 py-3 text-right tabular-nums">{form.responseCount}</td>
+                  <td className="px-4 py-3 align-middle text-muted">{form.teamName}</td>
+                  <td className="px-4 py-3 align-middle text-center tabular-nums">{form.fieldCount}</td>
+                  <td className="px-4 py-3 align-middle text-center tabular-nums">
+                    <Link
+                      href={`/dashboard/responses?form=${form.id}`}
+                      className="hover:text-accent"
+                    >
+                      {form.responseCount}
+                    </Link>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -272,70 +269,58 @@ export function YourFormsSection({
         <SideDrawer
           open={drawerOpen}
           title="New form"
-          description="Choose a client, then name the form. You’ll land in the builder."
+          description="Start blank or pick a template. Each published link can be submitted once."
           onClose={closeDrawer}
         >
-          {clients.length === 0 ? (
-            <p className="text-sm text-muted">
-              Add a client first.{" "}
-              <Link href="/dashboard/clients" className="font-medium text-accent hover:text-accent-hover">
-                Go to Clients
-              </Link>
-            </p>
-          ) : (
-            <form onSubmit={submitCreate}>
-              <label className="flex flex-col gap-1.5 text-sm font-medium">
-                Client
-                <select
-                  name="clientId"
-                  required
-                  value={clientId}
-                  onChange={(event) => setClientId(event.target.value)}
-                  className="rounded-xl border border-border bg-surface px-3 py-2.5 text-sm outline-none focus:border-accent"
-                >
-                  {clients.map((client) => (
-                    <option key={client.id} value={client.id}>
-                      {client.name} · {client.teamName}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <input type="hidden" name="teamId" value={selectedClient?.teamId ?? ""} />
-              <label className="mt-4 flex flex-col gap-1.5 text-sm font-medium">
-                Form title
-                <input
-                  name="title"
-                  required
-                  minLength={2}
-                  maxLength={160}
-                  autoFocus
-                  placeholder="Q3 client feedback"
-                  className="rounded-xl border border-border bg-surface px-3 py-2.5 text-sm outline-none focus:border-accent"
-                />
-              </label>
-              {error ? (
-                <p className="mt-3 rounded-xl border border-rose-700 bg-rose-50 px-3 py-2 text-sm text-rose-900 dark:bg-rose-950/40 dark:text-rose-100">
-                  {error}
-                </p>
-              ) : null}
-              <DrawerActions>
-                <button
-                  type="button"
-                  onClick={closeDrawer}
-                  className="rounded-full border border-border bg-surface px-4 py-2 text-sm font-medium hover:bg-hover"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={pending || !selectedClient}
-                  className="rounded-full bg-accent px-4 py-2 text-sm font-medium text-on-accent hover:bg-accent-hover disabled:opacity-60"
-                >
-                  {pending ? "Creating…" : "Create form"}
-                </button>
-              </DrawerActions>
-            </form>
-          )}
+          <form onSubmit={submitCreate}>
+            <label className="flex flex-col gap-1.5 text-sm font-medium">
+              Form title
+              <input
+                name="title"
+                required
+                minLength={2}
+                maxLength={160}
+                autoFocus
+                placeholder="April client feedback"
+                className="rounded-xl border border-border bg-surface px-3 py-2.5 text-sm outline-none focus:border-accent"
+              />
+            </label>
+            <label className="mt-4 flex flex-col gap-1.5 text-sm font-medium">
+              Start from
+              <Select
+                name="templateId"
+                defaultValue=""
+              >
+                <option value="">Blank form</option>
+                {templates.map((template) => (
+                  <option key={template.id} value={template.id}>
+                    {template.name} · {template.fieldCount} fields
+                  </option>
+                ))}
+              </Select>
+            </label>
+            {templates.length === 0 ? (
+              <p className="mt-2 text-xs text-muted">
+                After you build a form, save it as a template to reuse next month.
+              </p>
+            ) : null}
+            <DrawerActions>
+              <button
+                type="button"
+                onClick={closeDrawer}
+                className="rounded-full border border-border bg-surface px-4 py-2 text-sm font-medium hover:bg-hover"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={pending}
+                className="rounded-full bg-accent px-4 py-2 text-sm font-medium text-on-accent hover:bg-accent-hover disabled:opacity-60"
+              >
+                {pending ? "Creating…" : "Create form"}
+              </button>
+            </DrawerActions>
+          </form>
         </SideDrawer>
       ) : null}
     </section>
@@ -359,6 +344,13 @@ function filterForms(forms: DashboardFormRow[], filter: FormsFilter, query: stri
   });
 }
 
+function formOwnerLabel(form: DashboardFormRow) {
+  const parts = [form.clientName, form.teamName].filter(
+    (name) => name && name !== "—"
+  );
+  return parts.length > 0 ? parts.join(" · ") : "Independent form";
+}
+
 function FormCard({ form }: { form: DashboardFormRow }) {
   return (
     <Link
@@ -372,7 +364,7 @@ function FormCard({ form }: { form: DashboardFormRow }) {
       </div>
       <p className="mt-4 text-base font-semibold tracking-tight">{form.title}</p>
       <p className="mt-1 line-clamp-2 text-sm text-muted">
-        {form.description || `${form.clientName} · ${form.teamName}`}
+        {form.description || formOwnerLabel(form)}
       </p>
       <p className="mt-5 text-xs text-muted">
         {form.responseCount} responses · {form.fieldCount} fields

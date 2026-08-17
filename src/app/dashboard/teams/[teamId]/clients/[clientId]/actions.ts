@@ -1,7 +1,9 @@
 "use server";
 
+import { revalidatePath, revalidateTag } from "next/cache";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
+import type { ActionResult } from "@/lib/action-result";
 import {
   addFieldSchema,
   createFormSchema,
@@ -11,10 +13,11 @@ import {
   reorderFieldsSchema,
   updateFieldSchema,
   updateFormSchema,
+  saveTemplateSchema,
 } from "@/lib/validations";
 import {
   addFieldToForm,
-  createClientForm,
+  createFormForUser,
   deleteClientForm,
   deleteFieldOnForm,
   reorderFieldsOnForm,
@@ -22,6 +25,7 @@ import {
   updateClientForm,
   updateFieldOnForm,
 } from "@/lib/forms";
+import { saveFormAsTemplate } from "@/lib/templates";
 
 async function requireSession() {
   const session = await auth();
@@ -29,55 +33,55 @@ async function requireSession() {
   return session;
 }
 
-function clientPath(teamId: string, clientId: string, query?: string) {
-  return `/dashboard/teams/${teamId}/clients/${clientId}${query ? `?${query}` : ""}`;
+function clientPath(teamId: string, clientId: string) {
+  return `/dashboard/teams/${teamId}/clients/${clientId}`;
 }
 
-function builderPath(
-  teamId: string,
-  clientId: string,
-  formId: string,
-  query?: Record<string, string>
-) {
-  const params = new URLSearchParams(query);
-  const suffix = params.toString();
-  return `/dashboard/teams/${teamId}/clients/${clientId}/forms/${formId}${
-    suffix ? `?${suffix}` : ""
-  }`;
+function builderPath(teamId: string, clientId: string, formId: string) {
+  return `/dashboard/teams/${teamId}/clients/${clientId}/forms/${formId}`;
 }
 
-export async function createForm(formData: FormData) {
+function revalidateBuilder(teamId: string, clientId: string, formId: string) {
+  revalidateTag("dashboard-shell", "max");
+  revalidatePath(`/dashboard/forms/${formId}`);
+  revalidatePath(builderPath(teamId, clientId, formId));
+  revalidatePath(clientPath(teamId, clientId));
+  revalidatePath("/dashboard/forms");
+  revalidatePath("/dashboard/templates");
+  revalidatePath("/dashboard");
+}
+
+export async function createForm(formData: FormData): Promise<ActionResult> {
   const session = await requireSession();
   const teamId = String(formData.get("teamId") ?? "");
   const clientId = String(formData.get("clientId") ?? "");
 
   const parsed = createFormSchema.safeParse({
-    teamId,
-    clientId,
+    teamId: teamId || undefined,
+    clientId: clientId || undefined,
     title: formData.get("title"),
+    templateId: String(formData.get("templateId") ?? "") || undefined,
   });
 
   if (!parsed.success) {
-    redirect(clientPath(teamId, clientId, "error=Enter+a+form+title"));
+    return { error: "Enter a form title." };
   }
 
   let form;
   try {
-    form = await createClientForm(
-      session.user.id,
-      session.user.role,
-      parsed.data.teamId,
-      parsed.data.clientId,
-      parsed.data.title
-    );
+    form = await createFormForUser(session.user.id, session.user.role, parsed.data);
   } catch {
-    redirect(clientPath(teamId, clientId, "error=Could+not+create+form"));
+    return { error: "Could not create this form." };
   }
 
-  redirect(builderPath(teamId, clientId, form.id));
+  revalidateTag("dashboard-shell", "max");
+  revalidatePath(clientPath(teamId, clientId));
+  revalidatePath("/dashboard/forms");
+  revalidatePath("/dashboard");
+  return { formId: form.id };
 }
 
-export async function updateForm(formData: FormData) {
+export async function updateForm(formData: FormData): Promise<ActionResult> {
   const session = await requireSession();
   const teamId = String(formData.get("teamId") ?? "");
   const clientId = String(formData.get("clientId") ?? "");
@@ -88,12 +92,11 @@ export async function updateForm(formData: FormData) {
     clientId,
     formId,
     title: formData.get("title"),
+    description: formData.get("description") ?? "",
   });
 
   if (!parsed.success) {
-    redirect(
-      builderPath(teamId, clientId, formId, { error: "Enter a form title" })
-    );
+    return { error: "Enter a form title." };
   }
 
   try {
@@ -103,17 +106,18 @@ export async function updateForm(formData: FormData) {
       parsed.data.teamId,
       parsed.data.clientId,
       parsed.data.formId,
-      parsed.data.title
+      parsed.data.title,
+      parsed.data.description
     );
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Save failed";
-    redirect(builderPath(teamId, clientId, formId, { error: message }));
+    return { error: error instanceof Error ? error.message : "Save failed." };
   }
 
-  redirect(builderPath(teamId, clientId, formId, { updated: "1" }));
+  revalidateBuilder(teamId, clientId, formId);
+  return {};
 }
 
-export async function deleteForm(formData: FormData) {
+export async function deleteForm(formData: FormData): Promise<ActionResult> {
   const session = await requireSession();
   const teamId = String(formData.get("teamId") ?? "");
   const clientId = String(formData.get("clientId") ?? "");
@@ -125,7 +129,7 @@ export async function deleteForm(formData: FormData) {
   });
 
   if (!parsed.success) {
-    redirect(clientPath(teamId, clientId, "error=Form+not+found"));
+    return { error: "Form not found." };
   }
 
   try {
@@ -137,15 +141,16 @@ export async function deleteForm(formData: FormData) {
       parsed.data.formId
     );
   } catch (error) {
-    const message =
-      error instanceof Error ? error.message.replaceAll(" ", "+") : "Delete+failed";
-    redirect(clientPath(teamId, clientId, `error=${message}`));
+    return { error: error instanceof Error ? error.message : "Delete failed." };
   }
 
-  redirect(clientPath(teamId, clientId, "formDeleted=1"));
+  revalidatePath(clientPath(teamId, clientId));
+  revalidatePath("/dashboard/forms");
+  revalidatePath("/dashboard");
+  return {};
 }
 
-export async function togglePublishForm(formData: FormData) {
+export async function togglePublishForm(formData: FormData): Promise<ActionResult> {
   const session = await requireSession();
   const teamId = String(formData.get("teamId") ?? "");
   const clientId = String(formData.get("clientId") ?? "");
@@ -159,7 +164,7 @@ export async function togglePublishForm(formData: FormData) {
   });
 
   if (!parsed.success) {
-    redirect(builderPath(teamId, clientId, formId, { error: "Invalid action" }));
+    return { error: "Invalid action." };
   }
 
   try {
@@ -172,18 +177,14 @@ export async function togglePublishForm(formData: FormData) {
       parsed.data.action === "publish"
     );
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Publish failed";
-    redirect(builderPath(teamId, clientId, formId, { error: message }));
+    return { error: error instanceof Error ? error.message : "Publish failed." };
   }
 
-  redirect(
-    builderPath(teamId, clientId, formId, {
-      [parsed.data.action === "publish" ? "published" : "unpublished"]: "1",
-    })
-  );
+  revalidateBuilder(teamId, clientId, formId);
+  return {};
 }
 
-export async function addField(formData: FormData) {
+export async function addField(formData: FormData): Promise<ActionResult> {
   const session = await requireSession();
   const teamId = String(formData.get("teamId") ?? "");
   const clientId = String(formData.get("clientId") ?? "");
@@ -197,9 +198,7 @@ export async function addField(formData: FormData) {
   });
 
   if (!parsed.success) {
-    redirect(
-      builderPath(teamId, clientId, formId, { error: "Unknown field type" })
-    );
+    return { error: "Unknown field type." };
   }
 
   let question;
@@ -213,14 +212,14 @@ export async function addField(formData: FormData) {
       parsed.data.type
     );
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Add failed";
-    redirect(builderPath(teamId, clientId, formId, { error: message }));
+    return { error: error instanceof Error ? error.message : "Add failed." };
   }
 
-  redirect(builderPath(teamId, clientId, formId, { focus: question.id }));
+  revalidateBuilder(teamId, clientId, formId);
+  return { fieldId: question.id };
 }
 
-export async function updateField(formData: FormData) {
+export async function updateField(formData: FormData): Promise<ActionResult> {
   const session = await requireSession();
   const teamId = String(formData.get("teamId") ?? "");
   const clientId = String(formData.get("clientId") ?? "");
@@ -238,12 +237,7 @@ export async function updateField(formData: FormData) {
   });
 
   if (!parsed.success) {
-    redirect(
-      builderPath(teamId, clientId, formId, {
-        error: "Check field details",
-        focus: fieldId,
-      })
-    );
+    return { error: "Check field details." };
   }
 
   try {
@@ -261,21 +255,14 @@ export async function updateField(formData: FormData) {
       }
     );
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Save failed";
-    redirect(
-      builderPath(teamId, clientId, formId, { error: message, focus: fieldId })
-    );
+    return { error: error instanceof Error ? error.message : "Save failed." };
   }
 
-  redirect(
-    builderPath(teamId, clientId, formId, {
-      updated: "1",
-      focus: parsed.data.fieldId,
-    })
-  );
+  revalidateBuilder(teamId, clientId, formId);
+  return {};
 }
 
-export async function deleteField(formData: FormData) {
+export async function deleteField(formData: FormData): Promise<ActionResult> {
   const session = await requireSession();
   const teamId = String(formData.get("teamId") ?? "");
   const clientId = String(formData.get("clientId") ?? "");
@@ -289,7 +276,7 @@ export async function deleteField(formData: FormData) {
   });
 
   if (!parsed.success) {
-    redirect(builderPath(teamId, clientId, formId, { error: "Field not found" }));
+    return { error: "Field not found." };
   }
 
   try {
@@ -302,14 +289,14 @@ export async function deleteField(formData: FormData) {
       parsed.data.fieldId
     );
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Delete failed";
-    redirect(builderPath(teamId, clientId, formId, { error: message }));
+    return { error: error instanceof Error ? error.message : "Delete failed." };
   }
 
-  redirect(builderPath(teamId, clientId, formId));
+  revalidateBuilder(teamId, clientId, formId);
+  return {};
 }
 
-export async function reorderFields(formData: FormData) {
+export async function reorderFields(formData: FormData): Promise<ActionResult> {
   const session = await requireSession();
   const teamId = String(formData.get("teamId") ?? "");
   const clientId = String(formData.get("clientId") ?? "");
@@ -320,7 +307,7 @@ export async function reorderFields(formData: FormData) {
   try {
     orderedIds = JSON.parse(orderedRaw);
   } catch {
-    return { error: "Could not reorder" };
+    return { error: "Could not reorder." };
   }
 
   const parsed = reorderFieldsSchema.safeParse({
@@ -331,21 +318,52 @@ export async function reorderFields(formData: FormData) {
   });
 
   if (!parsed.success) {
-    return { error: "Could not reorder" };
+    return { error: "Could not reorder." };
   }
 
   try {
     await reorderFieldsOnForm(
       session.user.id,
       session.user.role,
-      parsed.data.teamId,
-      parsed.data.clientId,
+      parsed.data.teamId ?? "",
+      parsed.data.clientId ?? "",
       parsed.data.formId,
       parsed.data.orderedIds
     );
   } catch {
-    return { error: "Could not reorder" };
+    return { error: "Could not reorder." };
   }
 
-  return { ok: true };
+  return {};
+}
+
+export async function saveAsTemplate(formData: FormData): Promise<ActionResult> {
+  const session = await requireSession();
+  const parsed = saveTemplateSchema.safeParse({
+    formId: formData.get("formId"),
+    name: formData.get("name"),
+    description: formData.get("description") ?? "",
+  });
+  if (!parsed.success) {
+    return { error: "Enter a template name." };
+  }
+
+  try {
+    await saveFormAsTemplate(
+      session.user.id,
+      session.user.role,
+      parsed.data.formId,
+      parsed.data.name,
+      parsed.data.description
+    );
+  } catch (error) {
+    return {
+      error: error instanceof Error ? error.message : "Could not save template.",
+    };
+  }
+
+  revalidateTag("dashboard-shell", "max");
+  revalidatePath("/dashboard/templates");
+  revalidatePath("/dashboard/forms");
+  return {};
 }

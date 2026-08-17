@@ -1,20 +1,21 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Pencil, Plus, Trash2 } from "lucide-react";
+import { Eye, Pencil, Plus, Trash2 } from "lucide-react";
 import type { ActionResult } from "@/lib/action-result";
 import type { ClientDirectoryRow } from "@/lib/clients";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { DrawerActions, SideDrawer } from "@/components/ui/side-drawer";
 import { Pagination, usePaged } from "@/components/ui/pagination";
 import { toast } from "@/components/ui/toaster";
-import {
-  DirectoryToolbar,
-  type DirectoryView,
-} from "@/components/directory/directory-toolbar";
+import { Spinner } from "@/components/ui/pending-button";
+import { DirectoryToolbar } from "@/components/directory/directory-toolbar";
 import { Stagger } from "@/components/ui/skeleton";
+import { Select } from "@/components/ui/select";
+import { pluralize } from "@/lib/format";
+import { usePersistedValue } from "@/lib/use-persisted-value";
 
 type TeamOption = { id: string; name: string };
 
@@ -41,21 +42,10 @@ export function ClientsDirectory({
 }: ClientsDirectoryProps) {
   const router = useRouter();
   const [query, setQuery] = useState("");
-  const [view, setView] = useState<DirectoryView>("grid");
+  const [view, setView] = usePersistedValue(VIEW_KEY, "grid", ["grid", "table"]);
   const [drawer, setDrawer] = useState<"create" | ClientDirectoryRow | null>(null);
   const [deleting, setDeleting] = useState<ClientDirectoryRow | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
-
-  useEffect(() => {
-    const stored = window.localStorage.getItem(VIEW_KEY);
-    if (stored === "grid" || stored === "table") setView(stored);
-  }, []);
-
-  function changeView(next: DirectoryView) {
-    setView(next);
-    window.localStorage.setItem(VIEW_KEY, next);
-  }
 
   const visible = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -71,23 +61,21 @@ export function ClientsDirectory({
 
   function closeDrawer() {
     setDrawer(null);
-    setError(null);
   }
 
   function run(
     action: (formData: FormData) => Promise<ActionResult>,
     formData: FormData,
+    success: string,
     onSuccess: () => void
   ) {
-    setError(null);
     startTransition(async () => {
       const result = await action(formData);
       if (result.error) {
-        setError(result.error);
         toast(result.error, { tone: "error" });
         return;
       }
-      toast("Saved", { tone: "success" });
+      toast(success, { tone: "success" });
       onSuccess();
       router.refresh();
     });
@@ -104,14 +92,14 @@ export function ClientsDirectory({
           query={query}
           onQueryChange={setQuery}
           view={view}
-          onViewChange={changeView}
+          onViewChange={setView}
           searchPlaceholder="Search clients..."
+          className="flex-1"
         />
         <button
           type="button"
           disabled={!canCreate}
           onClick={() => {
-            setError(null);
             setDrawer("create");
           }}
           className="inline-flex items-center justify-center gap-2 rounded-full bg-accent px-4 py-2.5 text-sm font-medium text-on-accent hover:bg-accent-hover disabled:opacity-50"
@@ -146,19 +134,19 @@ export function ClientsDirectory({
                   {client.company || "No company"} · {client.email || "No email"}
                 </p>
                 <p className="mt-1 text-xs text-muted">
-                  {client.teamName} · {client.formCount} forms
+                  {client.teamName} · {pluralize(client.formCount, "form")}
                 </p>
                 <div className="mt-5 flex flex-wrap gap-2">
                   <Link
                     href={client.href}
-                    className="rounded-full bg-accent px-3 py-1.5 text-sm font-medium text-on-accent hover:bg-accent-hover"
+                    className="inline-flex items-center gap-1.5 rounded-full bg-accent px-3 py-1.5 text-sm font-medium text-on-accent hover:bg-accent-hover"
                   >
-                    Open
+                    <Eye className="h-3.5 w-3.5" />
+                    View
                   </Link>
                   <button
                     type="button"
                     onClick={() => {
-                      setError(null);
                       setDrawer(client);
                     }}
                     className="inline-flex items-center gap-1 rounded-full border border-border bg-surface px-3 py-1.5 text-sm font-medium hover:bg-background"
@@ -169,7 +157,6 @@ export function ClientsDirectory({
                   <button
                     type="button"
                     onClick={() => {
-                      setError(null);
                       setDeleting(client);
                     }}
                     className="inline-flex items-center gap-1 rounded-full border border-rose-200 bg-rose-50 px-3 py-1.5 text-sm font-medium text-rose-900 hover:bg-rose-100"
@@ -185,15 +172,15 @@ export function ClientsDirectory({
         </ul>
       ) : (
         <div className="mt-6 overflow-x-auto rounded-2xl border border-border bg-card">
-          <table className="w-full min-w-[44rem] text-left text-sm">
+          <table className="w-full min-w-[44rem] table-fixed text-sm">
             <thead className="border-b border-border text-muted">
               <tr>
-                <th className="px-4 py-3 font-medium">Client</th>
-                <th className="px-4 py-3 font-medium">Company</th>
-                <th className="px-4 py-3 font-medium">Email</th>
-                <th className="px-4 py-3 font-medium">Team</th>
-                <th className="px-4 py-3 text-right font-medium">Forms</th>
-                <th className="px-4 py-3 text-right font-medium">Actions</th>
+                <th className="w-[18%] px-4 py-3 text-left font-medium">Client</th>
+                <th className="w-[16%] px-4 py-3 text-left font-medium">Company</th>
+                <th className="w-[22%] px-4 py-3 text-left font-medium">Email</th>
+                <th className="w-[16%] px-4 py-3 text-left font-medium">Team</th>
+                <th className="w-[10%] px-4 py-3 text-center font-medium">Forms</th>
+                <th className="w-[18%] px-4 py-3 text-right font-medium">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -207,13 +194,12 @@ export function ClientsDirectory({
                   <td className="px-4 py-3 text-muted">{client.company || "—"}</td>
                   <td className="px-4 py-3 text-muted">{client.email || "—"}</td>
                   <td className="px-4 py-3 text-muted">{client.teamName}</td>
-                  <td className="px-4 py-3 text-right tabular-nums">{client.formCount}</td>
+                  <td className="px-4 py-3 text-center tabular-nums">{client.formCount}</td>
                   <td className="px-4 py-3">
                     <div className="flex justify-end gap-2">
                       <button
                         type="button"
                         onClick={() => {
-                          setError(null);
                           setDrawer(client);
                         }}
                         className="text-sm font-medium text-accent hover:text-accent-hover"
@@ -223,7 +209,6 @@ export function ClientsDirectory({
                       <button
                         type="button"
                         onClick={() => {
-                          setError(null);
                           setDeleting(client);
                         }}
                         className="text-sm font-medium text-rose-800 hover:text-rose-900"
@@ -258,7 +243,12 @@ export function ClientsDirectory({
           onSubmit={(event) => {
             event.preventDefault();
             const formData = new FormData(event.currentTarget);
-            run(editing ? updateAction : createAction, formData, closeDrawer);
+            run(
+              editing ? updateAction : createAction,
+              formData,
+              editing ? "Client saved" : "Client created",
+              closeDrawer
+            );
           }}
         >
           {editing ? (
@@ -271,18 +261,17 @@ export function ClientsDirectory({
           ) : (
             <label className="mb-4 flex flex-col gap-1.5 text-sm font-medium">
               Team
-              <select
+              <Select
                 name="teamId"
                 required
                 defaultValue={teams[0]?.id}
-                className="rounded-xl border border-border bg-surface px-3 py-2.5 text-sm outline-none focus:border-accent"
               >
                 {teams.map((team) => (
                   <option key={team.id} value={team.id}>
                     {team.name}
                   </option>
                 ))}
-              </select>
+              </Select>
             </label>
           )}
           <label className="flex flex-col gap-1.5 text-sm font-medium">
@@ -298,10 +287,11 @@ export function ClientsDirectory({
             />
           </label>
           <label className="mt-4 flex flex-col gap-1.5 text-sm font-medium">
-            Email (optional)
+            Email
             <input
               name="email"
               type="email"
+              required
               defaultValue={editing?.email ?? ""}
               className="rounded-xl border border-border bg-surface px-3 py-2.5 text-sm outline-none focus:border-accent"
             />
@@ -315,11 +305,6 @@ export function ClientsDirectory({
               className="rounded-xl border border-border bg-surface px-3 py-2.5 text-sm outline-none focus:border-accent"
             />
           </label>
-          {error && drawer ? (
-            <p className="mt-3 rounded-xl border border-rose-700 bg-rose-50 px-3 py-2 text-sm text-rose-900">
-              {error}
-            </p>
-          ) : null}
           <DrawerActions>
             <button
               type="button"
@@ -331,9 +316,18 @@ export function ClientsDirectory({
             <button
               type="submit"
               disabled={pending}
-              className="rounded-full bg-accent px-4 py-2 text-sm font-medium text-on-accent hover:bg-accent-hover disabled:opacity-60"
+              className="inline-flex items-center justify-center gap-2 rounded-full bg-accent px-4 py-2 text-sm font-medium text-on-accent hover:bg-accent-hover disabled:opacity-60"
             >
-              {pending ? "Saving…" : editing ? "Save" : "Create client"}
+              {pending ? (
+                <>
+                  <Spinner />
+                  {editing ? "Saving…" : "Create client"}
+                </>
+              ) : editing ? (
+                "Save"
+              ) : (
+                "Create client"
+              )}
             </button>
           </DrawerActions>
         </form>
@@ -341,22 +335,24 @@ export function ClientsDirectory({
 
       <ConfirmDialog
         open={Boolean(deleting)}
-        title={deleting ? `Delete “${deleting.name}”?` : "Delete client"}
-        description="Their survey links for this team will also be removed. Clients with submitted feedback cannot be deleted."
+        title="Are you absolutely sure?"
+        description={
+          deleting
+            ? `This will permanently delete client “${deleting.name}”. Their forms and survey links for this team will be removed. This cannot be undone.`
+            : "This will permanently delete this client."
+        }
+        confirmLabel="Delete client"
         pending={pending}
-        error={deleting ? error : null}
         onCancel={() => {
           setDeleting(null);
-          setError(null);
         }}
         onConfirm={() => {
           if (!deleting) return;
           const formData = new FormData();
           formData.set("teamId", deleting.teamId);
           formData.set("clientId", deleting.id);
-          run(deleteAction, formData, () => {
+          run(deleteAction, formData, "Client deleted", () => {
             setDeleting(null);
-            setError(null);
           });
         }}
       />

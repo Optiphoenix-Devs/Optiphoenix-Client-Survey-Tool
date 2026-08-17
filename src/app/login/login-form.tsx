@@ -3,20 +3,23 @@
 import { useActionState, useEffect } from "react";
 import Link from "next/link";
 import { loginAction } from "./actions";
-import { toast } from "@/components/ui/toaster";
+import { PasswordInput } from "@/components/ui/password-input";
+import { toast, toastOnce } from "@/components/ui/toaster";
 
 export function LoginForm({ notice }: { notice?: string }) {
   const [state, action, pending] = useActionState(loginAction, {});
 
   useEffect(() => {
     if (notice) {
-      toast(notice.replaceAll("+", " "), { tone: "success" });
+      toastOnce(`login-notice:${notice}`, notice.replaceAll("+", " "), {
+        tone: "success",
+      });
     }
   }, [notice]);
 
   useEffect(() => {
     if (state.error) {
-      toast(state.error, { tone: "error" });
+      toast("Sign in failed", { description: state.error, tone: "error" });
     }
   }, [state.error]);
 
@@ -30,7 +33,7 @@ export function LoginForm({ notice }: { notice?: string }) {
             name="email"
             required
             autoComplete="email"
-            placeholder="m@example.com"
+            placeholder="email@example.com"
             className="rounded-lg border border-border bg-surface px-3 py-2.5 text-sm outline-none transition focus:border-accent"
           />
         </label>
@@ -41,23 +44,11 @@ export function LoginForm({ notice }: { notice?: string }) {
               href="/forgot-password"
               className="text-xs font-medium text-accent hover:text-accent-hover"
             >
-              Forgot your password?
+              Forgot password?
             </Link>
           </span>
-          <input
-            type="password"
-            name="password"
-            required
-            minLength={8}
-            autoComplete="current-password"
-            className="rounded-lg border border-border bg-surface px-3 py-2.5 text-sm outline-none transition focus:border-accent"
-          />
+          <PasswordInput autoComplete="current-password" placeholder="********" />
         </label>
-        {state.error ? (
-          <p className="rounded-lg border border-rose-700 bg-rose-50 px-3 py-2 text-sm text-rose-900">
-            {state.error}
-          </p>
-        ) : null}
         <button
           type="submit"
           disabled={pending}

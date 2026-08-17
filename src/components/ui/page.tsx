@@ -1,5 +1,4 @@
 import type { LucideIcon } from "lucide-react";
-import { cn } from "@/lib/cn";
 
 export function StatCard({
   icon: Icon,
@@ -25,41 +24,5 @@ export function StatCard({
         </span>
       </div>
     </div>
-  );
-}
-
-export function PageHeader({
-  eyebrow,
-  title,
-  description,
-  actions,
-}: {
-  eyebrow?: React.ReactNode;
-  title: string;
-  description?: string;
-  actions?: React.ReactNode;
-}) {
-  return (
-    <header className="flex flex-wrap items-start justify-between gap-4">
-      <div>
-        {eyebrow ? (
-          <p className="text-sm font-medium uppercase tracking-wide text-muted">
-            {eyebrow}
-          </p>
-        ) : null}
-        <h1
-          className={cn(
-            "text-3xl font-semibold tracking-tight",
-            eyebrow ? "mt-1" : ""
-          ) as string}
-        >
-          {title}
-        </h1>
-        {description ? (
-          <p className="mt-1 max-w-2xl text-base text-muted">{description}</p>
-        ) : null}
-      </div>
-      {actions}
-    </header>
   );
 }

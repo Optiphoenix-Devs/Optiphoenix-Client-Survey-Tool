@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useEffect } from "react";
+import Link from "next/link";
 import { requestPasswordResetAction } from "../login/actions";
 import { toast } from "@/components/ui/toaster";
 
@@ -8,7 +9,12 @@ export function ForgotPasswordForm() {
   const [state, action, pending] = useActionState(requestPasswordResetAction, {});
 
   useEffect(() => {
-    if (state.error) toast(state.error, { tone: "error" });
+    if (!state.error) return;
+    const pending = state.error.toLowerCase().includes("approved by the admin");
+    toast(pending ? "Please wait" : "Could not continue", {
+      description: state.error,
+      tone: pending ? "info" : "error",
+    });
   }, [state.error]);
 
   return (
@@ -20,14 +26,10 @@ export function ForgotPasswordForm() {
           name="email"
           required
           autoComplete="email"
+          placeholder="email@example.com"
           className="rounded-lg border border-border bg-surface px-3 py-2.5 text-sm outline-none transition focus:border-accent"
         />
       </label>
-      {state.error ? (
-        <p className="rounded-lg border border-rose-700 bg-rose-50 px-3 py-2 text-sm text-rose-900">
-          {state.error}
-        </p>
-      ) : null}
       <button
         type="submit"
         disabled={pending}
@@ -35,6 +37,12 @@ export function ForgotPasswordForm() {
       >
         {pending ? "Continuing…" : "Continue"}
       </button>
+      <Link
+        href="/login"
+        className="inline-flex w-full items-center justify-center rounded-lg border border-border bg-surface px-4 py-2.5 text-sm font-medium transition hover:bg-background"
+      >
+        Back to login
+      </Link>
     </form>
   );
 }

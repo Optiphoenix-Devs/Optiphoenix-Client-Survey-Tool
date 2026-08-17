@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  Bookmark,
   Building2,
   ChevronsLeft,
   ChevronsRight,
@@ -20,6 +21,8 @@ import {
 import { cn } from "@/lib/cn";
 import { Tooltip } from "@/components/ui/tooltip";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { NavigationProgress } from "@/components/ui/navigation-progress";
+import { usePersistedValue } from "@/lib/use-persisted-value";
 
 type DashboardShellProps = {
   name: string;
@@ -30,6 +33,8 @@ type DashboardShellProps = {
   clientCount: number;
   formCount: number;
   userCount?: number;
+  responseCount?: number;
+  templateCount?: number;
   logoutAction: () => Promise<void>;
   children: React.ReactNode;
 };
@@ -45,15 +50,32 @@ export function DashboardShell({
   clientCount,
   formCount,
   userCount = 0,
+  responseCount = 0,
+  templateCount = 0,
   logoutAction,
   children,
 }: DashboardShellProps) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsedStored, setCollapsedStored] = usePersistedValue(
+    SIDEBAR_KEY,
+    "0",
+    ["0", "1"]
+  );
+  const collapsed = collapsedStored === "1";
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
-  const isBuilder = pathname.includes("/forms/") && pathname.includes("/clients/");
+  const isFormBuilder =
+    /^\/dashboard\/forms\/[^/]+/.test(pathname) ||
+    (pathname.includes("/forms/") && pathname.includes("/clients/"));
+  const isTemplateBuilder = /^\/dashboard\/templates\/[^/]+/.test(pathname);
+  const isBuilder = isFormBuilder || isTemplateBuilder;
+  const isTeamIndex = pathname === "/dashboard/teams";
+  const isTeamClientList = /^\/dashboard\/teams\/[^/]+$/.test(pathname);
+  const isClientSection =
+    pathname.startsWith("/dashboard/clients") ||
+    isTeamClientList ||
+    (pathname.includes("/clients/") && !isBuilder);
   const initials = name
     .split(" ")
     .filter(Boolean)
@@ -61,11 +83,6 @@ export function DashboardShell({
     .map((part) => part[0]?.toUpperCase() ?? "")
     .join("");
   const isAdmin = role === "ADMIN";
-
-  useEffect(() => {
-    const stored = window.localStorage.getItem(SIDEBAR_KEY);
-    if (stored === "1") setCollapsed(true);
-  }, []);
 
   useEffect(() => {
     function onClick(event: MouseEvent) {
@@ -78,11 +95,7 @@ export function DashboardShell({
   }, []);
 
   function toggleCollapsed() {
-    setCollapsed((current) => {
-      const next = !current;
-      window.localStorage.setItem(SIDEBAR_KEY, next ? "1" : "0");
-      return next;
-    });
+    setCollapsedStored(collapsed ? "0" : "1");
   }
 
   const nav = [
@@ -97,26 +110,35 @@ export function DashboardShell({
       label: "Teams",
       icon: Users,
       count: teamCount,
-      active:
-        (pathname === "/dashboard/teams" ||
-          pathname.startsWith("/dashboard/teams/")) &&
-        !pathname.includes("/clients/"),
+      active: isTeamIndex,
     },
     {
       href: "/dashboard/clients",
       label: "Clients",
       icon: Building2,
       count: clientCount,
-      active:
-        pathname.startsWith("/dashboard/clients") ||
-        (pathname.includes("/clients/") && !isBuilder),
+      active: isClientSection,
     },
     {
       href: "/dashboard/forms",
       label: "Forms",
       icon: FileText,
       count: formCount,
-      active: pathname.startsWith("/dashboard/forms") || isBuilder,
+      active: pathname === "/dashboard/forms" || isFormBuilder,
+    },
+    {
+      href: "/dashboard/templates",
+      label: "Templates",
+      icon: Bookmark,
+      count: templateCount,
+      active: pathname.startsWith("/dashboard/templates"),
+    },
+    {
+      href: "/dashboard/responses",
+      label: "Responses",
+      icon: FolderKanban,
+      count: responseCount,
+      active: pathname.startsWith("/dashboard/responses"),
     },
     ...(isAdmin
       ? [
@@ -132,11 +154,19 @@ export function DashboardShell({
   ];
 
   if (isBuilder) {
-    return <div className="app-grid min-h-dvh">{children}</div>;
+    return (
+      <div className="app-grid flex h-dvh min-h-dvh flex-col overflow-hidden">
+        <NavigationProgress />
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+          {children}
+        </div>
+      </div>
+    );
   }
 
   return (
     <div className="app-grid flex min-h-dvh">
+      <NavigationProgress />
       {mobileOpen ? (
         <button
           type="button"
@@ -275,22 +305,6 @@ export function DashboardShell({
           >
             <Sparkles className="h-5 w-5 shrink-0" />
             Insights
-          </span>
-          {collapsed ? (
-            <Tooltip label="Responses — later" className="hidden w-full lg:flex">
-              <span className="flex h-11 w-full items-center rounded-xl px-3 text-muted/70">
-                <FolderKanban className="h-5 w-5 shrink-0" />
-              </span>
-            </Tooltip>
-          ) : null}
-          <span
-            className={cn(
-              "flex h-11 items-center gap-3 overflow-hidden rounded-xl px-3 text-sm text-muted/70",
-              collapsed && "lg:hidden"
-            )}
-          >
-            <FolderKanban className="h-5 w-5 shrink-0" />
-            Responses
           </span>
         </nav>
 

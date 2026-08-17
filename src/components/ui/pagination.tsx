@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
 const PAGE_SIZE = 9;
@@ -8,22 +8,15 @@ const PAGE_SIZE = 9;
 export function usePaged<T>(items: T[], pageSize = PAGE_SIZE) {
   const [page, setPage] = useState(1);
   const pageCount = Math.max(1, Math.ceil(items.length / pageSize));
-
-  useEffect(() => {
-    setPage(1);
-  }, [items]);
-
-  useEffect(() => {
-    if (page > pageCount) setPage(pageCount);
-  }, [page, pageCount]);
+  const currentPage = Math.min(page, pageCount);
 
   const slice = useMemo(() => {
-    const start = (page - 1) * pageSize;
+    const start = (currentPage - 1) * pageSize;
     return items.slice(start, start + pageSize);
-  }, [items, page, pageSize]);
+  }, [items, currentPage, pageSize]);
 
   return {
-    page,
+    page: currentPage,
     setPage,
     pageCount,
     slice,

@@ -1,21 +1,21 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Pencil, Plus, Trash2 } from "lucide-react";
+import { Eye, Pencil, Plus, Trash2 } from "lucide-react";
 import type { ActionResult } from "@/lib/action-result";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { DrawerActions, SideDrawer } from "@/components/ui/side-drawer";
 import { Pagination, usePaged } from "@/components/ui/pagination";
 import { toast } from "@/components/ui/toaster";
-import {
-  DirectoryToolbar,
-  type DirectoryView,
-} from "@/components/directory/directory-toolbar";
+import { Spinner } from "@/components/ui/pending-button";
+import { pluralize } from "@/lib/format";
+import { usePersistedValue } from "@/lib/use-persisted-value";
+import { DirectoryToolbar } from "@/components/directory/directory-toolbar";
 import { Stagger } from "@/components/ui/skeleton";
 
-export type TeamDirectoryRow = {
+type TeamDirectoryRow = {
   id: string;
   name: string;
   memberCount: number;
@@ -41,21 +41,10 @@ export function TeamsDirectory({
 }: TeamsDirectoryProps) {
   const router = useRouter();
   const [query, setQuery] = useState("");
-  const [view, setView] = useState<DirectoryView>("grid");
+  const [view, setView] = usePersistedValue(VIEW_KEY, "grid", ["grid", "table"]);
   const [drawer, setDrawer] = useState<"create" | TeamDirectoryRow | null>(null);
   const [deleting, setDeleting] = useState<TeamDirectoryRow | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
-
-  useEffect(() => {
-    const stored = window.localStorage.getItem(VIEW_KEY);
-    if (stored === "grid" || stored === "table") setView(stored);
-  }, []);
-
-  function changeView(next: DirectoryView) {
-    setView(next);
-    window.localStorage.setItem(VIEW_KEY, next);
-  }
 
   const visible = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -66,23 +55,21 @@ export function TeamsDirectory({
 
   function closeDrawer() {
     setDrawer(null);
-    setError(null);
   }
 
   function run(
     action: (formData: FormData) => Promise<ActionResult>,
     formData: FormData,
+    success: string,
     onSuccess: () => void
   ) {
-    setError(null);
     startTransition(async () => {
       const result = await action(formData);
       if (result.error) {
-        setError(result.error);
         toast(result.error, { tone: "error" });
         return;
       }
-      toast("Saved", { tone: "success" });
+      toast(success, { tone: "success" });
       onSuccess();
       router.refresh();
     });
@@ -98,13 +85,13 @@ export function TeamsDirectory({
           query={query}
           onQueryChange={setQuery}
           view={view}
-          onViewChange={changeView}
+          onViewChange={setView}
           searchPlaceholder="Search teams..."
+          className="flex-1"
         />
         <button
           type="button"
           onClick={() => {
-            setError(null);
             setDrawer("create");
           }}
           className="inline-flex items-center justify-center gap-2 rounded-full bg-accent px-4 py-2.5 text-sm font-medium text-on-accent hover:bg-accent-hover"
@@ -129,20 +116,21 @@ export function TeamsDirectory({
                 <span className="pointer-events-none absolute -right-10 -bottom-12 h-28 w-28 rounded-full bg-sage/15" />
                 <p className="text-lg font-semibold tracking-tight">{team.name}</p>
                 <p className="mt-1 text-sm text-muted">
-                  {team.memberCount} members · {team.clientCount} clients ·{" "}
-                  {team.formCount} forms
+                  {pluralize(team.memberCount, "member")} ·{" "}
+                  {pluralize(team.clientCount, "client")} ·{" "}
+                  {pluralize(team.formCount, "form")}
                 </p>
                 <div className="mt-5 flex flex-wrap gap-2">
                   <Link
                     href={team.href}
-                    className="rounded-full bg-accent px-3 py-1.5 text-sm font-medium text-on-accent hover:bg-accent-hover"
+                    className="inline-flex items-center gap-1.5 rounded-full bg-accent px-3 py-1.5 text-sm font-medium text-on-accent hover:bg-accent-hover"
                   >
-                    Open
+                    <Eye className="h-3.5 w-3.5" />
+                    View
                   </Link>
                   <button
                     type="button"
                     onClick={() => {
-                      setError(null);
                       setDrawer(team);
                     }}
                     className="inline-flex items-center gap-1 rounded-full border border-border bg-surface px-3 py-1.5 text-sm font-medium hover:bg-background"
@@ -153,7 +141,6 @@ export function TeamsDirectory({
                   <button
                     type="button"
                     onClick={() => {
-                      setError(null);
                       setDeleting(team);
                     }}
                     className="inline-flex items-center gap-1 rounded-full border border-rose-200 bg-rose-50 px-3 py-1.5 text-sm font-medium text-rose-900 hover:bg-rose-100"
@@ -169,33 +156,32 @@ export function TeamsDirectory({
         </ul>
       ) : (
         <div className="mt-6 overflow-x-auto rounded-2xl border border-border bg-card">
-          <table className="w-full min-w-[40rem] text-left text-sm">
+          <table className="w-full min-w-[40rem] table-fixed text-sm">
             <thead className="border-b border-border text-muted">
               <tr>
-                <th className="px-4 py-3 font-medium">Team</th>
-                <th className="px-4 py-3 text-right font-medium">Members</th>
-                <th className="px-4 py-3 text-right font-medium">Clients</th>
-                <th className="px-4 py-3 text-right font-medium">Forms</th>
-                <th className="px-4 py-3 text-right font-medium">Actions</th>
+                <th className="w-[32%] px-4 py-3 text-left font-medium">Team</th>
+                <th className="w-[14%] px-4 py-3 text-center font-medium">Members</th>
+                <th className="w-[14%] px-4 py-3 text-center font-medium">Clients</th>
+                <th className="w-[14%] px-4 py-3 text-center font-medium">Forms</th>
+                <th className="w-[26%] px-4 py-3 text-right font-medium">Actions</th>
               </tr>
             </thead>
             <tbody>
               {paged.slice.map((team) => (
                 <tr key={team.id} className="border-b border-border last:border-0">
-                  <td className="px-4 py-3 font-medium">
+                  <td className="px-4 py-3 text-left font-medium">
                     <Link href={team.href} className="hover:text-accent">
                       {team.name}
                     </Link>
                   </td>
-                  <td className="px-4 py-3 text-right tabular-nums">{team.memberCount}</td>
-                  <td className="px-4 py-3 text-right tabular-nums">{team.clientCount}</td>
-                  <td className="px-4 py-3 text-right tabular-nums">{team.formCount}</td>
+                  <td className="px-4 py-3 text-center tabular-nums">{team.memberCount}</td>
+                  <td className="px-4 py-3 text-center tabular-nums">{team.clientCount}</td>
+                  <td className="px-4 py-3 text-center tabular-nums">{team.formCount}</td>
                   <td className="px-4 py-3">
                     <div className="flex justify-end gap-2">
                       <button
                         type="button"
                         onClick={() => {
-                          setError(null);
                           setDrawer(team);
                         }}
                         className="text-sm font-medium text-accent hover:text-accent-hover"
@@ -205,7 +191,6 @@ export function TeamsDirectory({
                       <button
                         type="button"
                         onClick={() => {
-                          setError(null);
                           setDeleting(team);
                         }}
                         className="text-sm font-medium text-rose-800 hover:text-rose-900"
@@ -244,7 +229,12 @@ export function TeamsDirectory({
           onSubmit={(event) => {
             event.preventDefault();
             const formData = new FormData(event.currentTarget);
-            run(editing ? updateAction : createAction, formData, closeDrawer);
+            run(
+              editing ? updateAction : createAction,
+              formData,
+              editing ? "Team saved" : "Team created",
+              closeDrawer
+            );
           }}
         >
           {editing ? <input type="hidden" name="teamId" value={editing.id} /> : null}
@@ -260,11 +250,6 @@ export function TeamsDirectory({
               className="rounded-xl border border-border bg-surface px-3 py-2.5 text-sm outline-none focus:border-accent"
             />
           </label>
-          {error && drawer ? (
-            <p className="mt-3 rounded-xl border border-rose-700 bg-rose-50 px-3 py-2 text-sm text-rose-900">
-              {error}
-            </p>
-          ) : null}
           <DrawerActions>
             <button
               type="button"
@@ -276,8 +261,9 @@ export function TeamsDirectory({
             <button
               type="submit"
               disabled={pending}
-              className="rounded-full bg-accent px-4 py-2 text-sm font-medium text-on-accent hover:bg-accent-hover disabled:opacity-60"
+              className="inline-flex items-center justify-center gap-2 rounded-full bg-accent px-4 py-2 text-sm font-medium text-on-accent hover:bg-accent-hover disabled:opacity-60"
             >
+              {pending ? <Spinner /> : null}
               {pending ? "Saving…" : editing ? "Save" : "Create team"}
             </button>
           </DrawerActions>
@@ -287,20 +273,17 @@ export function TeamsDirectory({
       <ConfirmDialog
         open={Boolean(deleting)}
         title={deleting ? `Delete “${deleting.name}”?` : "Delete team"}
-        description="This also removes its clients, forms, and related data."
+        description="This also removes its clients, forms, and related data (if any). Are you sure?"
         pending={pending}
-        error={deleting ? error : null}
         onCancel={() => {
           setDeleting(null);
-          setError(null);
         }}
         onConfirm={() => {
           if (!deleting) return;
           const formData = new FormData();
           formData.set("teamId", deleting.id);
-          run(deleteAction, formData, () => {
+          run(deleteAction, formData, "Team deleted", () => {
             setDeleting(null);
-            setError(null);
           });
         }}
       />
