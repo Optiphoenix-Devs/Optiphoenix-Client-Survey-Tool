@@ -25,6 +25,7 @@ export default async function UsersPage() {
       status: true,
       lockedUntil: true,
       resetRequestedAt: true,
+      createdAt: true,
     },
   });
 
@@ -40,6 +41,7 @@ export default async function UsersPage() {
           lockedUntil: user.lockedUntil?.toISOString() ?? null,
           resetRequested: Boolean(user.resetRequestedAt),
           isSelf: user.id === session.user.id,
+          createdAt: user.createdAt.toISOString(),
         }))}
         approveAction={approveUser}
         rejectAction={rejectUser}

@@ -1,13 +1,14 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { LayoutGrid, Plus, Search, Table2 } from "lucide-react";
 import type { ActionResult } from "@/lib/action-result";
 import type { DashboardFormRow } from "@/lib/teams";
 import { cn } from "@/lib/cn";
-import { formatRelativeTime } from "@/lib/format";
+import { formatMonthYear } from "@/lib/format";
+import { DIRECTORY_SORT_OPTIONS, sortDirectoryRows, type DirectorySort } from "@/lib/sort";
 import { Pagination, usePaged } from "@/components/ui/pagination";
 import { DrawerActions, SideDrawer } from "@/components/ui/side-drawer";
 import { toast } from "@/components/ui/toaster";
@@ -25,6 +26,7 @@ type TemplateOption = {
 };
 
 const VIEW_STORAGE_KEY = "optiphoenix.formsView";
+const SORT_KEY = "optiphoenix.formsSort";
 
 const FILTERS: Array<{ id: FormsFilter; label: string }> = [
   { id: "all", label: "All" },
@@ -56,6 +58,12 @@ export function YourFormsSection({
     "grid",
     "table",
   ]);
+  const [sort, setSort] = usePersistedValue(SORT_KEY, "newest", [
+    "newest",
+    "oldest",
+    "name-asc",
+    "name-desc",
+  ]);
   const [query, setQuery] = useState("");
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [pending, startTransition] = useTransition();
@@ -74,7 +82,16 @@ export function YourFormsSection({
     });
   }
 
-  const visible = filterForms(forms, filter, query);
+  const visible = useMemo(
+    () =>
+      sortDirectoryRows(
+        filterForms(forms, filter, query),
+        sort,
+        (form) => form.updatedAt,
+        (form) => form.title
+      ),
+    [forms, filter, query, sort]
+  );
   const paged = usePaged(visible);
 
   function closeDrawer() {
@@ -140,6 +157,24 @@ export function YourFormsSection({
               className="w-full rounded-full border border-border bg-surface py-2 pl-9 pr-3 text-sm outline-none focus:border-accent"
             />
           </label>
+          <label className="w-[11.5rem] shrink-0">
+            <span className="sr-only">Sort by</span>
+            <Select
+              value={sort}
+              onChange={(event) => {
+                setSort(event.target.value as DirectorySort);
+                paged.setPage(1);
+              }}
+              aria-label="Sort by"
+              className="rounded-full py-2"
+            >
+              {DIRECTORY_SORT_OPTIONS.map((option) => (
+                <option key={option.id} value={option.id}>
+                  {option.label}
+                </option>
+              ))}
+            </Select>
+          </label>
           <div
             className="flex rounded-full border border-border bg-surface p-1"
             role="group"
@@ -204,9 +239,9 @@ export function YourFormsSection({
           )}
         </p>
       ) : view === "grid" ? (
-        <ul className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        <ul className="mt-4 grid items-stretch gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {paged.slice.map((form, index) => (
-            <li key={form.id}>
+            <li key={form.id} className="h-full">
               <Stagger index={index}>
                 <FormCard form={form} />
               </Stagger>
@@ -229,19 +264,19 @@ export function YourFormsSection({
             <tbody>
               {paged.slice.map((form) => (
                 <tr key={form.id} className="border-b border-border last:border-0">
-                  <td className="px-4 py-3 align-middle">
-                    <Link href={form.href} className="font-medium hover:text-accent">
+                  <td className="px-4 py-3 text-left align-middle">
+                    <Link href={form.href} className="block truncate font-medium hover:text-accent">
                       {form.title}
                     </Link>
-                    <p className="mt-0.5 text-xs text-muted">
-                      {formatRelativeTime(form.updatedAt)}
+                    <p className="mt-0.5 truncate text-xs text-muted">
+                      {formatMonthYear(form.updatedAt)}
                     </p>
                   </td>
                   <td className="px-4 py-3 align-middle text-muted">{form.clientName}</td>
                   <td className="px-4 py-3 align-middle">
                     <StatusBadge status={form.status} />
                   </td>
-                  <td className="px-4 py-3 align-middle text-muted">{form.teamName}</td>
+                  <td className="truncate px-4 py-3 align-middle text-muted">{form.teamName}</td>
                   <td className="px-4 py-3 align-middle text-center tabular-nums">{form.fieldCount}</td>
                   <td className="px-4 py-3 align-middle text-center tabular-nums">
                     <Link
@@ -355,18 +390,18 @@ function FormCard({ form }: { form: DashboardFormRow }) {
   return (
     <Link
       href={form.href}
-      className="relative block overflow-hidden rounded-3xl border border-border bg-card p-5 shadow-[0_1px_0_rgba(20,38,28,0.04)] transition hover:border-accent/30 hover:bg-surface"
+      className="relative flex h-full flex-col overflow-hidden rounded-3xl border border-border bg-card p-5 shadow-[0_1px_0_rgba(20,38,28,0.04)] transition hover:border-accent/30 hover:bg-surface"
     >
       <span className="pointer-events-none absolute -right-10 -bottom-12 h-28 w-28 rounded-full bg-sage/15" />
       <div className="flex items-start justify-between gap-3">
         <StatusBadge status={form.status} />
-        <span className="text-xs text-muted">{formatRelativeTime(form.updatedAt)}</span>
+        <span className="text-xs whitespace-nowrap text-muted">{formatMonthYear(form.updatedAt)}</span>
       </div>
-      <p className="mt-4 text-base font-semibold tracking-tight">{form.title}</p>
-      <p className="mt-1 line-clamp-2 text-sm text-muted">
+      <p className="mt-4 line-clamp-2 min-h-[3rem] text-base font-semibold tracking-tight">{form.title}</p>
+      <p className="mt-1 line-clamp-2 min-h-[2.5rem] text-sm text-muted">
         {form.description || formOwnerLabel(form)}
       </p>
-      <p className="mt-5 text-xs text-muted">
+      <p className="mt-auto pt-5 text-xs text-muted">
         {form.responseCount} responses · {form.fieldCount} fields
       </p>
     </Link>
@@ -378,7 +413,7 @@ function StatusBadge({ status }: { status: DashboardFormRow["status"] }) {
   return (
     <span
       className={cn(
-        "rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide",
+        "rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide whitespace-nowrap",
         published ? "bg-sage/20 text-accent" : "bg-hover text-muted"
       )}
     >

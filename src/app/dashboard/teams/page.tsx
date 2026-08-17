@@ -20,6 +20,7 @@ export default async function TeamsPage() {
           clientCount: team._count.clients,
           formCount: team._count.forms,
           href: `/dashboard/teams/${team.id}`,
+          updatedAt: team.updatedAt.toISOString(),
         }))}
         createAction={createTeam}
         updateAction={updateTeam}

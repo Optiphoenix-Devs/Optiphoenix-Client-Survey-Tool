@@ -12,10 +12,12 @@ import { DrawerActions, SideDrawer } from "@/components/ui/side-drawer";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Stagger } from "@/components/ui/skeleton";
 import { toast } from "@/components/ui/toaster";
-import { formatRelativeTime, pluralize } from "@/lib/format";
+import { formatMonthYear, pluralize } from "@/lib/format";
+import { sortDirectoryRows, type DirectorySort } from "@/lib/sort";
 import { usePersistedValue } from "@/lib/use-persisted-value";
 
 const VIEW_KEY = "optiphoenix.templatesView";
+const SORT_KEY = "optiphoenix.templatesSort";
 
 export function TemplatesDirectory({
   templates,
@@ -31,6 +33,12 @@ export function TemplatesDirectory({
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [view, setView] = usePersistedValue(VIEW_KEY, "grid", ["grid", "table"]);
+  const [sort, setSort] = usePersistedValue(SORT_KEY, "newest", [
+    "newest",
+    "oldest",
+    "name-asc",
+    "name-desc",
+  ]);
   const [creating, setCreating] = useState(false);
   const [using, setUsing] = useState<TemplateListRow | null>(null);
   const [deleting, setDeleting] = useState<TemplateListRow | null>(null);
@@ -38,14 +46,21 @@ export function TemplatesDirectory({
 
   const visible = useMemo(() => {
     const needle = query.trim().toLowerCase();
-    if (!needle) return templates;
-    return templates.filter((template) =>
-      [template.name, template.description ?? "", template.createdByName]
-        .join(" ")
-        .toLowerCase()
-        .includes(needle)
+    const filtered = needle
+      ? templates.filter((template) =>
+          [template.name, template.description ?? "", template.createdByName]
+            .join(" ")
+            .toLowerCase()
+            .includes(needle)
+        )
+      : templates;
+    return sortDirectoryRows(
+      filtered,
+      sort,
+      (template) => template.updatedAt,
+      (template) => template.name
     );
-  }, [templates, query]);
+  }, [templates, query, sort]);
   const paged = usePaged(visible);
 
   function createTemplate(event: React.FormEvent<HTMLFormElement>) {
@@ -96,30 +111,34 @@ export function TemplatesDirectory({
 
   return (
     <section>
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-center">
-        <div className="min-w-0">
-          <h1 className="text-3xl font-semibold tracking-tight">Templates</h1>
-          <p className="mt-1 text-sm text-muted">
-            Reuse the same questions each month. A new form gets a new public link.
-          </p>
+      <div className="flex flex-wrap items-center gap-3">
+        <h1 className="shrink-0 text-3xl font-semibold tracking-tight">Templates</h1>
+        <div className="flex min-w-0 flex-1 flex-wrap items-center justify-end gap-2">
+          <DirectoryToolbar
+            query={query}
+            onQueryChange={setQuery}
+            view={view}
+            onViewChange={setView}
+            searchPlaceholder="Search templates..."
+            sort={sort}
+            onSortChange={(next: DirectorySort) => {
+              setSort(next);
+              paged.setPage(1);
+            }}
+          />
+          <button
+            type="button"
+            onClick={() => setCreating(true)}
+            className="inline-flex shrink-0 items-center justify-center gap-2 rounded-full bg-accent px-4 py-2.5 text-sm font-medium text-on-accent hover:bg-accent-hover"
+          >
+            <Plus className="h-4 w-4" />
+            New template
+          </button>
         </div>
-        <DirectoryToolbar
-          query={query}
-          onQueryChange={setQuery}
-          view={view}
-          onViewChange={setView}
-          searchPlaceholder="Search templates..."
-          className="flex-1"
-        />
-        <button
-          type="button"
-          onClick={() => setCreating(true)}
-          className="inline-flex shrink-0 items-center justify-center gap-2 rounded-full bg-accent px-4 py-2.5 text-sm font-medium text-on-accent hover:bg-accent-hover"
-        >
-          <Plus className="h-4 w-4" />
-          New template
-        </button>
       </div>
+      <p className="mt-1 text-sm text-muted">
+        Reuse the same questions each month. A new form gets a new public link.
+      </p>
 
       {visible.length === 0 ? (
         <p className="mt-6 rounded-2xl border border-dashed border-border bg-card px-4 py-8 text-center text-sm text-muted">
@@ -128,24 +147,32 @@ export function TemplatesDirectory({
             : "No templates match this search."}
         </p>
       ) : view === "grid" ? (
-        <ul className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        <ul className="mt-6 grid items-stretch gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {paged.slice.map((template, index) => (
-            <li key={template.id}>
+            <li key={template.id} className="h-full">
               <Stagger index={index}>
-                <article className="relative overflow-hidden rounded-3xl border border-border bg-card p-5">
+                <article className="relative flex h-full flex-col overflow-hidden rounded-3xl border border-border bg-card p-5">
                   <span className="pointer-events-none absolute -right-10 -bottom-12 h-28 w-28 rounded-full bg-sage/15" />
                   <span className="grid h-10 w-10 place-items-center rounded-full bg-sage/15 text-accent">
                     <Bookmark className="h-5 w-5" />
                   </span>
-                  <p className="mt-4 text-base font-semibold tracking-tight">{template.name}</p>
-                  <p className="mt-1 line-clamp-2 text-sm text-muted">
+                  <p
+                    className="mt-4 truncate text-base font-semibold tracking-tight"
+                    title={template.name}
+                  >
+                    {template.name}
+                  </p>
+                  <p
+                    className="mt-1 truncate text-sm text-muted"
+                    title={template.description || "No description"}
+                  >
                     {template.description || "No description"}
                   </p>
-                  <p className="mt-3 text-xs text-muted">
+                  <p className="mt-3 truncate text-xs text-muted">
                     {pluralize(template.fieldCount, "field")} · {template.createdByName} ·{" "}
-                    {formatRelativeTime(template.updatedAt)}
+                    {formatMonthYear(template.updatedAt)}
                   </p>
-                  <div className="mt-5 flex flex-wrap gap-2">
+                  <div className="mt-auto flex flex-wrap gap-2 pt-4">
                     <button
                       type="button"
                       onClick={() => setUsing(template)}
@@ -197,10 +224,10 @@ export function TemplatesDirectory({
                   <td className="px-4 py-3 align-middle text-muted">{template.createdByName}</td>
                   <td className="px-4 py-3 align-middle text-center tabular-nums">{template.fieldCount}</td>
                   <td className="px-4 py-3 align-middle whitespace-nowrap text-muted">
-                    {formatRelativeTime(template.updatedAt)}
+                    {formatMonthYear(template.updatedAt)}
                   </td>
                   <td className="px-4 py-3 align-middle">
-                    <div className="flex flex-wrap justify-end gap-3">
+                    <div className="flex flex-nowrap justify-end gap-3">
                       <button
                         type="button"
                         onClick={() => setUsing(template)}

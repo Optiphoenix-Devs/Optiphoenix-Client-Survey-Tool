@@ -1,8 +1,12 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import type { ActionResult } from "@/lib/action-result";
 import { toast } from "@/components/ui/toaster";
+import { Select } from "@/components/ui/select";
+import { formatMonthYear } from "@/lib/format";
+import { DIRECTORY_SORT_OPTIONS, sortDirectoryRows, type DirectorySort } from "@/lib/sort";
+import { usePersistedValue } from "@/lib/use-persisted-value";
 
 type AdminUserRow = {
   id: string;
@@ -13,6 +17,7 @@ type AdminUserRow = {
   lockedUntil: string | null;
   resetRequested: boolean;
   isSelf: boolean;
+  createdAt: string;
 };
 
 export function UsersManager({
@@ -30,6 +35,22 @@ export function UsersManager({
 }) {
   const [pending, startTransition] = useTransition();
   const [resetUrl, setResetUrl] = useState<string | null>(null);
+  const [sort, setSort] = usePersistedValue("optiphoenix.usersSort", "newest", [
+    "newest",
+    "oldest",
+    "name-asc",
+    "name-desc",
+  ]);
+  const visible = useMemo(
+    () =>
+      sortDirectoryRows(
+        users,
+        sort,
+        (user) => user.createdAt,
+        (user) => user.name
+      ),
+    [users, sort]
+  );
 
   function run(
     action: (formData: FormData) => Promise<ActionResult>,
@@ -57,11 +78,30 @@ export function UsersManager({
 
   return (
     <section>
-      <h1 className="text-3xl font-semibold tracking-tight">Users</h1>
-      <p className="mt-1 text-sm text-muted">
-        Approve new accounts and unlock lockouts. People can reset their own
-        password without waiting for you.
-      </p>
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div>
+          <h1 className="text-3xl font-semibold tracking-tight">Users</h1>
+          <p className="mt-1 text-sm text-muted">
+            Approve new accounts and unlock lockouts. People can reset their own
+            password without waiting for you.
+          </p>
+        </div>
+        <label className="w-[11.5rem] shrink-0">
+          <span className="sr-only">Sort by</span>
+          <Select
+            value={sort}
+            onChange={(event) => setSort(event.target.value as DirectorySort)}
+            aria-label="Sort by"
+            className="rounded-full py-2"
+          >
+            {DIRECTORY_SORT_OPTIONS.map((option) => (
+              <option key={option.id} value={option.id}>
+                {option.label}
+              </option>
+            ))}
+          </Select>
+        </label>
+      </div>
 
       {resetUrl ? (
         <div className="mt-4 rounded-xl border border-sage bg-card p-4">
@@ -87,11 +127,12 @@ export function UsersManager({
               <th className="px-4 py-3 font-medium">User</th>
               <th className="px-4 py-3 font-medium">Role</th>
               <th className="px-4 py-3 font-medium">Status</th>
+              <th className="px-4 py-3 font-medium">Created</th>
               <th className="px-4 py-3 font-medium">Actions</th>
             </tr>
           </thead>
           <tbody>
-            {users.map((user) => (
+            {visible.map((user) => (
               <tr key={user.id} className="border-b border-border last:border-0">
                 <td className="px-4 py-3">
                   <p className="font-medium">{user.name}</p>
@@ -106,6 +147,9 @@ export function UsersManager({
                   {user.resetRequested ? (
                     <p className="text-xs text-accent">Reset requested</p>
                   ) : null}
+                </td>
+                <td className="px-4 py-3 whitespace-nowrap text-muted">
+                  {formatMonthYear(user.createdAt)}
                 </td>
                 <td className="px-4 py-3">
                   <div className="flex flex-wrap gap-2">

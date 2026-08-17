@@ -21,6 +21,7 @@ export async function submitSurvey(formData: FormData) {
   revalidateTag("dashboard-shell", "max");
   revalidatePath("/dashboard");
   revalidatePath("/dashboard/responses");
+  revalidatePath("/dashboard/insights");
   revalidatePath("/dashboard/forms");
   redirect(`/survey/${token}?sent=1`);
 }

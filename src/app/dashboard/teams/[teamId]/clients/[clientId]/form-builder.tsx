@@ -516,7 +516,7 @@ export function FormBuilder({
                 ? "Published"
                 : "Draft"}
         </p>
-        <div className="ml-auto flex min-w-0 items-center justify-end gap-2 overflow-x-auto">
+        <div className="ml-auto flex min-w-0 items-center justify-end gap-2 overflow-x-auto [&>*]:shrink-0">
           {isTemplate ? null : (
           <button
             type="button"

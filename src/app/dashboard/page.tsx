@@ -55,10 +55,10 @@ export default async function DashboardPage({
         </Link>
       </header>
 
-      <section className="grid gap-4 lg:grid-cols-4">
+      <section className="grid items-stretch gap-4 lg:grid-cols-4">
         <Link
           href="/dashboard/forms"
-          className="relative overflow-hidden rounded-3xl bg-accent p-6 text-on-accent lg:col-span-2 card-enter"
+          className="relative flex h-full flex-col overflow-hidden rounded-3xl bg-accent p-6 text-on-accent lg:col-span-2 card-enter"
         >
           <span className="pointer-events-none absolute -right-8 -bottom-10 h-36 w-36 rounded-full bg-on-accent/10" />
           <span className="grid h-10 w-10 place-items-center rounded-full bg-on-accent/10">
@@ -75,7 +75,7 @@ export default async function DashboardPage({
 
         <Link
           href="/dashboard?forms=published#forms"
-          className="card-enter relative overflow-hidden rounded-3xl border border-border bg-card p-6"
+          className="card-enter relative flex h-full flex-col overflow-hidden rounded-3xl border border-border bg-card p-6"
           style={{ animationDelay: "80ms" }}
         >
           <span className="pointer-events-none absolute -right-8 -bottom-10 h-32 w-32 rounded-full bg-sage/20" />
@@ -83,17 +83,17 @@ export default async function DashboardPage({
             <Globe className="h-5 w-5" />
           </span>
           <p className="mt-6 text-lg font-semibold tracking-tight">Published</p>
-          <p className="mt-1 text-sm leading-6 text-muted">
+          <p className="mt-1 min-h-[3rem] text-sm leading-6 text-muted">
             Live links collecting client feedback.
           </p>
-          <span className="mt-5 inline-flex rounded-full bg-sage/20 px-3 py-1 text-xs font-semibold text-accent">
+          <span className="mt-auto inline-flex rounded-full bg-sage/20 px-3 py-1 text-xs font-semibold text-accent pt-5">
             {overview.publishedCount} live
           </span>
         </Link>
 
         <Link
           href="/dashboard?forms=drafts#forms"
-          className="card-enter relative overflow-hidden rounded-3xl border border-border bg-card p-6"
+          className="card-enter relative flex h-full flex-col overflow-hidden rounded-3xl border border-border bg-card p-6"
           style={{ animationDelay: "140ms" }}
         >
           <span className="pointer-events-none absolute -right-8 -bottom-10 h-32 w-32 rounded-full bg-hover" />
@@ -101,10 +101,10 @@ export default async function DashboardPage({
             <FileText className="h-5 w-5" />
           </span>
           <p className="mt-6 text-lg font-semibold tracking-tight">Drafts</p>
-          <p className="mt-1 text-sm leading-6 text-muted">
+          <p className="mt-1 min-h-[3rem] text-sm leading-6 text-muted">
             Work in progress, not yet shared with a client.
           </p>
-          <span className="mt-5 inline-flex rounded-full bg-hover px-3 py-1 text-xs font-semibold text-muted">
+          <span className="mt-auto inline-flex rounded-full bg-hover px-3 py-1 text-xs font-semibold text-muted pt-5">
             {overview.draftCount} drafts
           </span>
         </Link>

@@ -15,7 +15,7 @@ export function Stagger({
 }) {
   return (
     <div
-      className={cn("card-enter", className)}
+      className={cn("card-enter h-full", className)}
       style={{ animationDelay: `${Math.min(index, 10) * 60}ms` }}
     >
       {children}

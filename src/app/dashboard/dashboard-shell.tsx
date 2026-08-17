@@ -140,6 +140,12 @@ export function DashboardShell({
       count: responseCount,
       active: pathname.startsWith("/dashboard/responses"),
     },
+    {
+      href: "/dashboard/insights",
+      label: "Insights",
+      icon: Sparkles,
+      active: pathname.startsWith("/dashboard/insights"),
+    },
     ...(isAdmin
       ? [
           {
@@ -282,30 +288,6 @@ export function DashboardShell({
               </span>
             );
           })}
-          <p
-            className={cn(
-              "mt-6 px-3 text-[11px] font-semibold uppercase tracking-wide text-sage",
-              collapsed && "lg:hidden"
-            )}
-          >
-            Later
-          </p>
-          {collapsed ? (
-            <Tooltip label="Insights — later" className="hidden w-full lg:flex">
-              <span className="flex h-11 w-full items-center rounded-xl px-3 text-muted/70">
-                <Sparkles className="h-5 w-5 shrink-0" />
-              </span>
-            </Tooltip>
-          ) : null}
-          <span
-            className={cn(
-              "flex h-11 items-center gap-3 overflow-hidden rounded-xl px-3 text-sm text-muted/70",
-              collapsed && "lg:hidden"
-            )}
-          >
-            <Sparkles className="h-5 w-5 shrink-0" />
-            Insights
-          </span>
         </nav>
 
         <div className="relative border-t border-border pt-4" ref={menuRef}>

@@ -7,10 +7,12 @@ import type { ResponseListRow } from "@/lib/responses";
 import { DirectoryToolbar } from "@/components/directory/directory-toolbar";
 import { Pagination, usePaged } from "@/components/ui/pagination";
 import { Stagger } from "@/components/ui/skeleton";
-import { formatRelativeTime } from "@/lib/format";
+import { formatMonthYear } from "@/lib/format";
+import { sortDirectoryRows, type DirectorySort } from "@/lib/sort";
 import { usePersistedValue } from "@/lib/use-persisted-value";
 
 const VIEW_KEY = "optiphoenix.responsesView";
+const SORT_KEY = "optiphoenix.responsesSort";
 
 export function ResponsesDirectory({
   responses,
@@ -21,17 +23,30 @@ export function ResponsesDirectory({
 }) {
   const [query, setQuery] = useState("");
   const [view, setView] = usePersistedValue(VIEW_KEY, "grid", ["grid", "table"]);
+  const [sort, setSort] = usePersistedValue(SORT_KEY, "newest", [
+    "newest",
+    "oldest",
+    "name-asc",
+    "name-desc",
+  ]);
 
   const visible = useMemo(() => {
     const needle = query.trim().toLowerCase();
-    if (!needle) return responses;
-    return responses.filter((row) =>
-      [row.formTitle, row.clientName, row.teamName, row.preview]
-        .join(" ")
-        .toLowerCase()
-        .includes(needle)
+    const filtered = needle
+      ? responses.filter((row) =>
+          [row.formTitle, row.clientName, row.teamName, row.preview]
+            .join(" ")
+            .toLowerCase()
+            .includes(needle)
+        )
+      : responses;
+    return sortDirectoryRows(
+      filtered,
+      sort,
+      (row) => row.submittedAt,
+      (row) => row.formTitle
     );
-  }, [responses, query]);
+  }, [responses, query, sort]);
   const paged = usePaged(visible);
 
   return (
@@ -55,6 +70,11 @@ export function ResponsesDirectory({
           onViewChange={setView}
           searchPlaceholder="Search responses..."
           className="flex-1"
+          sort={sort}
+          onSortChange={(next: DirectorySort) => {
+            setSort(next);
+            paged.setPage(1);
+          }}
         />
       </div>
 
@@ -65,28 +85,28 @@ export function ResponsesDirectory({
             : "No responses match this search."}
         </p>
       ) : view === "grid" ? (
-        <ul className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        <ul className="mt-6 grid items-stretch gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {paged.slice.map((row, index) => (
-            <li key={row.id}>
+            <li key={row.id} className="h-full">
               <Stagger index={index}>
-                <article className="relative overflow-hidden rounded-3xl border border-border bg-card p-5">
+                <article className="relative flex h-full flex-col overflow-hidden rounded-3xl border border-border bg-card p-5">
                   <span className="pointer-events-none absolute -right-10 -bottom-12 h-28 w-28 rounded-full bg-sage/15" />
                   <div className="flex items-start justify-between gap-3">
                     <span className="grid h-10 w-10 place-items-center rounded-full bg-sage/15 text-accent">
                       <Inbox className="h-5 w-5" />
                     </span>
-                    <span className="text-xs text-muted">
-                      {formatRelativeTime(row.submittedAt)}
+                    <span className="text-xs whitespace-nowrap text-muted">
+                      {formatMonthYear(row.submittedAt)}
                     </span>
                   </div>
-                  <p className="mt-4 text-base font-semibold tracking-tight">{row.formTitle}</p>
-                  <p className="mt-1 text-sm text-muted">
+                  <p className="mt-4 line-clamp-2 min-h-[3rem] text-base font-semibold tracking-tight">{row.formTitle}</p>
+                  <p className="mt-1 line-clamp-1 text-sm text-muted">
                     {row.clientName} · {row.teamName}
                   </p>
-                  <p className="mt-3 line-clamp-2 text-sm text-muted">{row.preview}</p>
+                  <p className="mt-3 line-clamp-2 min-h-[2.5rem] text-sm text-muted">{row.preview}</p>
                   <Link
                     href={row.href}
-                    className="mt-5 inline-flex items-center gap-1.5 rounded-full bg-accent px-3 py-1.5 text-sm font-medium text-on-accent hover:bg-accent-hover"
+                    className="mt-auto inline-flex items-center gap-1.5 self-start rounded-full bg-accent px-3 py-1.5 text-sm font-medium text-on-accent hover:bg-accent-hover pt-5"
                   >
                     <Eye className="h-3.5 w-3.5" />
                     View
@@ -120,7 +140,7 @@ export function ResponsesDirectory({
                   <td className="px-4 py-3 text-muted">{row.teamName}</td>
                   <td className="truncate px-4 py-3 text-muted">{row.preview}</td>
                   <td className="px-4 py-3 text-muted">
-                    {formatRelativeTime(row.submittedAt)}
+                    {formatMonthYear(row.submittedAt)}
                   </td>
                 </tr>
               ))}

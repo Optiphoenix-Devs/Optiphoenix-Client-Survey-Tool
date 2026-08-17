@@ -2,7 +2,12 @@
 
 import { LayoutGrid, Search, Table2 } from "lucide-react";
 import { Tooltip } from "@/components/ui/tooltip";
+import { Select } from "@/components/ui/select";
 import { cn } from "@/lib/cn";
+import {
+  DIRECTORY_SORT_OPTIONS,
+  type DirectorySort,
+} from "@/lib/sort";
 
 export type DirectoryView = "grid" | "table";
 
@@ -13,6 +18,8 @@ export function DirectoryToolbar({
   onViewChange,
   searchPlaceholder,
   className,
+  sort,
+  onSortChange,
 }: {
   query: string;
   onQueryChange: (value: string) => void;
@@ -20,9 +27,11 @@ export function DirectoryToolbar({
   onViewChange: (view: DirectoryView) => void;
   searchPlaceholder: string;
   className?: string;
+  sort?: DirectorySort;
+  onSortChange?: (sort: DirectorySort) => void;
 }) {
   return (
-    <div className={cn("flex flex-wrap items-center gap-2 lg:justify-end", className)}>
+    <div className={cn("flex flex-wrap items-center gap-2 sm:flex-nowrap lg:justify-end", className)}>
       <label className="relative min-w-[12rem] flex-1 sm:max-w-xs">
         <span className="sr-only">{searchPlaceholder}</span>
         <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
@@ -34,6 +43,23 @@ export function DirectoryToolbar({
           className="w-full rounded-full border border-border bg-surface py-2 pl-9 pr-3 text-sm outline-none focus:border-accent"
         />
       </label>
+      {sort && onSortChange ? (
+        <label className="w-[11.5rem] shrink-0">
+          <span className="sr-only">Sort by</span>
+          <Select
+            value={sort}
+            onChange={(event) => onSortChange(event.target.value as DirectorySort)}
+            aria-label="Sort by"
+            className="rounded-full py-2"
+          >
+            {DIRECTORY_SORT_OPTIONS.map((option) => (
+              <option key={option.id} value={option.id}>
+                {option.label}
+              </option>
+            ))}
+          </Select>
+        </label>
+      ) : null}
       <div
         className="flex rounded-full border border-border bg-surface p-1"
         role="group"

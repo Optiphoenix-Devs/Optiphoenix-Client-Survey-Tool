@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { getResponseDetail } from "@/lib/responses";
-import { formatRelativeTime } from "@/lib/format";
+import { formatMonthYear } from "@/lib/format";
 
 export default async function ResponseDetailPage({
   params,
@@ -21,8 +21,6 @@ export default async function ResponseDetailPage({
 
   if (!response) notFound();
 
-  const submitted = new Date(response.submittedAt);
-
   return (
     <main className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-8 sm:px-8 sm:py-10">
       <div>
@@ -39,8 +37,7 @@ export default async function ResponseDetailPage({
           {response.clientName} · {response.teamName}
         </p>
         <p className="mt-1 text-sm text-muted">
-          Submitted {formatRelativeTime(response.submittedAt)} ·{" "}
-          {submitted.toLocaleString()}
+          Submitted {formatMonthYear(response.submittedAt)}
         </p>
         <Link
           href={response.formHref}

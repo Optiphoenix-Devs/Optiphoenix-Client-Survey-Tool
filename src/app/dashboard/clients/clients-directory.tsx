@@ -15,6 +15,7 @@ import { DirectoryToolbar } from "@/components/directory/directory-toolbar";
 import { Stagger } from "@/components/ui/skeleton";
 import { Select } from "@/components/ui/select";
 import { pluralize } from "@/lib/format";
+import { sortDirectoryRows, type DirectorySort } from "@/lib/sort";
 import { usePersistedValue } from "@/lib/use-persisted-value";
 
 type TeamOption = { id: string; name: string };
@@ -30,6 +31,7 @@ type ClientsDirectoryProps = {
 };
 
 const VIEW_KEY = "optiphoenix.clientsView";
+const SORT_KEY = "optiphoenix.clientsSort";
 
 export function ClientsDirectory({
   clients,
@@ -43,20 +45,33 @@ export function ClientsDirectory({
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [view, setView] = usePersistedValue(VIEW_KEY, "grid", ["grid", "table"]);
+  const [sort, setSort] = usePersistedValue(SORT_KEY, "newest", [
+    "newest",
+    "oldest",
+    "name-asc",
+    "name-desc",
+  ]);
   const [drawer, setDrawer] = useState<"create" | ClientDirectoryRow | null>(null);
   const [deleting, setDeleting] = useState<ClientDirectoryRow | null>(null);
   const [pending, startTransition] = useTransition();
 
   const visible = useMemo(() => {
     const needle = query.trim().toLowerCase();
-    if (!needle) return clients;
-    return clients.filter((client) =>
-      [client.name, client.company ?? "", client.email ?? "", client.teamName]
-        .join(" ")
-        .toLowerCase()
-        .includes(needle)
+    const filtered = needle
+      ? clients.filter((client) =>
+          [client.name, client.company ?? "", client.email ?? "", client.teamName]
+            .join(" ")
+            .toLowerCase()
+            .includes(needle)
+        )
+      : clients;
+    return sortDirectoryRows(
+      filtered,
+      sort,
+      (client) => client.updatedAt,
+      (client) => client.name
     );
-  }, [clients, query]);
+  }, [clients, query, sort]);
   const paged = usePaged(visible);
 
   function closeDrawer() {
@@ -95,6 +110,11 @@ export function ClientsDirectory({
           onViewChange={setView}
           searchPlaceholder="Search clients..."
           className="flex-1"
+          sort={sort}
+          onSortChange={(next: DirectorySort) => {
+            setSort(next);
+            paged.setPage(1);
+          }}
         />
         <button
           type="button"
@@ -123,20 +143,20 @@ export function ClientsDirectory({
             : "No clients match this search."}
         </p>
       ) : view === "grid" ? (
-        <ul className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        <ul className="mt-6 grid items-stretch gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {paged.slice.map((client, index) => (
-            <li key={client.id}>
+            <li key={client.id} className="h-full">
               <Stagger index={index}>
-              <article className="relative overflow-hidden rounded-3xl border border-border bg-card p-5">
+              <article className="relative flex h-full flex-col overflow-hidden rounded-3xl border border-border bg-card p-5">
                 <span className="pointer-events-none absolute -right-10 -bottom-12 h-28 w-28 rounded-full bg-sage/15" />
-                <p className="text-lg font-semibold tracking-tight">{client.name}</p>
-                <p className="mt-1 text-sm text-muted">
+                <p className="line-clamp-2 min-h-[3.25rem] text-lg font-semibold tracking-tight">{client.name}</p>
+                <p className="mt-1 line-clamp-2 min-h-[2.5rem] text-sm text-muted">
                   {client.company || "No company"} · {client.email || "No email"}
                 </p>
                 <p className="mt-1 text-xs text-muted">
                   {client.teamName} · {pluralize(client.formCount, "form")}
                 </p>
-                <div className="mt-5 flex flex-wrap gap-2">
+                <div className="mt-auto flex flex-wrap gap-2 pt-5">
                   <Link
                     href={client.href}
                     className="inline-flex items-center gap-1.5 rounded-full bg-accent px-3 py-1.5 text-sm font-medium text-on-accent hover:bg-accent-hover"

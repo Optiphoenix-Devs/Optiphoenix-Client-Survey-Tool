@@ -49,6 +49,7 @@ export default async function TeamClientsPage({
           teamName: team.name,
           formCount: client._count.forms,
           href: `/dashboard/teams/${team.id}/clients/${client.id}`,
+          updatedAt: client.updatedAt.toISOString(),
         }))}
         createAction={createClient}
         updateAction={updateClient}

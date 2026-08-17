@@ -3,7 +3,7 @@
 import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { FileText, Mail, Plus, Trash2 } from "lucide-react";
+import { FileText, Mail, Plus, Sparkles, Trash2 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { PendingButton } from "@/components/ui/pending-button";
@@ -11,7 +11,8 @@ import { toast } from "@/components/ui/toaster";
 import { Stagger } from "@/components/ui/skeleton";
 import { DirectoryToolbar } from "@/components/directory/directory-toolbar";
 import { Pagination, usePaged } from "@/components/ui/pagination";
-import { formatRelativeTime } from "@/lib/format";
+import { formatMonthYear } from "@/lib/format";
+import { sortDirectoryRows, type DirectorySort } from "@/lib/sort";
 import { usePersistedValue } from "@/lib/use-persisted-value";
 import { createForm, deleteForm } from "./actions";
 
@@ -28,6 +29,7 @@ type ClientFormRow = {
 };
 
 const VIEW_KEY = "optiphoenix.clientFormsView";
+const SORT_KEY = "optiphoenix.clientFormsSort";
 
 const FILTERS: Array<{ id: FormsFilter; label: string }> = [
   { id: "all", label: "All" },
@@ -58,6 +60,12 @@ export function ClientWorkspace({
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<FormsFilter>("all");
   const [view, setView] = usePersistedValue(VIEW_KEY, "grid", ["grid", "table"]);
+  const [sort, setSort] = usePersistedValue(SORT_KEY, "newest", [
+    "newest",
+    "oldest",
+    "name-asc",
+    "name-desc",
+  ]);
   const publishedCount = forms.filter((form) => form.status === "PUBLISHED").length;
   const initials = name
     .split(" ")
@@ -68,7 +76,7 @@ export function ClientWorkspace({
 
   const visible = useMemo(() => {
     const needle = query.trim().toLowerCase();
-    return forms.filter((form) => {
+    const filtered = forms.filter((form) => {
       const statusOk =
         filter === "all" ||
         (filter === "published" && form.status === "PUBLISHED") ||
@@ -80,7 +88,13 @@ export function ClientWorkspace({
         (form.description ?? "").toLowerCase().includes(needle)
       );
     });
-  }, [forms, filter, query]);
+    return sortDirectoryRows(
+      filtered,
+      sort,
+      (form) => form.updatedAt,
+      (form) => form.title
+    );
+  }, [forms, filter, query, sort]);
   const paged = usePaged(visible);
 
   function confirmDelete() {
@@ -135,7 +149,7 @@ export function ClientWorkspace({
               </p>
             </div>
           </div>
-          <div className="flex gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <div className="rounded-2xl bg-hover px-4 py-3 text-center">
               <p className="text-2xl font-semibold tabular-nums">{forms.length}</p>
               <p className="text-xs text-muted">Forms</p>
@@ -144,6 +158,13 @@ export function ClientWorkspace({
               <p className="text-2xl font-semibold tabular-nums">{publishedCount}</p>
               <p className="text-xs text-muted">Published</p>
             </div>
+            <Link
+              href={`/dashboard/insights?client=${clientId}`}
+              className="inline-flex items-center gap-1.5 rounded-2xl border border-border bg-surface px-4 py-3 text-sm font-medium hover:bg-hover"
+            >
+              <Sparkles className="h-4 w-4 text-accent" />
+              Insights
+            </Link>
           </div>
         </div>
       </header>
@@ -215,6 +236,11 @@ export function ClientWorkspace({
               onViewChange={setView}
               searchPlaceholder="Search forms..."
               className="min-w-0"
+              sort={sort}
+              onSortChange={(next: DirectorySort) => {
+                setSort(next);
+                paged.setPage(1);
+              }}
             />
           </div>
         </div>
@@ -226,14 +252,14 @@ export function ClientWorkspace({
               : "No forms match this filter."}
           </p>
         ) : view === "grid" ? (
-          <ul className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          <ul className="mt-4 grid items-stretch gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {paged.slice.map((form, index) => {
               const published = form.status === "PUBLISHED";
               const href = `/dashboard/forms/${form.id}`;
               return (
-                <li key={form.id}>
+                <li key={form.id} className="h-full">
                   <Stagger index={index}>
-                    <article className="relative overflow-hidden rounded-3xl border border-border bg-card p-5">
+                    <article className="relative flex h-full flex-col overflow-hidden rounded-3xl border border-border bg-card p-5">
                       <span className="pointer-events-none absolute -right-10 -bottom-12 h-28 w-28 rounded-full bg-sage/15" />
                       <div className="flex items-start justify-between gap-3">
                         <span
@@ -248,17 +274,17 @@ export function ClientWorkspace({
                           <FileText className="h-4 w-4" />
                         </span>
                       </div>
-                      <p className="mt-4 text-base font-semibold tracking-tight">
+                      <p className="mt-4 line-clamp-2 min-h-[3rem] text-base font-semibold tracking-tight">
                         {form.title}
                       </p>
-                      <p className="mt-1 text-sm text-muted">
+                      <p className="mt-1 line-clamp-2 min-h-[2.5rem] text-sm text-muted">
                         {form.description ||
                           `${form.fieldCount} fields · ${form.responseCount} responses`}
                       </p>
                       <p className="mt-2 text-xs text-muted">
-                        {formatRelativeTime(form.updatedAt)}
+                        {formatMonthYear(form.updatedAt)}
                       </p>
-                      <div className="mt-5 flex flex-wrap gap-2">
+                      <div className="mt-auto flex flex-wrap gap-2 pt-5">
                         <Link
                           href={href}
                           prefetch
@@ -335,7 +361,7 @@ export function ClientWorkspace({
                         </Link>
                       </td>
                       <td className="px-4 py-3 text-left align-middle whitespace-nowrap text-muted">
-                        {formatRelativeTime(form.updatedAt)}
+                        {formatMonthYear(form.updatedAt)}
                       </td>
                       <td className="px-4 py-3 text-right align-middle">
                         <div className="flex flex-nowrap justify-end gap-3">

@@ -22,6 +22,7 @@ export type ClientDirectoryRow = {
   teamName: string;
   formCount: number;
   href: string;
+  updatedAt: string;
 };
 
 export async function getClientsForUser(userId: string, role: UserRole) {
@@ -47,6 +48,7 @@ export async function getClientsForUser(userId: string, role: UserRole) {
     teamName: client.team.name,
     formCount: client._count.forms,
     href: `/dashboard/teams/${client.team.id}/clients/${client.id}`,
+    updatedAt: client.updatedAt.toISOString(),
   }));
 }
 
