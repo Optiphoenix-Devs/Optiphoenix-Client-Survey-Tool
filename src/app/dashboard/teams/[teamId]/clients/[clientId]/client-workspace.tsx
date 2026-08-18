@@ -3,7 +3,7 @@
 import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { FileText, Mail, Plus, Sparkles, Trash2 } from "lucide-react";
+import { BarChart3, FileText, Mail, Plus, Sparkles, Trash2 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { PendingButton } from "@/components/ui/pending-button";
@@ -162,8 +162,15 @@ export function ClientWorkspace({
               href={`/dashboard/insights?client=${clientId}`}
               className="inline-flex items-center gap-1.5 rounded-2xl border border-border bg-surface px-4 py-3 text-sm font-medium hover:bg-hover"
             >
-              <Sparkles className="h-4 w-4 text-accent" />
+              <BarChart3 className="h-4 w-4 text-accent" />
               Insights
+            </Link>
+            <Link
+              href={`/dashboard/summarize?client=${clientId}`}
+              className="inline-flex items-center gap-1.5 rounded-2xl border border-border bg-surface px-4 py-3 text-sm font-medium hover:bg-hover"
+            >
+              <Sparkles className="h-4 w-4 text-accent" />
+              Summarize
             </Link>
           </div>
         </div>

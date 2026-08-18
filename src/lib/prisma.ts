@@ -1,6 +1,7 @@
 import { PrismaMariaDb } from "@prisma/adapter-mariadb";
 import { PrismaClient } from "@/generated/prisma/client";
 
+/** One Prisma client per Node process, with a small MariaDB pool so local MAMP is not opened per query. */
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
 };
@@ -25,6 +26,7 @@ function createAdapter() {
     user: decodeURIComponent(parsed.username),
     password: decodeURIComponent(parsed.password),
     database: databaseName,
+    connectionLimit: 8,
     connectTimeout: 15000,
     acquireTimeout: 15000,
     ssl: isLocal ? undefined : { rejectUnauthorized: false },

@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { prisma } from "@/lib/prisma";
 import type { UserRole } from "@/generated/prisma/client";
 import {
@@ -25,7 +26,10 @@ export type ClientDirectoryRow = {
   updatedAt: string;
 };
 
-export async function getClientsForUser(userId: string, role: UserRole) {
+export const getClientsForUser = cache(async function getClientsForUser(
+  userId: string,
+  role: UserRole
+) {
   const teams = await getTeamsForUser(userId, role);
   const teamIds = teams.map((team) => team.id);
   if (teamIds.length === 0) return [] as ClientDirectoryRow[];
@@ -50,7 +54,7 @@ export async function getClientsForUser(userId: string, role: UserRole) {
     href: `/dashboard/teams/${client.team.id}/clients/${client.id}`,
     updatedAt: client.updatedAt.toISOString(),
   }));
-}
+});
 
 export async function assertUniqueClientName(
   userId: string,

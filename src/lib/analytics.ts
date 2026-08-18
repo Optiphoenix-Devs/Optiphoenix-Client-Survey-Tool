@@ -4,6 +4,10 @@ import { formsAccessibleWhere } from "@/lib/forms";
 import { getTeamsForUser } from "@/lib/teams";
 import { getClientsForUser } from "@/lib/clients";
 import { NONE_CLIENT } from "@/lib/analytics-format";
+import {
+  periodStartDate,
+  resolveSummaryPeriod,
+} from "@/lib/summary-period";
 import type {
   AnalyticsSnapshot,
   ScoreDistribution,
@@ -14,6 +18,7 @@ import type {
 export type {
   AnalyticsClientOption,
   AnalyticsSnapshot,
+  ClientPerformanceRow,
   RatingRow,
   ResourceRow,
   ScoreDistribution,
@@ -27,7 +32,8 @@ type ParsedResource = { name: string; score: number | null };
 export async function getAnalyticsForUser(
   userId: string,
   role: UserRole,
-  clientFilter?: string
+  clientFilter?: string,
+  periodFilter?: string
 ): Promise<AnalyticsSnapshot> {
   const teams = await getTeamsForUser(userId, role);
   const teamIds = teams.map((team) => team.id);
@@ -50,11 +56,15 @@ export async function getAnalyticsForUser(
           }
         : {};
 
+  const selectedPeriod = resolveSummaryPeriod(periodFilter);
+  const startDate = periodStartDate(selectedPeriod);
+
   const rows = await prisma.response.findMany({
     where: {
       clientSurvey: {
         AND: [{ form: formAccess }, clientWhere],
       },
+      submittedAt: { gte: startDate },
     },
     orderBy: { submittedAt: "asc" },
     include: {
@@ -84,6 +94,7 @@ export async function getAnalyticsForUser(
         form: formAccess,
         AND: [{ clientId: null }, { form: { clientId: null } }],
       },
+      submittedAt: { gte: startDate },
     },
   });
 
@@ -191,6 +202,7 @@ export async function getAnalyticsForUser(
   return {
     selectedClientId: selected,
     selectedClientName,
+    selectedPeriod,
     clients: clients.map((client) => ({ id: client.id, name: client.name })),
     hasIndependentResponses: independentCount > 0,
     responseCount: rows.length,
@@ -230,6 +242,79 @@ export async function getAnalyticsForUser(
       .sort((a, b) => b.average - a.average || b.count - a.count),
     trends: buildTrend(monthMap),
     comments: comments.slice(0, 8),
+  };
+}
+
+/** Per-client combined rating (star scores + resource scores) for the dashboard chart. */
+export async function getClientPerformanceForUser(userId: string, role: UserRole) {
+  const teams = await getTeamsForUser(userId, role);
+  const teamIds = teams.map((team) => team.id);
+  const formAccess = formsAccessibleWhere(userId, role, teamIds);
+
+  const rows = await prisma.response.findMany({
+    where: { clientSurvey: { form: formAccess } },
+    select: {
+      answers: {
+        where: { question: { type: { in: ["RATING", "RESOURCE_RATING"] } } },
+        select: {
+          value: true,
+          question: { select: { type: true } },
+        },
+      },
+      clientSurvey: {
+        select: {
+          clientId: true,
+          form: {
+            select: {
+              clientId: true,
+              client: { select: { id: true, name: true } },
+            },
+          },
+        },
+      },
+    },
+  });
+
+  const buckets = new Map<string, { id: string; name: string; scores: number[] }>();
+  const overall: number[] = [];
+
+  for (const row of rows) {
+    const clientId =
+      row.clientSurvey.form.client?.id ?? row.clientSurvey.clientId ?? NONE_CLIENT;
+    const clientName = row.clientSurvey.form.client?.name ?? "Independent forms";
+    const bucket = buckets.get(clientId) ?? { id: clientId, name: clientName, scores: [] };
+
+    for (const answer of row.answers) {
+      if (answer.question.type === "RATING") {
+        const score = parseStar(answer.value);
+        if (score == null) continue;
+        bucket.scores.push(score);
+        overall.push(score);
+      } else if (answer.question.type === "RESOURCE_RATING") {
+        for (const item of parseResourceRatings(answer.value)) {
+          if (item.score == null) continue;
+          bucket.scores.push(item.score);
+          overall.push(item.score);
+        }
+      }
+    }
+
+    buckets.set(clientId, bucket);
+  }
+
+  return {
+    overallAverage: average(overall),
+    overallCount: overall.length,
+    clients: [...buckets.values()]
+      .map((item) => ({
+        id: item.id,
+        name: item.name,
+        average: average(item.scores) ?? 0,
+        count: item.scores.length,
+      }))
+      .filter((item) => item.count > 0)
+      .sort((a, b) => b.average - a.average || b.count - a.count)
+      .slice(0, 8),
   };
 }
 

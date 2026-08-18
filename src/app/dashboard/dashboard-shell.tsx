@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  BarChart3,
   Bookmark,
   Building2,
   ChevronsLeft,
@@ -143,8 +144,14 @@ export function DashboardShell({
     {
       href: "/dashboard/insights",
       label: "Insights",
-      icon: Sparkles,
+      icon: BarChart3,
       active: pathname.startsWith("/dashboard/insights"),
+    },
+    {
+      href: "/dashboard/summarize",
+      label: "Summarize",
+      icon: Sparkles,
+      active: pathname.startsWith("/dashboard/summarize"),
     },
     ...(isAdmin
       ? [

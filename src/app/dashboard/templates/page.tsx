@@ -33,7 +33,7 @@ async function TemplatesBody({
     <main className="mx-auto flex w-full max-w-6xl flex-col gap-8 px-4 py-8 sm:px-8 sm:py-10">
       <TemplatesDirectory
         templates={templates}
-        useAction={useTemplate}
+        createFormFromTemplateAction={useTemplate}
         deleteAction={deleteTemplate}
         createAction={createTemplate}
       />

@@ -5,6 +5,11 @@ import { usePathname } from "next/navigation";
 
 export function NavigationProgress() {
   const pathname = usePathname();
+  // Remount on route changes so internal state resets without setState-in-effect.
+  return <NavigationProgressInner key={pathname} />;
+}
+
+function NavigationProgressInner() {
   const [active, setActive] = useState(false);
 
   useEffect(() => {
@@ -29,10 +34,6 @@ export function NavigationProgress() {
     window.addEventListener("click", onClick);
     return () => window.removeEventListener("click", onClick);
   }, []);
-
-  useEffect(() => {
-    setActive(false);
-  }, [pathname]);
 
   if (!active) return null;
 

@@ -21,12 +21,12 @@ const SORT_KEY = "optiphoenix.templatesSort";
 
 export function TemplatesDirectory({
   templates,
-  useAction,
+  createFormFromTemplateAction,
   deleteAction,
   createAction,
 }: {
   templates: TemplateListRow[];
-  useAction: (formData: FormData) => Promise<ActionResult>;
+  createFormFromTemplateAction: (formData: FormData) => Promise<ActionResult>;
   deleteAction: (formData: FormData) => Promise<ActionResult>;
   createAction: (formData: FormData) => Promise<ActionResult>;
 }) {
@@ -82,7 +82,7 @@ export function TemplatesDirectory({
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
     startTransition(async () => {
-      const result = await useAction(formData);
+      const result = await createFormFromTemplateAction(formData);
       if (result.error) {
         toast(result.error, { tone: "error" });
         return;

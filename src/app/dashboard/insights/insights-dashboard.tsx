@@ -115,7 +115,7 @@ export function InsightsDashboard({ data }: { data: AnalyticsSnapshot }) {
         </p>
       ) : (
         <>
-          <div className="grid items-stretch gap-4 xl:grid-cols-2">
+          <div className="grid items-start gap-4 xl:grid-cols-2">
             <OverallRatingsCard data={data} />
             <TrendCard points={data.trends} />
           </div>
@@ -128,7 +128,11 @@ export function InsightsDashboard({ data }: { data: AnalyticsSnapshot }) {
             <ResourceCard rows={data.resources} />
           ) : null}
 
-          <SummariesCard comments={data.comments} responseCount={data.responseCount} />
+          <SummariesCard
+            comments={data.comments}
+            responseCount={data.responseCount}
+            data={data}
+          />
         </>
       )}
     </section>
@@ -137,16 +141,16 @@ export function InsightsDashboard({ data }: { data: AnalyticsSnapshot }) {
 
 function OverallRatingsCard({ data }: { data: AnalyticsSnapshot }) {
   return (
-    <article className="card-enter flex h-full min-h-[22rem] flex-col rounded-3xl border border-border bg-card p-6">
+    <article className="card-enter rounded-3xl border border-border bg-card p-6">
       <h2 className="text-lg font-semibold tracking-tight">Overall ratings</h2>
       <p className="mt-1 text-sm text-muted">
         Star scores from rating questions
         {data.selectedClientId ? ` · ${data.selectedClientName}` : ""}.
       </p>
       {data.overall.count === 0 ? (
-        <p className="mt-8 text-sm text-muted">No 1–5 ratings in this view.</p>
+        <p className="mt-4 text-sm text-muted">No 1–5 ratings in this view.</p>
       ) : (
-        <div className="mt-auto flex flex-col gap-6 pt-6 sm:flex-row sm:items-center">
+        <div className="mt-4 flex flex-col gap-6 sm:flex-row sm:items-center">
           <div className="shrink-0 text-center sm:w-36">
             <p className="text-5xl font-semibold tracking-tight tabular-nums">
               {formatScore(data.overall.average)}
@@ -165,15 +169,15 @@ function OverallRatingsCard({ data }: { data: AnalyticsSnapshot }) {
 
 function TrendCard({ points }: { points: TrendPoint[] }) {
   return (
-    <article className="card-enter flex h-full min-h-[22rem] flex-col rounded-3xl border border-border bg-card p-6">
+    <article className="card-enter rounded-3xl border border-border bg-card p-6">
       <h2 className="text-lg font-semibold tracking-tight">Historical trends</h2>
       <p className="mt-1 text-sm text-muted">
         Monthly average score (ratings + resource scores) and response volume.
       </p>
       {points.length === 0 ? (
-        <p className="mt-8 text-sm text-muted">Not enough history to chart yet.</p>
+        <p className="mt-4 text-sm text-muted">Not enough history to chart yet.</p>
       ) : (
-        <div className="mt-auto pt-6">
+        <div className="mt-4">
           <TrendChart points={points} />
         </div>
       )}
@@ -257,9 +261,11 @@ function ResourceCard({ rows }: { rows: ResourceRow[] }) {
 function SummariesCard({
   comments,
   responseCount,
+  data,
 }: {
   comments: AnalyticsSnapshot["comments"];
   responseCount: number;
+  data: AnalyticsSnapshot;
 }) {
   return (
     <article className="card-enter rounded-3xl border border-border bg-card p-6">
@@ -272,12 +278,24 @@ function SummariesCard({
             Latest comments and suggestions from {pluralize(responseCount, "response")}.
           </p>
         </div>
-        <Link
-          href="/dashboard/responses"
-          className="text-sm font-medium text-accent hover:text-accent-hover"
-        >
-          View all responses
-        </Link>
+        <div className="flex flex-wrap items-center gap-3">
+          <Link
+            href={
+              data.selectedClientId
+                ? `/dashboard/summarize?client=${data.selectedClientId}`
+                : "/dashboard/summarize"
+            }
+            className="text-sm font-medium text-accent hover:text-accent-hover"
+          >
+            Summarize with AI
+          </Link>
+          <Link
+            href="/dashboard/responses"
+            className="text-sm font-medium text-accent hover:text-accent-hover"
+          >
+            View all responses
+          </Link>
+        </div>
       </div>
       {comments.length === 0 ? (
         <p className="mt-8 text-sm text-muted">

@@ -7,6 +7,8 @@ import { logout } from "./actions";
 import { DashboardShell } from "./dashboard-shell";
 
 const getShellData = (userId: string, role: "ADMIN" | "TEAM_LEAD") =>
+  // Sidebar counts are shared across every dashboard route. Cache them so
+  // client-side navigations do not re-run 4–5 MySQL queries each time.
   unstable_cache(
     async () => {
       const [counts, user, userCount] = await Promise.all([
@@ -20,7 +22,7 @@ const getShellData = (userId: string, role: "ADMIN" | "TEAM_LEAD") =>
       return { counts, user, userCount };
     },
     ["dashboard-shell", userId, role],
-    { revalidate: 20, tags: ["dashboard-shell"] }
+    { revalidate: 60, tags: ["dashboard-shell"] }
   )();
 
 export default async function DashboardLayout({

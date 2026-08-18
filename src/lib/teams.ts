@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { prisma } from "@/lib/prisma";
 import type { UserRole } from "@/generated/prisma/client";
 import { formsAccessibleWhere } from "@/lib/forms";
@@ -76,7 +77,11 @@ export async function getDashboardOverview(userId: string, role: UserRole) {
   };
 }
 
-export async function getTeamsForUser(userId: string, role: UserRole) {
+/** Request-scoped memo so layout + page do not query teams twice. */
+export const getTeamsForUser = cache(async function getTeamsForUser(
+  userId: string,
+  role: UserRole
+) {
   if (role === "ADMIN") {
     return prisma.team.findMany({
       orderBy: { createdAt: "desc" },
@@ -95,7 +100,7 @@ export async function getTeamsForUser(userId: string, role: UserRole) {
       _count: { select: { clients: true, forms: true, members: true } },
     },
   });
-}
+});
 
 export async function userCanManageTeam(
   userId: string,
@@ -134,19 +139,22 @@ export function namesMatch(left: string, right: string) {
   return left.trim().toLowerCase() === right.trim().toLowerCase();
 }
 
+/** Sidebar badges on every dashboard page. Counts run in parallel after team IDs load. */
 export async function getSidebarCounts(userId: string, role: UserRole) {
   const teams = await getTeamsForUser(userId, role);
   const teamIds = teams.map((team) => team.id);
   const formAccess = formsAccessibleWhere(userId, role, teamIds);
-  const clientCount =
+
+  const [clientCount, formCount, responseCount, templateCount] = await Promise.all([
     teamIds.length === 0
-      ? 0
-      : await prisma.client.count({ where: { teamId: { in: teamIds } } });
-  const formCount = await prisma.form.count({ where: formAccess });
-  const responseCount = await prisma.response.count({
-    where: { clientSurvey: { form: formAccess } },
-  });
-  const templateCount = await prisma.formTemplate.count().catch(() => 0);
+      ? Promise.resolve(0)
+      : prisma.client.count({ where: { teamId: { in: teamIds } } }),
+    prisma.form.count({ where: formAccess }),
+    prisma.response.count({
+      where: { clientSurvey: { form: formAccess } },
+    }),
+    prisma.formTemplate.count().catch(() => 0),
+  ]);
 
   return {
     teamCount: teams.length,

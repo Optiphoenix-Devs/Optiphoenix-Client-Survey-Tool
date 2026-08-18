@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { createContext, createElement, useContext, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import {
   DndContext,
@@ -163,7 +163,6 @@ function SortableFieldCard({
 }) {
   const { deleteField } = useBuilderActions();
   const meta = fieldTypeMeta(field.type);
-  const Icon = fieldIcon(field.type);
   const cardRef = useRef<HTMLDivElement | null>(null);
   const [, startTransition] = useTransition();
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
@@ -220,7 +219,7 @@ function SortableFieldCard({
           </button>
         </Tooltip>
         <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-background text-accent">
-          <Icon className="h-4 w-4" />
+          {createElement(fieldIcon(field.type), { className: "h-4 w-4" })}
         </span>
         <button
           type="button"
@@ -643,7 +642,6 @@ export function FormBuilder({
             <p className="mb-3 text-sm font-semibold">Add fields</p>
             <div className="grid grid-cols-1 gap-1">
               {FIELD_TYPES.map((type) => {
-                const Icon = fieldIcon(type.value);
                 return (
                   <form
                     action={async (formData) => {
@@ -659,7 +657,7 @@ export function FormBuilder({
                     <input type="hidden" name="type" value={type.value} />
                     <PendingButton className="grid w-full grid-cols-[2rem_minmax(0,1fr)] items-center gap-2.5 rounded-xl px-2 py-2 text-left transition duration-150 hover:bg-background">
                       <span className="grid h-8 w-8 place-items-center rounded-lg bg-background text-accent">
-                        <Icon className="h-4 w-4" />
+                        {createElement(fieldIcon(type.value), { className: "h-4 w-4" })}
                       </span>
                       <span className="min-w-0">
                         <span className="block truncate text-sm font-medium">

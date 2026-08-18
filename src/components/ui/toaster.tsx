@@ -84,11 +84,11 @@ const TONE = {
 } as const;
 
 export function Toaster() {
-  const [toasts, setToasts] = useState<ToastItem[]>([]);
+  // Seed from current in-memory toasts; this avoids setState() in useEffect (lint rule).
+  const [toasts, setToasts] = useState<ToastItem[]>(() => items);
 
   useEffect(() => {
     listeners.add(setToasts);
-    setToasts(items);
     return () => {
       listeners.delete(setToasts);
     };

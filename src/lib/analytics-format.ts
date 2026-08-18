@@ -39,14 +39,17 @@ export type SummaryComment = {
   href: string;
 };
 
-export type AnalyticsClientOption = {
+export type ClientPerformanceRow = {
   id: string;
   name: string;
+  average: number;
+  count: number;
 };
 
 export type AnalyticsSnapshot = {
   selectedClientId: string;
   selectedClientName: string;
+  selectedPeriod: "monthly" | "quarterly" | "half-year" | "yearly";
   clients: AnalyticsClientOption[];
   hasIndependentResponses: boolean;
   responseCount: number;
