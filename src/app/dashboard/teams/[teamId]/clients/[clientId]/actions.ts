@@ -244,8 +244,8 @@ export async function updateField(formData: FormData): Promise<ActionResult> {
     await updateFieldOnForm(
       session.user.id,
       session.user.role,
-      parsed.data.teamId,
-      parsed.data.clientId,
+      parsed.data.teamId ?? "",
+      parsed.data.clientId ?? "",
       parsed.data.formId,
       parsed.data.fieldId,
       {
@@ -283,8 +283,8 @@ export async function deleteField(formData: FormData): Promise<ActionResult> {
     await deleteFieldOnForm(
       session.user.id,
       session.user.role,
-      parsed.data.teamId,
-      parsed.data.clientId,
+      parsed.data.teamId ?? "",
+      parsed.data.clientId ?? "",
       parsed.data.formId,
       parsed.data.fieldId
     );

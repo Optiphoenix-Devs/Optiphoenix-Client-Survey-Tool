@@ -456,7 +456,7 @@ export function FormBuilder({
   const [preview, setPreview] = useState(false);
   const [templateOpen, setTemplateOpen] = useState(false);
   const [items, setItems] = useState(fields);
-  const [selectedId, setSelectedId] = useState(
+  const [selectedId, setSelectedId] = useState<string | null>(
     focusFieldId ?? fields[0]?.id ?? null
   );
   const [, startTransition] = useTransition();

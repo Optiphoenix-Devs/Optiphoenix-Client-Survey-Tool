@@ -3,6 +3,9 @@ import type { QuestionType, UserRole } from "@/generated/prisma/client";
 import { Prisma } from "@/generated/prisma/client";
 import { userCanManageTeam } from "@/lib/teams";
 import { fieldNeedsOptions, fieldTypeMeta, minOptionsForType, parseOptionList } from "@/lib/question-types";
+import { sendEmail } from "@/lib/email/send-email";
+import { feedbackSubmittedEmail } from "@/lib/email/templates";
+import { getAppBaseUrl } from "@/lib/app-url";
 
 export function formsAccessibleWhere(
   userId: string,
@@ -94,8 +97,8 @@ export async function getFormBuilder(
 export async function getClientFormBuilder(
   userId: string,
   role: UserRole,
-  _teamId?: string,
-  _clientId?: string,
+  _teamId: string | undefined,
+  _clientId: string | undefined,
   formId: string
 ) {
   return getFormBuilder(userId, role, formId);
@@ -179,8 +182,8 @@ export async function createClientForm(
 export async function updateClientForm(
   userId: string,
   role: UserRole,
-  _teamId?: string,
-  _clientId?: string,
+  _teamId: string | undefined,
+  _clientId: string | undefined,
   formId: string,
   title: string,
   description?: string | null
@@ -199,8 +202,8 @@ export async function updateClientForm(
 export async function deleteClientForm(
   userId: string,
   role: UserRole,
-  _teamId?: string,
-  _clientId?: string,
+  _teamId: string | undefined,
+  _clientId: string | undefined,
   formId: string
 ) {
   await requireFormAccess(userId, role, formId);
@@ -226,8 +229,8 @@ export async function deleteClientForm(
 export async function setClientFormPublish(
   userId: string,
   role: UserRole,
-  _teamId?: string,
-  _clientId?: string,
+  _teamId: string | undefined,
+  _clientId: string | undefined,
   formId: string,
   publish: boolean
 ) {
@@ -275,8 +278,8 @@ export async function setClientFormPublish(
 export async function addFieldToForm(
   userId: string,
   role: UserRole,
-  _teamId?: string,
-  _clientId?: string,
+  _teamId: string | undefined,
+  _clientId: string | undefined,
   formId: string,
   type: QuestionType
 ) {
@@ -430,6 +433,7 @@ export async function getPublishedFormByToken(token: string) {
     where: { publicToken: token },
     include: {
       client: true,
+      createdBy: { select: { email: true, name: true } },
       questions: { orderBy: { order: "asc" } },
       surveys: {
         orderBy: { createdAt: "desc" },
@@ -522,4 +526,20 @@ export async function submitPublicForm(
       data: { status: "CLOSED", submittedAt: new Date() },
     });
   });
+
+  // Email notification should happen after the DB transaction completes.
+  if (form.createdBy?.email) {
+    const mail = feedbackSubmittedEmail({
+      recipientName: form.createdBy.name,
+      formTitle: form.title,
+      clientName: form.client?.name,
+      responsesUrl: `${getAppBaseUrl()}/dashboard/responses`,
+    });
+    await sendEmail({
+      to: form.createdBy.email,
+      subject: mail.subject,
+      text: mail.text,
+      html: mail.html,
+    });
+  }
 }

@@ -53,6 +53,7 @@ async function SummarizeBody({
   return (
     <main className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 py-8 sm:px-8 sm:py-10">
       <SummarizeToolbar
+        key={`${data.selectedClientId}-${data.selectedPeriod}`}
         data={data}
         geminiReady={isGeminiConfigured()}
         hasSummary={Boolean(summary)}

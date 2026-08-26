@@ -46,6 +46,11 @@ export type ClientPerformanceRow = {
   count: number;
 };
 
+export type AnalyticsClientOption = {
+  id: string;
+  name: string;
+};
+
 export type AnalyticsSnapshot = {
   selectedClientId: string;
   selectedClientName: string;

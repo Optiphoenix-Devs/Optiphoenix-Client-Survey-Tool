@@ -3,6 +3,8 @@ import type { NextAuthConfig } from "next-auth";
 // Edge-safe config: no Prisma, no bcrypt, no MySQL.
 // Middleware only checks the login cookie.
 export const authConfig = {
+  // Required on Vercel (middleware + login). Reads AUTH_SECRET from env.
+  secret: process.env.AUTH_SECRET ?? process.env.NEXTAUTH_SECRET,
   trustHost: true,
   session: {
     strategy: "jwt",

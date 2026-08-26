@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { updateProfile } from "./actions";
+import { changePasswordAction, updateProfile } from "./actions";
 import { ProfileForm } from "./profile-form";
 
 export default async function ProfilePage() {
@@ -26,6 +26,7 @@ export default async function ProfilePage() {
         email={user.email}
         avatarUrl={user.avatarUrl}
         updateAction={updateProfile}
+        changePasswordAction={changePasswordAction}
       />
     </main>
   );

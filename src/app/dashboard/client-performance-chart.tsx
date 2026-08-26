@@ -81,15 +81,26 @@ function SatisfactionPie({
   const cx = 48;
   const cy = 48;
   const radius = 42;
-  let angle = -Math.PI / 2;
-
-  const paths = slices.map((slice) => {
-    const sweep = Math.max(slice.value, 0) * Math.PI * 2;
-    const start = angle;
-    const end = angle + sweep;
-    angle = end;
-    return { ...slice, d: pieSlice(cx, cy, radius, start, end), full: slice.value >= 0.999 };
-  });
+  const initialAngle = -Math.PI / 2;
+  const { paths } = slices.reduce(
+    (acc, slice) => {
+      const sweep = Math.max(slice.value, 0) * Math.PI * 2;
+      const start = acc.angle;
+      const end = start + sweep;
+      return {
+        angle: end,
+        paths: [
+          ...acc.paths,
+          {
+            ...slice,
+            d: pieSlice(cx, cy, radius, start, end),
+            full: slice.value >= 0.999,
+          },
+        ],
+      };
+    },
+    { angle: initialAngle, paths: [] as Array<{ color: string; value: number; d: string; full: boolean }> }
+  );
 
   return (
     <svg viewBox="0 0 96 96" className="h-24 w-24 shrink-0" role="img" aria-label="Satisfaction mix">

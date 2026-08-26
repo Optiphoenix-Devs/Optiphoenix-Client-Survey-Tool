@@ -106,9 +106,9 @@ export function ResponsesDirectory({
                   <p className="mt-3 line-clamp-2 min-h-[2.5rem] text-sm text-muted">{row.preview}</p>
                   <Link
                     href={row.href}
-                    className="mt-auto inline-flex items-center gap-1.5 self-start rounded-full bg-accent px-3 py-1.5 text-sm font-medium text-on-accent hover:bg-accent-hover pt-5"
+                    className="mt-auto inline-flex h-9 items-center justify-center gap-2 self-start rounded-full bg-accent px-4 text-sm font-medium leading-none text-on-accent hover:bg-accent-hover"
                   >
-                    <Eye className="h-3.5 w-3.5" />
+                    <Eye className="h-4 w-4 shrink-0" aria-hidden />
                     View
                   </Link>
                 </article>

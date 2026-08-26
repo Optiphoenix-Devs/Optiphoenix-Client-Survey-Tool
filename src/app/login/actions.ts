@@ -13,6 +13,9 @@ import {
 } from "@/lib/validations";
 import type { ActionResult } from "@/lib/action-result";
 import { isLocked, resetPasswordWithToken, createSignupToken, createPasswordResetToken } from "@/lib/auth-security";
+import { sendEmail } from "@/lib/email/send-email";
+import { passwordResetEmail } from "@/lib/email/templates";
+import { getAppBaseUrl } from "@/lib/app-url";
 
 export async function loginAction(
   _prev: ActionResult,
@@ -127,6 +130,16 @@ export async function requestPasswordResetAction(
   }
 
   const token = await createPasswordResetToken(user.id);
+  const resetUrl = `${getAppBaseUrl()}/reset-password?token=${token}`;
+  const mail = passwordResetEmail({ name: user.name, resetUrl });
+
+  await sendEmail({
+    to: user.email,
+    subject: mail.subject,
+    text: mail.text,
+    html: mail.html,
+  });
+
   await prisma.user.update({
     where: { id: user.id },
     data: { resetRequestedAt: null },

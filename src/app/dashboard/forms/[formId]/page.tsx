@@ -1,6 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { getFormBuilder, formHasSubmission } from "@/lib/forms";
+import { getAppBaseUrl } from "@/lib/app-url";
 import { FormBuilder } from "../../teams/[teamId]/clients/[clientId]/form-builder";
 
 export default async function FormBuilderPage({
@@ -25,7 +26,7 @@ export default async function FormBuilderPage({
         description={form.description}
         status={form.status}
         hasResponse={formHasSubmission(form.surveys)}
-        publicFormUrl={`${process.env.AUTH_URL ?? "http://localhost:3000"}/survey/${form.publicToken}`}
+        publicFormUrl={`${getAppBaseUrl()}/survey/${form.publicToken}`}
         backHref={
           form.teamId && form.clientId
             ? `/dashboard/teams/${form.teamId}/clients/${form.clientId}`

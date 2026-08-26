@@ -36,7 +36,11 @@ function applyTheme(theme: Theme) {
 }
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const theme = useSyncExternalStore(subscribe, readTheme, () => "light");
+  const theme = useSyncExternalStore<Theme>(
+    subscribe,
+    readTheme,
+    (): Theme => "light"
+  );
 
   const toggleTheme = useCallback(() => {
     const next: Theme = readTheme() === "dark" ? "light" : "dark";

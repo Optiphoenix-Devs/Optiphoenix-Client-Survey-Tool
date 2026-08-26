@@ -4,7 +4,7 @@
  * Client/period filters update local state immediately, then `router.replace`
  * loads the matching briefing. Do not call Gemini from here — only Generate does.
  */
-import { useEffect, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Sparkles } from "lucide-react";
 import { NONE_CLIENT } from "@/lib/analytics-format";
@@ -30,11 +30,6 @@ export function SummarizeToolbar({
   const [period, setPeriod] = useState(data.selectedPeriod);
   const [, startNav] = useTransition();
   const [generating, startGenerate] = useTransition();
-
-  useEffect(() => {
-    setClientId(data.selectedClientId);
-    setPeriod(data.selectedPeriod);
-  }, [data.selectedClientId, data.selectedPeriod]);
 
   function navigate(nextClient: string, nextPeriod: string) {
     const params = new URLSearchParams();
