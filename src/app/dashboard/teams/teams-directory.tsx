@@ -3,17 +3,33 @@
 import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Eye, Pencil, Plus, Trash2 } from "lucide-react";
+import { Building2, Pencil, Plus, Trash2, Users } from "lucide-react";
 import type { ActionResult } from "@/lib/action-result";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { DrawerActions, SideDrawer } from "@/components/ui/side-drawer";
 import { Pagination, usePaged } from "@/components/ui/pagination";
-import { toast } from "@/components/ui/toaster";
 import { Spinner } from "@/components/ui/pending-button";
-import { pluralize } from "@/lib/format";
+import {
+  TableActionsCell,
+  TableActionsHeader,
+  TableDeleteButton,
+  TableEditButton,
+} from "@/components/ui/table-actions";
+import { runServerAction } from "@/lib/run-server-action";
 import { sortDirectoryRows, type DirectorySort } from "@/lib/sort";
+import { useDirectoryView } from "@/lib/use-directory-view";
 import { usePersistedValue } from "@/lib/use-persisted-value";
+import { columnLabel } from "@/lib/format";
 import { DirectoryToolbar } from "@/components/directory/directory-toolbar";
+import { CountCardLine } from "@/components/directory/directory-card-meta";
+import {
+  DirectoryCard,
+  DirectoryCardButton,
+  DirectoryCardFooter,
+  DirectoryCardIcon,
+  DirectoryCardTitle,
+} from "@/components/directory/directory-card";
+import { TableHeadCenter, TableHeadLeft, TableCellCenter, TableCellLeft, DirectoryTableRow } from "@/components/directory/directory-table";
 import { Stagger } from "@/components/ui/skeleton";
 
 type TeamDirectoryRow = {
@@ -44,7 +60,7 @@ export function TeamsDirectory({
 }: TeamsDirectoryProps) {
   const router = useRouter();
   const [query, setQuery] = useState("");
-  const [view, setView] = usePersistedValue(VIEW_KEY, "grid", ["grid", "table"]);
+  const [view, setView] = useDirectoryView(VIEW_KEY);
   const [sort, setSort] = usePersistedValue(SORT_KEY, "newest", [
     "newest",
     "oldest",
@@ -80,18 +96,20 @@ export function TeamsDirectory({
     onSuccess: () => void
   ) {
     startTransition(async () => {
-      const result = await action(formData);
-      if (result.error) {
-        toast(result.error, { tone: "error" });
-        return;
-      }
-      toast(success, { tone: "success" });
-      onSuccess();
-      router.refresh();
+      await runServerAction({
+        action,
+        formData,
+        successMessage: success,
+        onSuccess: () => onSuccess(),
+        refresh: () => router.refresh(),
+      });
     });
   }
 
   const editing = drawer && drawer !== "create" ? drawer : null;
+  const memberTotal = visible.reduce((sum, team) => sum + team.memberCount, 0);
+  const clientTotal = visible.reduce((sum, team) => sum + team.clientCount, 0);
+  const formTotal = visible.reduce((sum, team) => sum + team.formCount, 0);
 
   return (
     <section>
@@ -115,7 +133,7 @@ export function TeamsDirectory({
           onClick={() => {
             setDrawer("create");
           }}
-          className="inline-flex items-center justify-center gap-2 rounded-full bg-accent px-4 py-2.5 text-sm font-medium text-on-accent hover:bg-accent-hover"
+          className="app-btn-primary px-4 py-2.5 text-sm"
         >
           <Plus className="h-4 w-4" />
           New team
@@ -123,7 +141,7 @@ export function TeamsDirectory({
       </div>
 
       {visible.length === 0 ? (
-        <p className="mt-6 rounded-2xl border border-dashed border-border bg-card px-4 py-8 text-center text-sm text-muted">
+        <p className="mt-6 app-radius border border-dashed border-border bg-card px-4 py-8 text-center text-sm text-muted">
           {teams.length === 0
             ? "No teams yet. Create the first one."
             : "No teams match this search."}
@@ -133,94 +151,88 @@ export function TeamsDirectory({
           {paged.slice.map((team, index) => (
             <li key={team.id} className="h-full">
               <Stagger index={index}>
-              <article className="relative flex h-full flex-col overflow-hidden rounded-3xl border border-border bg-card p-5">
-                <span className="pointer-events-none absolute -right-10 -bottom-12 h-28 w-28 rounded-full bg-sage/15" />
-                <p className="line-clamp-2 min-h-[3.25rem] text-lg font-semibold tracking-tight">{team.name}</p>
-                <p className="mt-1 line-clamp-2 min-h-[2.5rem] text-sm text-muted">
-                  {pluralize(team.memberCount, "member")} ·{" "}
-                  {pluralize(team.clientCount, "client")} ·{" "}
-                  {pluralize(team.formCount, "form")}
-                </p>
-                <div className="mt-auto flex flex-wrap gap-2 pt-5">
-                  <Link
-                    href={team.href}
-                    className="inline-flex items-center gap-1.5 rounded-full bg-accent px-3 py-1.5 text-sm font-medium text-on-accent hover:bg-accent-hover"
-                  >
-                    <Eye className="h-3.5 w-3.5" />
-                    View
-                  </Link>
-                  <button
-                    type="button"
+              <DirectoryCard>
+                <DirectoryCardIcon>
+                  <Users className="h-5 w-5" />
+                </DirectoryCardIcon>
+                <div className="mt-4 min-w-0 flex-1">
+                  <DirectoryCardTitle title={team.name}>{team.name}</DirectoryCardTitle>
+                  <dl className="mt-5 space-y-2">
+                    <CountCardLine count={team.clientCount} singular="Client" />
+                    <CountCardLine count={team.formCount} singular="Form" />
+                  </dl>
+                </div>
+                <DirectoryCardFooter>
+                  <DirectoryCardButton href={team.href} variant="primary">
+                    <Building2 className="h-3.5 w-3.5" />
+                    Clients
+                  </DirectoryCardButton>
+                  <DirectoryCardButton
+                    variant="secondary"
                     onClick={() => {
                       setDrawer(team);
                     }}
-                    className="inline-flex items-center gap-1 rounded-full border border-border bg-surface px-3 py-1.5 text-sm font-medium hover:bg-background"
                   >
                     <Pencil className="h-3.5 w-3.5" />
                     Edit
-                  </button>
-                  <button
-                    type="button"
+                  </DirectoryCardButton>
+                  <DirectoryCardButton
+                    variant="danger"
                     onClick={() => {
                       setDeleting(team);
                     }}
-                    className="inline-flex items-center gap-1 rounded-full border border-rose-200 bg-rose-50 px-3 py-1.5 text-sm font-medium text-rose-900 hover:bg-rose-100"
                   >
                     <Trash2 className="h-3.5 w-3.5" />
                     Delete
-                  </button>
-                </div>
-              </article>
+                  </DirectoryCardButton>
+                </DirectoryCardFooter>
+              </DirectoryCard>
               </Stagger>
             </li>
           ))}
         </ul>
       ) : (
-        <div className="mt-6 overflow-x-auto rounded-2xl border border-border bg-card">
-          <table className="w-full min-w-[40rem] table-fixed text-sm">
-            <thead className="border-b border-border text-muted">
+        <div className="directory-table-wrap mt-6">
+          <table className="directory-table w-full min-w-[40rem] table-fixed text-sm">
+            <thead>
               <tr>
-                <th className="w-[32%] px-4 py-3 text-left font-medium">Team</th>
-                <th className="w-[14%] px-4 py-3 text-center font-medium">Members</th>
-                <th className="w-[14%] px-4 py-3 text-center font-medium">Clients</th>
-                <th className="w-[14%] px-4 py-3 text-center font-medium">Forms</th>
-                <th className="w-[26%] px-4 py-3 text-right font-medium">Actions</th>
+                <TableHeadLeft className="w-[32%]">
+                  {columnLabel(visible.length, "Team", "Teams")}
+                </TableHeadLeft>
+                <TableHeadCenter className="w-[14%]">
+                  {columnLabel(memberTotal, "Member", "Members")}
+                </TableHeadCenter>
+                <TableHeadCenter className="w-[14%]">
+                  {columnLabel(clientTotal, "Client", "Clients")}
+                </TableHeadCenter>
+                <TableHeadCenter className="w-[14%]">
+                  {columnLabel(formTotal, "Form", "Forms")}
+                </TableHeadCenter>
+                <TableActionsHeader className="w-[26%]" />
               </tr>
             </thead>
             <tbody>
               {paged.slice.map((team) => (
-                <tr key={team.id} className="border-b border-border last:border-0">
-                  <td className="px-4 py-3 text-left font-medium">
-                    <Link href={team.href} className="hover:text-accent">
-                      {team.name}
-                    </Link>
-                  </td>
-                  <td className="px-4 py-3 text-center tabular-nums">{team.memberCount}</td>
-                  <td className="px-4 py-3 text-center tabular-nums">{team.clientCount}</td>
-                  <td className="px-4 py-3 text-center tabular-nums">{team.formCount}</td>
-                  <td className="px-4 py-3">
-                    <div className="flex justify-end gap-2">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setDrawer(team);
-                        }}
-                        className="text-sm font-medium text-accent hover:text-accent-hover"
-                      >
-                        Edit
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setDeleting(team);
-                        }}
-                        className="text-sm font-medium text-rose-800 hover:text-rose-900"
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  </td>
-                </tr>
+                <DirectoryTableRow key={team.id} href={team.href} ariaLabel={`Open ${team.name}`}>
+                  <TableCellLeft className="font-medium">{team.name}</TableCellLeft>
+                  <TableCellCenter className="tabular-nums">{team.memberCount}</TableCellCenter>
+                  <TableCellCenter className="tabular-nums">{team.clientCount}</TableCellCenter>
+                  <TableCellCenter className="tabular-nums">{team.formCount}</TableCellCenter>
+                  <TableActionsCell>
+                    <TableEditButton
+                      label={team.name}
+                      onClick={() => {
+                        setDrawer(team);
+                      }}
+                    />
+                    <TableDeleteButton
+                      label={team.name}
+                      onClick={() => {
+                        setDeleting(team);
+                      }}
+                    />
+                  </TableActionsCell>
+                </DirectoryTableRow>
               ))}
             </tbody>
           </table>
@@ -232,6 +244,10 @@ export function TeamsDirectory({
           page={paged.page}
           pageCount={paged.pageCount}
           onPageChange={paged.setPage}
+          total={paged.total}
+          rangeStart={paged.rangeStart}
+          rangeEnd={paged.rangeEnd}
+          pageSize={paged.pageSize}
         />
       ) : null}
 
@@ -268,24 +284,24 @@ export function TeamsDirectory({
               maxLength={80}
               defaultValue={editing?.name ?? ""}
               autoFocus
-              className="rounded-xl border border-border bg-surface px-3 py-2.5 text-sm outline-none focus:border-accent"
+              className="app-radius border border-border bg-surface px-3 py-2.5 text-sm outline-none focus:border-accent"
             />
           </label>
           <DrawerActions>
             <button
               type="button"
               onClick={closeDrawer}
-              className="rounded-full border border-border bg-surface px-4 py-2 text-sm font-medium hover:bg-background"
+              className="app-btn-secondary px-4 py-2 text-sm"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={pending}
-              className="inline-flex items-center justify-center gap-2 rounded-full bg-accent px-4 py-2 text-sm font-medium text-on-accent hover:bg-accent-hover disabled:opacity-60"
+              className="app-btn-primary px-4 py-2 text-sm disabled:opacity-60"
             >
               {pending ? <Spinner /> : null}
-              {pending ? "Saving…" : editing ? "Save" : "Create team"}
+              {editing ? "Save" : "Create team"}
             </button>
           </DrawerActions>
         </form>

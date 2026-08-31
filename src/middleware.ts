@@ -6,7 +6,7 @@ const { auth } = NextAuth(authConfig);
 
 const AUTH_PAGES = [
   "/login",
-  "/register",
+  "/create-account",
   "/forgot-password",
   "/reset-password",
   "/waiting",
@@ -16,6 +16,10 @@ export default auth((request) => {
   const isLoggedIn = Boolean(request.auth);
   const { pathname } = request.nextUrl;
   const isDashboard = pathname.startsWith("/dashboard");
+
+  if (pathname === "/register") {
+    return NextResponse.redirect(new URL("/create-account", request.nextUrl));
+  }
 
   if (pathname === "/") {
     return NextResponse.redirect(
@@ -39,7 +43,7 @@ export const config = {
     "/",
     "/dashboard/:path*",
     "/login",
-    "/register",
+    "/create-account",
     "/forgot-password",
     "/reset-password",
     "/waiting",

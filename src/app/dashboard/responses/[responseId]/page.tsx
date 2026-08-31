@@ -48,7 +48,7 @@ export default async function ResponseDetailPage({
       </div>
 
       {response.answers.length === 0 ? (
-        <p className="rounded-2xl border border-dashed border-border bg-card px-4 py-8 text-center text-sm text-muted">
+        <p className="app-radius border border-dashed border-border bg-card px-4 py-8 text-center text-sm text-muted">
           This submission has no answers.
         </p>
       ) : (
@@ -56,7 +56,7 @@ export default async function ResponseDetailPage({
           {response.answers.map((answer, index) => (
             <li
               key={answer.id}
-              className="rounded-2xl border border-border bg-card p-5"
+              className="app-radius border border-border bg-card p-5"
             >
               <p className="text-[11px] font-semibold tracking-wide text-muted uppercase">
                 {index + 1}. {answer.typeLabel}

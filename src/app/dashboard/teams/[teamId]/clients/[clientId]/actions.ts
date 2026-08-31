@@ -17,6 +17,8 @@ import {
 } from "@/lib/validations";
 import {
   addFieldToForm,
+  applyTemplateToForm,
+  attachFormToClient,
   createFormForUser,
   deleteClientForm,
   deleteFieldOnForm,
@@ -26,6 +28,7 @@ import {
   updateFieldOnForm,
 } from "@/lib/forms";
 import { saveFormAsTemplate } from "@/lib/templates";
+import { prisma } from "@/lib/prisma";
 
 async function requireSession() {
   const session = await auth();
@@ -55,23 +58,67 @@ export async function createForm(formData: FormData): Promise<ActionResult> {
   const session = await requireSession();
   const teamId = String(formData.get("teamId") ?? "");
   const clientId = String(formData.get("clientId") ?? "");
+  const source = String(formData.get("source") ?? "blank");
+  const templateId = String(formData.get("templateId") ?? "") || undefined;
+  const draftFormId = String(formData.get("draftFormId") ?? "") || undefined;
+
+  // Attach an existing unassigned draft to this client.
+  if (source === "draft" && draftFormId) {
+    try {
+      await attachFormToClient(
+        session.user.id,
+        session.user.role,
+        draftFormId,
+        teamId,
+        clientId
+      );
+    } catch (error) {
+      return {
+        error: error instanceof Error ? error.message : "Could not link this draft.",
+      };
+    }
+    revalidateTag("dashboard-shell", "max");
+    revalidatePath(clientPath(teamId, clientId));
+    revalidatePath("/dashboard/forms");
+    revalidatePath(`/dashboard/forms/${draftFormId}`);
+    return { formId: draftFormId };
+  }
+
+  let title = String(formData.get("title") ?? "").trim();
+  if (!title) {
+    if (source === "template" && templateId) {
+      const template = await prisma.formTemplate.findUnique({
+        where: { id: templateId },
+        select: { name: true },
+      });
+      title = template?.name?.trim() || "Untitled form";
+    } else {
+      const client = await prisma.client.findUnique({
+        where: { id: clientId },
+        select: { name: true },
+      });
+      title = client?.name ? `${client.name} feedback` : "Untitled form";
+    }
+  }
 
   const parsed = createFormSchema.safeParse({
     teamId: teamId || undefined,
     clientId: clientId || undefined,
-    title: formData.get("title"),
-    templateId: String(formData.get("templateId") ?? "") || undefined,
+    title,
+    templateId: source === "template" ? templateId : undefined,
   });
 
   if (!parsed.success) {
-    return { error: "Enter a form title." };
+    return { error: "Could not create this form." };
   }
 
   let form;
   try {
     form = await createFormForUser(session.user.id, session.user.role, parsed.data);
-  } catch {
-    return { error: "Could not create this form." };
+  } catch (error) {
+    return {
+      error: error instanceof Error ? error.message : "Could not create this form.",
+    };
   }
 
   revalidateTag("dashboard-shell", "max");
@@ -330,10 +377,69 @@ export async function reorderFields(formData: FormData): Promise<ActionResult> {
       parsed.data.formId,
       parsed.data.orderedIds
     );
-  } catch {
-    return { error: "Could not reorder." };
+  } catch (error) {
+    return {
+      error: error instanceof Error ? error.message : "Could not reorder.",
+    };
   }
 
+  revalidateBuilder(teamId, clientId, formId);
+  return {};
+}
+
+export async function attachClient(formData: FormData): Promise<ActionResult> {
+  const session = await requireSession();
+  const formId = String(formData.get("formId") ?? "");
+  const teamId = String(formData.get("teamId") ?? "");
+  const clientId = String(formData.get("clientId") ?? "");
+
+  if (!formId || !teamId || !clientId) {
+    return { error: "Choose a client to integrate." };
+  }
+
+  try {
+    await attachFormToClient(
+      session.user.id,
+      session.user.role,
+      formId,
+      teamId,
+      clientId
+    );
+  } catch (error) {
+    return {
+      error: error instanceof Error ? error.message : "Could not link client.",
+    };
+  }
+
+  revalidateBuilder(teamId, clientId, formId);
+  return {};
+}
+
+export async function applyTemplate(formData: FormData): Promise<ActionResult> {
+  const session = await requireSession();
+  const formId = String(formData.get("formId") ?? "");
+  const templateId = String(formData.get("templateId") ?? "").trim();
+  const teamId = String(formData.get("teamId") ?? "");
+  const clientId = String(formData.get("clientId") ?? "");
+
+  if (!formId) {
+    return { error: "Form not found." };
+  }
+
+  try {
+    await applyTemplateToForm(
+      session.user.id,
+      session.user.role,
+      formId,
+      templateId || null
+    );
+  } catch (error) {
+    return {
+      error: error instanceof Error ? error.message : "Could not update fields.",
+    };
+  }
+
+  revalidateBuilder(teamId, clientId, formId);
   return {};
 }
 

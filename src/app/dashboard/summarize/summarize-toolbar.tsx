@@ -69,7 +69,7 @@ export function SummarizeToolbar({
                 navigate(value, period);
               }}
               aria-label="Filter summary by client"
-              className="rounded-full py-2"
+              className="app-radius py-2"
             >
               <option value="">All responses</option>
               {data.hasIndependentResponses ? (
@@ -92,7 +92,7 @@ export function SummarizeToolbar({
                 navigate(clientId, value);
               }}
               aria-label="Filter summary by period"
-              className="rounded-full py-2"
+              className="app-radius py-2"
             >
               {SUMMARY_PERIODS.map((item) => (
                 <option key={item} value={item}>
@@ -105,7 +105,7 @@ export function SummarizeToolbar({
             type="button"
             onClick={generate}
             disabled={generating || data.responseCount === 0}
-            className="inline-flex shrink-0 items-center justify-center gap-2 rounded-full bg-accent px-4 py-2.5 text-sm font-medium text-on-accent hover:bg-accent-hover disabled:opacity-60"
+            className="app-btn-primary shrink-0 px-4 py-2.5 text-sm disabled:opacity-60"
           >
             {generating ? <Spinner /> : <Sparkles className="h-4 w-4" />}
             {generating ? "Generating…" : hasSummary ? "Regenerate" : "Generate"}

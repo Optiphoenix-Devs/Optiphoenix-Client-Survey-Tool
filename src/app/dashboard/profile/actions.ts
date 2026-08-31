@@ -64,7 +64,6 @@ export async function updateProfile(formData: FormData): Promise<ActionResult> {
 
 const changePasswordSchema = z
   .object({
-    currentPassword: z.string().min(8, "Password must be at least 8 characters"),
     newPassword: z.string().min(8, "Password must be at least 8 characters"),
     confirmNewPassword: z.string().min(8, "Password must be at least 8 characters"),
   })
@@ -76,26 +75,12 @@ const changePasswordSchema = z
 export async function changePasswordAction(formData: FormData): Promise<ActionResult> {
   const session = await requireUser();
   const parsed = changePasswordSchema.safeParse({
-    currentPassword: formData.get("currentPassword"),
     newPassword: formData.get("newPassword"),
     confirmNewPassword: formData.get("confirmNewPassword"),
   });
 
   if (!parsed.success) {
-    // Keep error simple for the UI.
     return { error: parsed.error.issues[0]?.message ?? "Invalid input." };
-  }
-
-  const user = await prisma.user.findUnique({
-    where: { id: session.user.id },
-    select: { password: true },
-  });
-
-  if (!user) return { error: "User not found." };
-
-  const matches = await bcrypt.compare(parsed.data.currentPassword, user.password);
-  if (!matches) {
-    return { error: "Current password is incorrect." };
   }
 
   const hashed = await bcrypt.hash(parsed.data.newPassword, 10);

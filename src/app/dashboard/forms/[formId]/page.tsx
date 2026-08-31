@@ -2,6 +2,8 @@ import { notFound, redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { getFormBuilder, formHasSubmission } from "@/lib/forms";
 import { getAppBaseUrl } from "@/lib/app-url";
+import { getClientsForUser } from "@/lib/clients";
+import { getTemplatesForUser } from "@/lib/templates";
 import { FormBuilder } from "../../teams/[teamId]/clients/[clientId]/form-builder";
 
 export default async function FormBuilderPage({
@@ -13,7 +15,11 @@ export default async function FormBuilderPage({
   if (!session?.user?.id || !session.user.role) redirect("/login");
 
   const { formId } = await params;
-  const form = await getFormBuilder(session.user.id, session.user.role, formId);
+  const [form, templates, clients] = await Promise.all([
+    getFormBuilder(session.user.id, session.user.role, formId),
+    getTemplatesForUser(session.user.id, session.user.role),
+    getClientsForUser(session.user.id, session.user.role),
+  ]);
   if (!form) notFound();
 
   return (
@@ -27,6 +33,18 @@ export default async function FormBuilderPage({
         status={form.status}
         hasResponse={formHasSubmission(form.surveys)}
         publicFormUrl={`${getAppBaseUrl()}/survey/${form.publicToken}`}
+        sourceTemplateId={form.sourceTemplateId}
+        templates={templates.map((template) => ({
+          id: template.id,
+          name: template.name,
+          fieldCount: template.fieldCount,
+        }))}
+        clients={clients.map((client) => ({
+          id: client.id,
+          name: client.name,
+          teamId: client.teamId,
+          teamName: client.teamName,
+        }))}
         backHref={
           form.teamId && form.clientId
             ? `/dashboard/teams/${form.teamId}/clients/${form.clientId}`

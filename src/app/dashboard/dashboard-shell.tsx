@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -12,7 +12,6 @@ import {
   FileText,
   FolderKanban,
   LayoutDashboard,
-  LogOut,
   Menu,
   Sparkles,
   UserRound,
@@ -21,9 +20,9 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { Tooltip } from "@/components/ui/tooltip";
-import { ThemeToggle } from "@/components/theme-toggle";
 import { NavigationProgress } from "@/components/ui/navigation-progress";
 import { usePersistedValue } from "@/lib/use-persisted-value";
+import { AccountMenuPanel, useAccountMenuDismiss } from "./sidebar-account-menu";
 
 type DashboardShellProps = {
   name: string;
@@ -66,6 +65,8 @@ export function DashboardShell({
   const collapsed = collapsedStored === "1";
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
+  const menuButtonRef = useRef<HTMLButtonElement | null>(null);
+  const menuPanelRef = useRef<HTMLDivElement | null>(null);
   const isFormBuilder =
     /^\/dashboard\/forms\/[^/]+/.test(pathname) ||
     (pathname.includes("/forms/") && pathname.includes("/clients/"));
@@ -85,17 +86,10 @@ export function DashboardShell({
     .join("");
   const isAdmin = role === "ADMIN";
 
-  useEffect(() => {
-    function onClick(event: MouseEvent) {
-      if (!menuRef.current?.contains(event.target as Node)) {
-        setMenuOpen(false);
-      }
-    }
-    window.addEventListener("mousedown", onClick);
-    return () => window.removeEventListener("mousedown", onClick);
-  }, []);
+  useAccountMenuDismiss(menuOpen, () => setMenuOpen(false), menuRef, menuPanelRef);
 
   function toggleCollapsed() {
+    setMenuOpen(false);
     setCollapsedStored(collapsed ? "0" : "1");
   }
 
@@ -170,7 +164,7 @@ export function DashboardShell({
     return (
       <div className="app-grid flex h-dvh min-h-dvh flex-col overflow-hidden">
         <NavigationProgress />
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+        <div className="app-grid-body flex min-h-0 flex-1 flex-col overflow-hidden">
           {children}
         </div>
       </div>
@@ -178,12 +172,12 @@ export function DashboardShell({
   }
 
   return (
-    <div className="app-grid flex min-h-dvh">
+    <div className="flex min-h-dvh bg-chrome">
       <NavigationProgress />
       {mobileOpen ? (
         <button
           type="button"
-          className="fixed inset-0 z-30 bg-foreground/20 transition-opacity duration-300 lg:hidden"
+          className="fixed inset-0 z-30 bg-foreground/20 lg:hidden"
           aria-label="Close menu"
           onClick={() => setMobileOpen(false)}
         />
@@ -191,16 +185,20 @@ export function DashboardShell({
 
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-40 flex h-dvh flex-col overflow-hidden border-r border-border bg-card/95 px-3 py-5 backdrop-blur-sm",
-          "transition-[width,transform] duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] will-change-[width,transform]",
-          collapsed ? "w-64 lg:w-[4.75rem]" : "w-64",
-          mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+          "app-chrome fixed inset-y-0 left-0 z-40 flex h-dvh flex-col overflow-hidden border-r border-border py-5",
+          collapsed ? "px-2 lg:px-2" : "px-3",
+          collapsed
+            ? "w-64 shadow-[2px_0_18px_rgba(20,38,28,0.06)] lg:w-[4.75rem]"
+            : "w-64 shadow-[4px_0_28px_rgba(20,38,28,0.1)]",
+          mobileOpen
+            ? "translate-x-0 shadow-[8px_0_36px_rgba(20,38,28,0.14)]"
+            : "-translate-x-full lg:translate-x-0"
         )}
       >
         <div
           className={cn(
             "flex items-center gap-2",
-            collapsed ? "lg:flex-col lg:gap-3" : "justify-between px-1"
+            collapsed ? "justify-between px-1 lg:flex-col lg:justify-start lg:gap-3 lg:px-0" : "justify-between px-1"
           )}
         >
           <Link
@@ -208,25 +206,29 @@ export function DashboardShell({
             prefetch
             className={cn(
               "flex min-w-0 items-center gap-2.5",
-              collapsed && "lg:justify-center"
+              collapsed && "lg:w-full lg:justify-center lg:gap-0"
             )}
           >
-            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-accent text-sm font-semibold text-on-accent">
+            <span className="grid h-9 w-9 shrink-0 place-items-center app-radius bg-brand text-sm font-semibold text-on-brand">
               OP
             </span>
             <span
               className={cn(
-                "truncate text-sm font-semibold tracking-tight transition-opacity duration-300",
+                "truncate text-sm font-semibold tracking-tight",
                 collapsed && "lg:hidden"
               )}
             >
               OptiPhoenix
             </span>
           </Link>
-          <Tooltip label={collapsed ? "Expand sidebar" : "Collapse sidebar"} side="bottom">
+          <Tooltip
+            label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            side="right"
+            enabled={collapsed}
+          >
             <button
               type="button"
-              className="hidden h-8 w-8 shrink-0 items-center justify-center rounded-lg text-muted transition hover:bg-hover hover:text-foreground lg:inline-flex"
+              className="hidden h-9 w-9 shrink-0 items-center justify-center app-radius text-muted transition-colors hover:bg-hover hover:text-foreground lg:inline-flex"
               onClick={toggleCollapsed}
               aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
             >
@@ -247,64 +249,62 @@ export function DashboardShell({
           </button>
         </div>
 
-        <nav className="mt-8 flex flex-1 flex-col gap-1">
-          {nav.map((item) => {
-            const link = (
+        <nav className="mt-8 flex flex-1 flex-col gap-1 overflow-y-auto overflow-x-hidden">
+          {nav.map((item) => (
+            <Tooltip
+              key={item.href}
+              label={item.label}
+              side="right"
+              enabled={collapsed}
+              className="flex w-full"
+            >
               <Link
                 href={item.href}
                 prefetch
                 onClick={() => setMobileOpen(false)}
                 className={cn(
-                  "relative flex h-11 w-full min-w-0 items-center gap-3 overflow-hidden rounded-xl px-3 text-sm font-medium",
-                  "transition-[background-color,color] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]",
+                  "group relative flex h-11 w-full min-w-0 items-center overflow-hidden app-radius text-sm font-medium transition-colors duration-150 ease-out",
+                  collapsed ? "gap-3 px-3 lg:justify-center lg:gap-0 lg:px-0" : "gap-3 px-3",
                   item.active
-                    ? "bg-accent text-on-accent"
-                    : "text-muted hover:bg-hover hover:text-foreground"
+                    ? "app-brand-surface"
+                    : "text-muted app-brand-hover"
                 )}
               >
                 <item.icon className="h-5 w-5 shrink-0" strokeWidth={1.75} />
-                <span
-                  className={cn(
-                    "min-w-0 overflow-hidden whitespace-nowrap transition-[max-width,opacity] duration-700 ease-[cubic-bezier(0.16,1,0.3,1)]",
-                    collapsed ? "max-w-[10rem] opacity-100 lg:max-w-0 lg:opacity-0" : "max-w-[10rem] opacity-100"
-                  )}
-                >
+                <span className={cn("min-w-0 truncate whitespace-nowrap", collapsed && "lg:hidden")}>
                   {item.label}
                 </span>
                 {item.count != null ? (
                   <span
                     className={cn(
-                      "ml-auto shrink-0 overflow-hidden rounded-full px-2 py-0.5 text-[11px] font-semibold tabular-nums transition-[opacity,max-width] duration-300",
-                      collapsed && "lg:max-w-0 lg:px-0 lg:opacity-0",
-                      item.active ? "bg-on-accent/15 text-on-accent" : "bg-sage/20 text-accent"
+                      "ml-auto shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold tabular-nums",
+                      collapsed && "lg:hidden",
+                      item.active
+                        ? "bg-white/20 text-white"
+                        : "bg-brand/15 text-accent group-hover:bg-white/20 group-hover:text-white"
                     )}
                   >
                     {item.count}
                   </span>
                 ) : null}
               </Link>
-            );
-
-            return collapsed ? (
-              <Tooltip key={item.href} label={item.label} className="flex w-full">
-                {link}
-              </Tooltip>
-            ) : (
-              <span key={item.href} className="block w-full">
-                {link}
-              </span>
-            );
-          })}
+            </Tooltip>
+          ))}
         </nav>
 
         <div className="relative border-t border-border pt-4" ref={menuRef}>
           <button
+            ref={menuButtonRef}
             type="button"
             onClick={() => setMenuOpen((open) => !open)}
             className={cn(
-              "flex w-full items-center gap-3 rounded-xl py-2 text-left transition hover:bg-hover",
-              collapsed ? "justify-center px-0" : "px-2"
+              "flex w-full items-center app-radius py-2 text-left transition-colors hover:bg-hover",
+              collapsed
+                ? "gap-3 px-2 lg:h-11 lg:justify-center lg:gap-0 lg:px-0"
+                : "gap-3 px-2"
             )}
+            aria-label="Account menu"
+            aria-expanded={menuOpen}
           >
             {avatarUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
@@ -314,73 +314,32 @@ export function DashboardShell({
                 {initials || "OP"}
               </span>
             )}
-            <span
-              className={cn(
-                "min-w-0 flex-1 overflow-hidden transition-opacity duration-300",
-                collapsed && "lg:hidden"
-              )}
-            >
+            <span className={cn("min-w-0 flex-1 overflow-hidden", collapsed && "lg:hidden")}>
               <span className="block truncate text-sm font-medium">{name}</span>
               <span className="block truncate text-xs text-muted">{email}</span>
             </span>
           </button>
-          {menuOpen ? (
-            <div
-              className={cn(
-                "absolute z-50 rounded-xl border border-border bg-card p-2 shadow-sm",
-                collapsed
-                  ? "bottom-0 left-full ml-2 w-56"
-                  : "bottom-full left-0 right-0 mb-2"
-              )}
-            >
-              <div className="flex items-center gap-3 px-2 py-2">
-                {avatarUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={avatarUrl} alt="" className="h-8 w-8 rounded-full object-cover" />
-                ) : (
-                  <span className="grid h-8 w-8 place-items-center rounded-full bg-sage/20 text-xs font-semibold text-accent">
-                    {initials || "OP"}
-                  </span>
-                )}
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-medium">{name}</p>
-                  <p className="truncate text-xs text-muted">{email}</p>
-                </div>
-              </div>
-              <ThemeToggle showLabel className="w-full justify-start px-2" />
-              <Link
-                href="/dashboard/profile"
-                onClick={() => setMenuOpen(false)}
-                className="flex items-center gap-2 rounded-lg px-2 py-2 text-sm hover:bg-hover"
-              >
-                <UserRound className="h-4 w-4" />
-                Account
-              </Link>
-              <form action={logoutAction}>
-                <button
-                  type="submit"
-                  className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-sm hover:bg-hover"
-                >
-                  <LogOut className="h-4 w-4" />
-                  Log out
-                </button>
-              </form>
-            </div>
-          ) : null}
+          <AccountMenuPanel
+            open={menuOpen}
+            anchorRef={menuButtonRef}
+            panelRef={menuPanelRef}
+            name={name}
+            email={email}
+            avatarUrl={avatarUrl}
+            initials={initials}
+            onClose={() => setMenuOpen(false)}
+            logoutAction={logoutAction}
+          />
         </div>
       </aside>
 
       <div
-        className={cn(
-          "hidden shrink-0 lg:block",
-          "transition-[width] duration-700 ease-[cubic-bezier(0.16,1,0.3,1)]",
-          collapsed ? "w-[4.75rem]" : "w-64"
-        )}
+        className={cn("hidden shrink-0 lg:block", collapsed ? "w-[4.75rem]" : "w-64")}
         aria-hidden
       />
 
-      <div className="flex min-h-dvh min-w-0 flex-1 flex-col">
-        <header className="flex items-center gap-3 border-b border-border bg-card/80 px-4 py-3 backdrop-blur lg:hidden">
+      <div className="app-grid flex min-h-dvh min-w-0 flex-1 flex-col">
+        <header className="app-chrome relative z-10 flex items-center gap-3 border-b border-border px-4 py-3 lg:hidden">
           <button
             type="button"
             className="rounded-lg border border-border p-2"
@@ -391,7 +350,7 @@ export function DashboardShell({
           </button>
           <p className="text-sm font-semibold">OptiPhoenix</p>
         </header>
-        <div className={cn("min-h-0 flex-1", isBuilder ? "overflow-hidden" : "overflow-auto")}>
+        <div className={cn("app-grid-body min-h-0 flex-1", isBuilder ? "overflow-hidden" : "overflow-auto")}>
           {children}
         </div>
       </div>

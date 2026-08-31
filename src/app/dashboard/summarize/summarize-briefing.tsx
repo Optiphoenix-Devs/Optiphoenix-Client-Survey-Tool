@@ -58,7 +58,7 @@ function SentimentDonut({
   let offset = 0;
 
   return (
-    <div className="rounded-3xl border border-border bg-surface p-6">
+    <div className="app-radius border border-border bg-surface p-6">
       <h3 className="flex items-center gap-2 text-lg font-semibold tracking-tight">
         <MessageSquareText className="h-5 w-5 text-accent" />
         Sentiment
@@ -110,7 +110,7 @@ function PositiveFeedbackCard({
   items: Array<{ title: string; detail: string }>;
 }) {
   return (
-    <section className="rounded-3xl border border-emerald-200/70 bg-emerald-50/40 p-6">
+    <section className="app-radius border border-emerald-200/70 bg-emerald-50/40 p-6">
       <div className="flex items-start justify-between gap-3">
         <div>
           <h3 className="flex items-center gap-2 text-lg font-semibold tracking-tight">
@@ -130,7 +130,7 @@ function PositiveFeedbackCard({
           {items.map((item, index) => (
             <li
               key={`positive-${index}-${item.title}`}
-              className="rounded-2xl border border-emerald-100 bg-card p-4"
+              className="app-radius border border-emerald-100 bg-card p-4"
             >
               <div className="flex items-start gap-3">
                 <span className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-full bg-emerald-100 text-emerald-800">
@@ -155,7 +155,7 @@ function RecurringThemesCard({
   items: AiSummary["themes"];
 }) {
   return (
-    <section className="rounded-3xl border border-border bg-surface p-6">
+    <section className="app-radius border border-border bg-surface p-6">
       <div className="flex items-start justify-between gap-3">
         <div>
           <h3 className="flex items-center gap-2 text-lg font-semibold tracking-tight">
@@ -176,7 +176,7 @@ function RecurringThemesCard({
             <li
               key={`theme-${index}-${theme.title}`}
               className={cn(
-                "rounded-2xl border border-border bg-card p-4",
+                "app-radius border border-border bg-card p-4",
                 theme.sentiment === "positive" && "border-l-4 border-l-emerald-500",
                 theme.sentiment === "mixed" && "border-l-4 border-l-amber-400",
                 theme.sentiment === "negative" && "border-l-4 border-l-rose-400",
@@ -223,10 +223,10 @@ export function SummarizeBriefing({ summary }: { summary: AiSummary }) {
         : "Local fallback";
 
   return (
-    <article className="rounded-3xl border border-border bg-card p-6 sm:p-8">
+    <article className="app-radius border border-border bg-card p-6 sm:p-8">
       <div className="space-y-6">
         <section className="grid gap-4 xl:grid-cols-[1.4fr_1fr]">
-          <div className="rounded-3xl border border-border bg-surface p-6">
+          <div className="app-radius border border-border bg-surface p-6">
             <div className="flex flex-wrap items-center gap-2">
               <p className="text-xs font-semibold uppercase tracking-wide text-muted">
                 AI briefing
@@ -258,7 +258,7 @@ export function SummarizeBriefing({ summary }: { summary: AiSummary }) {
         </section>
 
         <section className="grid gap-4 xl:grid-cols-3">
-          <div className="rounded-3xl border border-border bg-surface p-6 xl:col-span-2">
+          <div className="app-radius border border-border bg-surface p-6 xl:col-span-2">
             <h3 className="flex items-center gap-2 text-lg font-semibold tracking-tight">
               <Lightbulb className="h-5 w-5 text-accent" />
               Actionable recommendations
@@ -270,7 +270,7 @@ export function SummarizeBriefing({ summary }: { summary: AiSummary }) {
                 {recommendations.map((item, index) => (
                   <li
                     key={`recommendation-${index}-${item.title}`}
-                    className="flex gap-3 rounded-2xl border border-border bg-card p-3"
+                    className="flex gap-3 app-radius border border-border bg-card p-3"
                   >
                     <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-sage/15 text-sm font-semibold text-accent">
                       {index + 1}
@@ -297,7 +297,7 @@ export function SummarizeBriefing({ summary }: { summary: AiSummary }) {
             )}
           </div>
 
-          <div className="rounded-3xl border border-border bg-surface p-6">
+          <div className="app-radius border border-border bg-surface p-6">
             <h3 className="flex items-center gap-2 text-lg font-semibold tracking-tight">
               <Target className="h-5 w-5 text-accent" />
               Improvement areas

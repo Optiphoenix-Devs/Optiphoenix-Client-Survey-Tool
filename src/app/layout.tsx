@@ -14,7 +14,7 @@ export const metadata: Metadata = {
   description: "Client feedback surveys for OptiPhoenix teams",
 };
 
-const bootScript = `(function(){try{var t=localStorage.getItem("optiphoenix.theme");var d=t==="dark"||(t!=="light"&&window.matchMedia("(prefers-color-scheme: dark)").matches);if(d)document.documentElement.classList.add("dark");}catch(e){}try{var p=performance;if(!p||typeof p.measure!=="function"||p.__opMeasurePatched)return;var o=p.measure.bind(p);p.measure=function(){try{return o.apply(p,arguments)}catch(err){if(String(err&&err.message||"").indexOf("negative time stamp")!==-1)return;throw err}};p.__opMeasurePatched=true}catch(e){}})();`;
+const bootScript = `(function(){try{var t=localStorage.getItem("optiphoenix.theme");if(t==="dark")document.documentElement.classList.add("dark");}catch(e){}try{var p=performance;if(!p||typeof p.measure!=="function"||p.__opMeasurePatched)return;var o=p.measure.bind(p);p.measure=function(){try{return o.apply(p,arguments)}catch(err){if(String(err&&err.message||"").indexOf("negative time stamp")!==-1)return;throw err}};p.__opMeasurePatched=true}catch(e){}})();`;
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
@@ -22,7 +22,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       <head>
         <script dangerouslySetInnerHTML={{ __html: bootScript }} />
       </head>
-      <body className={`${dmSans.className} app-grid flex min-h-dvh flex-col text-foreground`}>
+      <body className={`${dmSans.className} flex min-h-dvh flex-col bg-background text-foreground`}>
         <ThemeProvider>
           {children}
           <Toaster />

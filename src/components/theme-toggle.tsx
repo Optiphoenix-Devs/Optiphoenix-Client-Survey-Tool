@@ -21,7 +21,10 @@ export function ThemeToggle({
       type="button"
       onClick={toggleTheme}
       className={cn(
-        "inline-flex items-center gap-2 rounded-lg px-2 py-2 text-sm text-muted transition hover:bg-hover hover:text-foreground",
+        "inline-flex items-center gap-2 text-sm transition",
+        showLabel
+          ? "app-menu-item w-full justify-start px-2 py-2"
+          : "rounded-lg px-2 py-2 text-muted hover:bg-hover hover:text-foreground",
         className
       )}
       aria-label={label}

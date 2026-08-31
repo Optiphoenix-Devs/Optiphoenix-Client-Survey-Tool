@@ -31,21 +31,21 @@ export default async function PublicSurveyPage({
         ) : null}
 
         {sent ? (
-          <section className="mt-8 rounded-2xl border border-emerald-700 bg-emerald-50 p-6 dark:border-emerald-800 dark:bg-emerald-950/40">
+          <section className="mt-8 app-radius border border-emerald-700 bg-emerald-50 p-6 dark:border-emerald-800 dark:bg-emerald-950/40">
             <h2 className="font-semibold text-emerald-900 dark:text-emerald-100">Thank you</h2>
             <p className="mt-1 text-sm text-emerald-800 dark:text-emerald-200">
               Your feedback was sent. This link cannot be used again.
             </p>
           </section>
         ) : alreadySubmitted ? (
-          <section className="mt-8 rounded-2xl border border-border bg-card p-6">
+          <section className="mt-8 app-radius border border-border bg-card p-6">
             <p className="font-medium">This form has already been submitted</p>
             <p className="mt-1 text-sm text-muted">
               Each public link can only be filled once. Ask your OptiPhoenix contact for a new link if you need to send another response.
             </p>
           </section>
         ) : closed ? (
-          <section className="mt-8 rounded-2xl border border-border bg-card p-6">
+          <section className="mt-8 app-radius border border-border bg-card p-6">
             <p className="text-sm text-muted">
               This form is not accepting responses right now.
             </p>
@@ -53,7 +53,7 @@ export default async function PublicSurveyPage({
         ) : (
           <form
             action={submitSurvey}
-            className="mt-8 rounded-2xl border border-border bg-card p-6"
+            className="mt-8 app-radius border border-border bg-card p-6"
           >
             <input type="hidden" name="token" value={token} />
             <PageFlash title="Could not send feedback" message={error} />

@@ -49,7 +49,7 @@ export function ConfirmDialog({
         role="alertdialog"
         aria-modal="true"
         aria-labelledby="confirm-title"
-        className="relative w-full max-w-[28rem] rounded-xl border border-border bg-card p-6"
+        className="relative w-full max-w-[28rem] app-radius border border-border bg-card p-6"
       >
         <h2 id="confirm-title" className="text-lg font-semibold tracking-tight">
           {title}
@@ -59,7 +59,7 @@ export function ConfirmDialog({
           <button
             type="button"
             onClick={onCancel}
-            className="rounded-lg border border-border bg-transparent px-4 py-2 text-sm font-medium transition hover:bg-hover"
+            className="app-btn-secondary px-4 py-2 text-sm"
           >
             Cancel
           </button>
@@ -67,10 +67,10 @@ export function ConfirmDialog({
             type="button"
             onClick={onConfirm}
             disabled={pending}
-            className="inline-flex items-center justify-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-on-accent transition hover:bg-accent-hover disabled:opacity-60"
+            className="app-btn-primary px-4 py-2 text-sm disabled:opacity-60"
           >
             {pending ? <Spinner /> : null}
-            {pending ? "Working…" : confirmLabel}
+            {confirmLabel}
           </button>
         </div>
       </div>

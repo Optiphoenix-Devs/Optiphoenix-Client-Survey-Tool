@@ -47,7 +47,7 @@ export function InsightsDashboard({ data }: { data: AnalyticsSnapshot }) {
             value={data.selectedClientId}
             onChange={(event) => setClient(event.target.value)}
             aria-label="Sort insights by client"
-            className="rounded-full py-2"
+            className="app-radius py-2"
           >
             <option value="">All responses</option>
             {data.hasIndependentResponses ? (
@@ -108,7 +108,7 @@ export function InsightsDashboard({ data }: { data: AnalyticsSnapshot }) {
       </div>
 
       {data.responseCount === 0 ? (
-        <p className="rounded-2xl border border-dashed border-border bg-card px-4 py-12 text-center text-sm text-muted">
+        <p className="app-radius border border-dashed border-border bg-card px-4 py-12 text-center text-sm text-muted">
           {data.selectedClientId
             ? `No submitted responses for ${data.selectedClientName} yet.`
             : "No submitted responses yet. Publish a form and collect the first one."}
@@ -141,7 +141,7 @@ export function InsightsDashboard({ data }: { data: AnalyticsSnapshot }) {
 
 function OverallRatingsCard({ data }: { data: AnalyticsSnapshot }) {
   return (
-    <article className="card-enter rounded-3xl border border-border bg-card p-6">
+    <article className="card-enter app-radius border border-border bg-card p-6">
       <h2 className="text-lg font-semibold tracking-tight">Overall ratings</h2>
       <p className="mt-1 text-sm text-muted">
         Star scores from rating questions
@@ -169,7 +169,7 @@ function OverallRatingsCard({ data }: { data: AnalyticsSnapshot }) {
 
 function TrendCard({ points }: { points: TrendPoint[] }) {
   return (
-    <article className="card-enter rounded-3xl border border-border bg-card p-6">
+    <article className="card-enter app-radius border border-border bg-card p-6">
       <h2 className="text-lg font-semibold tracking-tight">Historical trends</h2>
       <p className="mt-1 text-sm text-muted">
         Monthly average score (ratings + resource scores) and response volume.
@@ -187,7 +187,7 @@ function TrendCard({ points }: { points: TrendPoint[] }) {
 
 function QuestionRatingsCard({ rows }: { rows: RatingRow[] }) {
   return (
-    <article className="card-enter rounded-3xl border border-border bg-card p-6">
+    <article className="card-enter app-radius border border-border bg-card p-6">
       <h2 className="text-lg font-semibold tracking-tight">Question-wise ratings</h2>
       <p className="mt-1 text-sm text-muted">
         Average 1–5 score for each rating question. Same wording across monthly
@@ -217,7 +217,7 @@ function QuestionRatingsCard({ rows }: { rows: RatingRow[] }) {
 
 function ResourceCard({ rows }: { rows: ResourceRow[] }) {
   return (
-    <article className="card-enter rounded-3xl border border-border bg-card p-6">
+    <article className="card-enter app-radius border border-border bg-card p-6">
       <h2 className="text-lg font-semibold tracking-tight">Resource-wise performance</h2>
       <p className="mt-1 text-sm text-muted">
         People named on resource-rating questions, ranked by average score.
@@ -268,7 +268,7 @@ function SummariesCard({
   data: AnalyticsSnapshot;
 }) {
   return (
-    <article className="card-enter rounded-3xl border border-border bg-card p-6">
+    <article className="card-enter app-radius border border-border bg-card p-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="text-lg font-semibold tracking-tight">
@@ -307,7 +307,7 @@ function SummariesCard({
             <li key={comment.id}>
               <Link
                 href={comment.href}
-                className="block rounded-2xl border border-border bg-surface px-4 py-3 transition hover:border-accent/30 hover:bg-hover"
+                className="block app-radius border border-border bg-surface px-4 py-3 transition hover:border-accent/30 hover:bg-hover"
               >
                 <p className="flex items-start gap-2 text-sm leading-6">
                   <MessageSquareText className="mt-0.5 h-4 w-4 shrink-0 text-accent" />

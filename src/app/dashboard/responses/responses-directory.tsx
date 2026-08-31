@@ -7,8 +7,18 @@ import type { ResponseListRow } from "@/lib/responses";
 import { DirectoryToolbar } from "@/components/directory/directory-toolbar";
 import { Pagination, usePaged } from "@/components/ui/pagination";
 import { Stagger } from "@/components/ui/skeleton";
-import { formatMonthYear } from "@/lib/format";
+import { formatMonthYear, columnLabel } from "@/lib/format";
+import { TableHeadCenter, TableHeadLeft, TableCellCenter, TableCellLeft, DirectoryTableRow } from "@/components/directory/directory-table";
+import {
+  DirectoryCard,
+  DirectoryCardButton,
+  DirectoryCardFooter,
+  DirectoryCardIcon,
+  DirectoryCardTitle,
+} from "@/components/directory/directory-card";
+import { DirectoryCardLine } from "@/components/directory/directory-card-meta";
 import { sortDirectoryRows, type DirectorySort } from "@/lib/sort";
+import { useDirectoryView } from "@/lib/use-directory-view";
 import { usePersistedValue } from "@/lib/use-persisted-value";
 
 const VIEW_KEY = "optiphoenix.responsesView";
@@ -22,7 +32,7 @@ export function ResponsesDirectory({
   formTitle?: string;
 }) {
   const [query, setQuery] = useState("");
-  const [view, setView] = usePersistedValue(VIEW_KEY, "grid", ["grid", "table"]);
+  const [view, setView] = useDirectoryView(VIEW_KEY);
   const [sort, setSort] = usePersistedValue(SORT_KEY, "newest", [
     "newest",
     "oldest",
@@ -79,7 +89,7 @@ export function ResponsesDirectory({
       </div>
 
       {visible.length === 0 ? (
-        <p className="mt-6 rounded-2xl border border-dashed border-border bg-card px-4 py-8 text-center text-sm text-muted">
+        <p className="mt-6 app-radius border border-dashed border-border bg-card px-4 py-8 text-center text-sm text-muted">
           {responses.length === 0
             ? "No responses yet. Publish a form and share the client link to collect feedback."
             : "No responses match this search."}
@@ -89,60 +99,70 @@ export function ResponsesDirectory({
           {paged.slice.map((row, index) => (
             <li key={row.id} className="h-full">
               <Stagger index={index}>
-                <article className="relative flex h-full flex-col overflow-hidden rounded-3xl border border-border bg-card p-5">
-                  <span className="pointer-events-none absolute -right-10 -bottom-12 h-28 w-28 rounded-full bg-sage/15" />
-                  <div className="flex items-start justify-between gap-3">
-                    <span className="grid h-10 w-10 place-items-center rounded-full bg-sage/15 text-accent">
-                      <Inbox className="h-5 w-5" />
-                    </span>
-                    <span className="text-xs whitespace-nowrap text-muted">
-                      {formatMonthYear(row.submittedAt)}
-                    </span>
+                <DirectoryCard>
+                  <DirectoryCardIcon>
+                    <Inbox className="h-5 w-5" />
+                  </DirectoryCardIcon>
+                  <div className="mt-4 min-w-0 flex-1">
+                    <DirectoryCardTitle title={row.formTitle}>{row.formTitle}</DirectoryCardTitle>
+                    <dl className="mt-5 space-y-2">
+                      <DirectoryCardLine label="Client" value={row.clientName} title={row.clientName} />
+                      <DirectoryCardLine label="Team" value={row.teamName} title={row.teamName} />
+                      <DirectoryCardLine
+                        label="Submitted"
+                        value={formatMonthYear(row.submittedAt)}
+                      />
+                      <DirectoryCardLine
+                        label="Answer"
+                        value={row.preview || "—"}
+                        title={row.preview || undefined}
+                      />
+                    </dl>
                   </div>
-                  <p className="mt-4 line-clamp-2 min-h-[3rem] text-base font-semibold tracking-tight">{row.formTitle}</p>
-                  <p className="mt-1 line-clamp-1 text-sm text-muted">
-                    {row.clientName} · {row.teamName}
-                  </p>
-                  <p className="mt-3 line-clamp-2 min-h-[2.5rem] text-sm text-muted">{row.preview}</p>
-                  <Link
-                    href={row.href}
-                    className="mt-auto inline-flex h-9 items-center justify-center gap-2 self-start rounded-full bg-accent px-4 text-sm font-medium leading-none text-on-accent hover:bg-accent-hover"
-                  >
-                    <Eye className="h-4 w-4 shrink-0" aria-hidden />
-                    View
-                  </Link>
-                </article>
+                  <DirectoryCardFooter>
+                    <DirectoryCardButton href={row.href} variant="primary">
+                      <Eye className="h-3.5 w-3.5" />
+                      Review
+                    </DirectoryCardButton>
+                  </DirectoryCardFooter>
+                </DirectoryCard>
               </Stagger>
             </li>
           ))}
         </ul>
       ) : (
-        <div className="mt-6 overflow-x-auto rounded-2xl border border-border bg-card">
-          <table className="w-full min-w-[44rem] table-fixed text-sm">
-            <thead className="border-b border-border text-muted">
+        <div className="directory-table-wrap mt-6">
+          <table className="directory-table w-full min-w-[44rem] table-fixed text-sm">
+            <thead>
               <tr>
-                <th className="w-[28%] px-4 py-3 text-left font-medium">Form</th>
-                <th className="w-[18%] px-4 py-3 text-left font-medium">Client</th>
-                <th className="w-[16%] px-4 py-3 text-left font-medium">Team</th>
-                <th className="w-[26%] px-4 py-3 text-left font-medium">Answer</th>
-                <th className="w-[12%] px-4 py-3 text-left font-medium">Submitted</th>
+                <TableHeadLeft className="w-[28%]">
+                  {columnLabel(visible.length, "Form", "Forms")}
+                </TableHeadLeft>
+                <TableHeadCenter className="w-[18%]">
+                  {columnLabel(visible.length, "Client", "Clients")}
+                </TableHeadCenter>
+                <TableHeadCenter className="w-[16%]">
+                  {columnLabel(visible.length, "Team", "Teams")}
+                </TableHeadCenter>
+                <TableHeadCenter className="w-[26%]">Answer</TableHeadCenter>
+                <TableHeadCenter className="w-[12%]">Submitted</TableHeadCenter>
               </tr>
             </thead>
             <tbody>
               {paged.slice.map((row) => (
-                <tr key={row.id} className="border-b border-border last:border-0">
-                  <td className="px-4 py-3">
-                    <Link href={row.href} className="font-medium hover:text-accent">
-                      {row.formTitle}
-                    </Link>
-                  </td>
-                  <td className="px-4 py-3 text-muted">{row.clientName}</td>
-                  <td className="px-4 py-3 text-muted">{row.teamName}</td>
-                  <td className="truncate px-4 py-3 text-muted">{row.preview}</td>
-                  <td className="px-4 py-3 text-muted">
+                <DirectoryTableRow
+                  key={row.id}
+                  href={row.href}
+                  ariaLabel={`Review ${row.formTitle}`}
+                >
+                  <TableCellLeft className="font-medium">{row.formTitle}</TableCellLeft>
+                  <TableCellCenter className="text-muted">{row.clientName}</TableCellCenter>
+                  <TableCellCenter className="text-muted">{row.teamName}</TableCellCenter>
+                  <TableCellCenter className="truncate text-muted">{row.preview}</TableCellCenter>
+                  <TableCellCenter className="whitespace-nowrap text-muted">
                     {formatMonthYear(row.submittedAt)}
-                  </td>
-                </tr>
+                  </TableCellCenter>
+                </DirectoryTableRow>
               ))}
             </tbody>
           </table>
@@ -154,6 +174,10 @@ export function ResponsesDirectory({
           page={paged.page}
           pageCount={paged.pageCount}
           onPageChange={paged.setPage}
+          total={paged.total}
+          rangeStart={paged.rangeStart}
+          rangeEnd={paged.rangeEnd}
+          pageSize={paged.pageSize}
         />
       ) : null}
     </section>

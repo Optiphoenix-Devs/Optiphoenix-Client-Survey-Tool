@@ -68,7 +68,7 @@ export async function loginAction(
   return {};
 }
 
-export async function registerAction(
+export async function createAccountAction(
   _prev: ActionResult,
   formData: FormData
 ): Promise<ActionResult> {
@@ -118,8 +118,15 @@ export async function requestPasswordResetAction(
     where: { email: parsed.data.email.toLowerCase() },
   });
 
+  // Never put the reset token in the browser. Only email can prove inbox ownership.
+  // Use the same success message whether or not the account exists (avoids email fishing).
+  const genericOk = {
+    ok: true as const,
+    error: undefined,
+  };
+
   if (!user || user.status === "REJECTED") {
-    return { error: "No account was found for that email." };
+    return genericOk;
   }
 
   if (user.status === "PENDING") {
@@ -144,7 +151,8 @@ export async function requestPasswordResetAction(
     where: { id: user.id },
     data: { resetRequestedAt: null },
   });
-  redirect(`/reset-password?token=${token}`);
+
+  return genericOk;
 }
 
 export async function resetPasswordAction(

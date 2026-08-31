@@ -11,24 +11,32 @@ export function Tooltip({
   children,
   side = "right",
   className,
+  enabled = true,
 }: {
   label: string;
   children: React.ReactNode;
   side?: "right" | "top" | "bottom";
   className?: string;
+  enabled?: boolean;
 }) {
   const [anchor, setAnchor] = useState<DOMRect | null>(null);
 
   return (
     <span
       className={cn("inline-flex", className)}
-      onMouseEnter={(event) => setAnchor(event.currentTarget.getBoundingClientRect())}
+      onMouseEnter={(event) => {
+        if (!enabled) return;
+        setAnchor(event.currentTarget.getBoundingClientRect());
+      }}
       onMouseLeave={() => setAnchor(null)}
-      onFocus={(event) => setAnchor(event.currentTarget.getBoundingClientRect())}
+      onFocus={(event) => {
+        if (!enabled) return;
+        setAnchor(event.currentTarget.getBoundingClientRect());
+      }}
       onBlur={() => setAnchor(null)}
     >
       {children}
-      {anchor && typeof document !== "undefined" ? (
+      {enabled && anchor && typeof document !== "undefined" ? (
         <TooltipBubble label={label} anchor={anchor} side={side} />
       ) : null}
     </span>

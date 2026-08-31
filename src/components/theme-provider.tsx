@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useSyncExternalStore } from "react";
 
+/** Device-local theme only (`localStorage` key `optiphoenix.theme`). Never persisted to the database. */
 type Theme = "light" | "dark";
 
 const ThemeContext = createContext<{
@@ -28,7 +29,7 @@ function subscribe(listener: () => void) {
 function readTheme(): Theme {
   const stored = window.localStorage.getItem("optiphoenix.theme");
   if (stored === "dark" || stored === "light") return stored;
-  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  return "light";
 }
 
 function applyTheme(theme: Theme) {

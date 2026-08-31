@@ -180,7 +180,7 @@ function ChoiceList({
           <label
             key={option}
             className={cn(
-              "group flex cursor-pointer items-center gap-3 rounded-xl border border-border bg-surface px-3 py-2.5 text-sm transition duration-200 hover:border-sage/70",
+              "group flex cursor-pointer items-center gap-3 app-radius border border-border bg-surface px-3 py-2.5 text-sm transition duration-200 hover:border-sage/70",
               checked && "border-accent bg-sage/10",
               disabled && "cursor-default opacity-70"
             )}
@@ -215,7 +215,7 @@ export function FieldView({
   const options = parseOptionList(field.options);
   const name = `q_${field.id}`;
   const inputClass =
-    "mt-2 w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm outline-none transition duration-200 focus:border-accent disabled:text-muted";
+    "mt-2 w-full app-radius border border-border bg-background px-3 py-2.5 text-sm outline-none transition duration-200 focus:border-accent disabled:text-muted";
 
   if (field.type === "RATING") {
     return (
@@ -271,7 +271,7 @@ export function FieldView({
           disabled={disabled}
           required={field.required && !disabled}
           defaultValue=""
-          className="w-full appearance-none bg-none rounded-xl border border-border bg-background py-2.5 pl-3 pr-10 text-sm outline-none transition duration-200 focus:border-accent disabled:text-muted"
+          className="w-full appearance-none bg-none app-radius border border-border bg-background py-2.5 pl-3 pr-10 text-sm outline-none transition duration-200 focus:border-accent disabled:text-muted"
         >
           <option value="" disabled>
             Choose an option
@@ -321,7 +321,7 @@ export function FormSubmitButton({ disabled }: { disabled?: boolean }) {
       type="submit"
       disabled={disabled}
       className={cn(
-        "mt-2 rounded-xl bg-accent px-5 py-2.5 text-sm font-medium text-on-accent transition duration-200 hover:bg-accent-hover",
+        "mt-2 app-btn-primary px-5 py-2.5 text-sm",
         disabled && "cursor-not-allowed opacity-70"
       )}
     >

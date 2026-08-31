@@ -4,6 +4,7 @@ import { useActionState, useEffect } from "react";
 import Link from "next/link";
 import { loginAction } from "./actions";
 import { PasswordInput } from "@/components/ui/password-input";
+import { ActionButton } from "@/components/ui/pending-button";
 import { toast, toastOnce } from "@/components/ui/toaster";
 
 export function LoginForm({ notice }: { notice?: string }) {
@@ -33,7 +34,7 @@ export function LoginForm({ notice }: { notice?: string }) {
             name="email"
             required
             autoComplete="email"
-            placeholder="email@example.com"
+            placeholder="you@company.com"
             className="rounded-lg border border-border bg-surface px-3 py-2.5 text-sm outline-none transition focus:border-accent"
           />
         </label>
@@ -47,19 +48,18 @@ export function LoginForm({ notice }: { notice?: string }) {
               Forgot password?
             </Link>
           </span>
-          <PasswordInput autoComplete="current-password" placeholder="********" />
+          <PasswordInput autoComplete="current-password" placeholder="Enter your password" />
         </label>
-        <button
-          type="submit"
-          disabled={pending}
-          className="rounded-lg bg-accent px-4 py-2.5 text-sm font-medium text-on-accent transition hover:bg-accent-hover disabled:opacity-60"
+        <ActionButton
+          pending={pending}
+          className="app-btn-primary px-4 py-2.5 text-sm"
         >
-          {pending ? "Signing in…" : "Login"}
-        </button>
+          Login
+        </ActionButton>
       </form>
       <p className="mt-4 text-center text-sm text-muted">
         New Member?{" "}
-        <Link href="/register" className="font-medium text-accent hover:text-accent-hover">
+        <Link href="/create-account" className="font-medium text-accent hover:text-accent-hover">
           Create account
         </Link>
       </p>

@@ -6,7 +6,7 @@ import { getDashboardOverview } from "@/lib/teams";
 import { getTemplatesForUser } from "@/lib/templates";
 import { DirectorySkeleton } from "@/components/ui/skeleton";
 import { YourFormsSection } from "../your-forms-section";
-import { createFormFromList } from "./actions";
+import { createFormFromList, deleteFormFromList } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -44,6 +44,7 @@ async function FormsBody({
           fieldCount: template.fieldCount,
         }))}
         createAction={createFormFromList}
+        deleteAction={deleteFormFromList}
       />
     </main>
   );

@@ -3,18 +3,27 @@
 import { useMemo, useState, useTransition } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { LayoutGrid, Plus, Search, Table2 } from "lucide-react";
+import { FileText, LayoutGrid, Plus, Search, Table2, Trash2 } from "lucide-react";
 import type { ActionResult } from "@/lib/action-result";
 import type { DashboardFormRow } from "@/lib/teams";
 import { cn } from "@/lib/cn";
-import { formatMonthYear } from "@/lib/format";
+import { formatMonthYear, columnLabel } from "@/lib/format";
+import {
+  DirectoryCardLine,
+} from "@/components/directory/directory-card-meta";
+import { DirectoryCard, DirectoryCardIcon, DirectoryCardTitle } from "@/components/directory/directory-card";
+import { TableHeadCenter, TableHeadLeft, TableCellCenter, TableCellLeft, DirectoryTableRow } from "@/components/directory/directory-table";
+import { runServerAction } from "@/lib/run-server-action";
 import { DIRECTORY_SORT_OPTIONS, sortDirectoryRows, type DirectorySort } from "@/lib/sort";
 import { Pagination, usePaged } from "@/components/ui/pagination";
 import { DrawerActions, SideDrawer } from "@/components/ui/side-drawer";
-import { toast } from "@/components/ui/toaster";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { TableActionsCell, TableActionsHeader, TableDeleteButton } from "@/components/ui/table-actions";
+import { ActionButton } from "@/components/ui/pending-button";
 import { Stagger } from "@/components/ui/skeleton";
 import { Select } from "@/components/ui/select";
 import { Tooltip } from "@/components/ui/tooltip";
+import { useDirectoryView } from "@/lib/use-directory-view";
 import { usePersistedValue } from "@/lib/use-persisted-value";
 
 type FormsFilter = "all" | "published" | "drafts";
@@ -44,20 +53,19 @@ export function YourFormsSection({
   title = "Your forms",
   templates = [],
   createAction,
+  deleteAction,
 }: {
   forms: DashboardFormRow[];
   title?: string;
   templates?: TemplateOption[];
   createAction?: (formData: FormData) => Promise<ActionResult>;
+  deleteAction?: (formData: FormData) => Promise<ActionResult>;
 }) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const filter = parseFilter(searchParams.get("forms"));
-  const [view, setView] = usePersistedValue(VIEW_STORAGE_KEY, "grid", [
-    "grid",
-    "table",
-  ]);
+  const [view, setView] = useDirectoryView(VIEW_STORAGE_KEY);
   const [sort, setSort] = usePersistedValue(SORT_KEY, "newest", [
     "newest",
     "oldest",
@@ -66,8 +74,10 @@ export function YourFormsSection({
   ]);
   const [query, setQuery] = useState("");
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [deleting, setDeleting] = useState<DashboardFormRow | null>(null);
   const [pending, startTransition] = useTransition();
   const canCreate = Boolean(createAction);
+  const canDelete = Boolean(deleteAction);
 
   function setFilter(next: FormsFilter) {
     const params = new URLSearchParams(searchParams.toString());
@@ -93,6 +103,8 @@ export function YourFormsSection({
     [forms, filter, query, sort]
   );
   const paged = usePaged(visible);
+  const fieldTotal = visible.reduce((sum, form) => sum + form.fieldCount, 0);
+  const responseTotal = visible.reduce((sum, form) => sum + form.responseCount, 0);
 
   function closeDrawer() {
     setDrawerOpen(false);
@@ -103,16 +115,31 @@ export function YourFormsSection({
     if (!createAction) return;
     const formData = new FormData(event.currentTarget);
     startTransition(async () => {
-      const result = await createAction(formData);
-      if (result?.error) {
-        toast(result.error, { tone: "error" });
-        return;
-      }
-      toast("Form created.", { tone: "success" });
-      closeDrawer();
-      if (result.formId) {
-        router.push(`/dashboard/forms/${result.formId}`);
-      }
+      await runServerAction({
+        action: createAction,
+        formData,
+        successMessage: "Form created.",
+        onSuccess: (result) => {
+          closeDrawer();
+          if (result.formId) router.push(`/dashboard/forms/${result.formId}`);
+        },
+        refresh: () => router.refresh(),
+      });
+    });
+  }
+
+  function confirmDelete() {
+    if (!deleting || !deleteAction) return;
+    const formData = new FormData();
+    formData.set("formId", deleting.id);
+    startTransition(async () => {
+      await runServerAction({
+        action: deleteAction,
+        formData,
+        successMessage: "Draft form deleted.",
+        onSuccess: () => setDeleting(null),
+        refresh: () => router.refresh(),
+      });
     });
   }
 
@@ -129,17 +156,17 @@ export function YourFormsSection({
           {title}
         </h2>
         <div className="flex flex-1 flex-wrap items-center gap-2 lg:justify-end">
-          <div className="flex rounded-full border border-border bg-surface p-1">
+          <div className="flex app-radius border border-border bg-surface p-1">
             {FILTERS.map((item) => (
               <button
                 key={item.id}
                 type="button"
                 onClick={() => setFilter(item.id)}
                 className={cn(
-                  "rounded-full px-3 py-1.5 text-sm font-medium",
+                  "app-radius px-3 py-1.5 text-sm font-medium transition",
                   filter === item.id
-                    ? "bg-accent text-on-accent"
-                    : "text-muted hover:text-foreground"
+                    ? "app-brand-surface"
+                    : "text-muted app-brand-hover"
                 )}
               >
                 {item.label}
@@ -154,7 +181,7 @@ export function YourFormsSection({
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder="Search forms..."
-              className="w-full rounded-full border border-border bg-surface py-2 pl-9 pr-3 text-sm outline-none focus:border-accent"
+              className="app-toolbar-input outline-none"
             />
           </label>
           <label className="w-[11.5rem] shrink-0">
@@ -166,7 +193,7 @@ export function YourFormsSection({
                 paged.setPage(1);
               }}
               aria-label="Sort by"
-              className="rounded-full py-2"
+              className="app-radius py-2"
             >
               {DIRECTORY_SORT_OPTIONS.map((option) => (
                 <option key={option.id} value={option.id}>
@@ -176,7 +203,7 @@ export function YourFormsSection({
             </Select>
           </label>
           <div
-            className="flex rounded-full border border-border bg-surface p-1"
+            className="flex h-10 app-radius border border-border bg-surface p-1"
             role="group"
             aria-label="Forms layout"
           >
@@ -186,10 +213,8 @@ export function YourFormsSection({
                 onClick={() => setView("grid")}
                 aria-pressed={view === "grid"}
                 className={cn(
-                  "grid h-8 w-8 place-items-center rounded-full",
-                  view === "grid"
-                    ? "bg-accent text-on-accent"
-                    : "text-muted hover:text-foreground"
+                  "grid h-full w-9 place-items-center app-radius transition",
+                  view === "grid" ? "app-icon-toggle-active" : "app-icon-toggle text-muted"
                 )}
               >
                 <LayoutGrid className="h-4 w-4" />
@@ -202,10 +227,8 @@ export function YourFormsSection({
                 onClick={() => setView("table")}
                 aria-pressed={view === "table"}
                 className={cn(
-                  "grid h-8 w-8 place-items-center rounded-full",
-                  view === "table"
-                    ? "bg-accent text-on-accent"
-                    : "text-muted hover:text-foreground"
+                  "grid h-full w-9 place-items-center app-radius transition",
+                  view === "table" ? "app-icon-toggle-active" : "app-icon-toggle text-muted"
                 )}
               >
                 <Table2 className="h-4 w-4" />
@@ -217,7 +240,7 @@ export function YourFormsSection({
             <button
               type="button"
               onClick={() => setDrawerOpen(true)}
-              className="inline-flex items-center justify-center gap-2 rounded-full bg-accent px-4 py-2.5 text-sm font-medium text-on-accent hover:bg-accent-hover"
+              className="app-btn-primary px-4 py-2.5 text-sm"
             >
               <Plus className="h-4 w-4" />
               New form
@@ -227,7 +250,7 @@ export function YourFormsSection({
       </div>
 
       {visible.length === 0 ? (
-        <p className="mt-4 rounded-2xl border border-dashed border-border bg-card px-4 py-8 text-center text-sm text-muted">
+        <p className="mt-6 app-radius border border-dashed border-border bg-card px-4 py-8 text-center text-sm text-muted">
           {forms.length === 0 ? (
             canCreate ? (
               "No forms yet. Create a blank form or start from a template."
@@ -239,54 +262,82 @@ export function YourFormsSection({
           )}
         </p>
       ) : view === "grid" ? (
-        <ul className="mt-4 grid items-stretch gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        <ul className="mt-6 grid auto-rows-fr gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {paged.slice.map((form, index) => (
-            <li key={form.id} className="h-full">
+            <li key={form.id} className="min-h-0">
               <Stagger index={index}>
-                <FormCard form={form} />
+                <FormCard
+                  form={form}
+                  canDelete={canDelete && form.status === "DRAFT"}
+                  onDelete={() => setDeleting(form)}
+                />
               </Stagger>
             </li>
           ))}
         </ul>
       ) : (
-        <div className="card-enter mt-4 overflow-x-auto rounded-2xl border border-border bg-card">
-          <table className="w-full min-w-[44rem] table-fixed text-sm">
-            <thead className="border-b border-border text-muted">
+        <div className="directory-table-wrap card-enter mt-6">
+          <table className="directory-table w-full min-w-[44rem] table-fixed text-sm">
+            <thead>
               <tr>
-                <th className="w-[28%] px-4 py-3 text-left font-medium">Form</th>
-                <th className="w-[18%] px-4 py-3 text-left font-medium">Client</th>
-                <th className="w-[12%] px-4 py-3 text-left font-medium">Status</th>
-                <th className="w-[16%] px-4 py-3 text-left font-medium">Team</th>
-                <th className="w-[13%] px-4 py-3 text-center font-medium">Fields</th>
-                <th className="w-[13%] px-4 py-3 text-center font-medium">Responses</th>
+                <TableHeadLeft className="w-[30%]">
+                  {columnLabel(visible.length, "Form", "Forms")}
+                </TableHeadLeft>
+                <TableHeadCenter className="w-[18%]">
+                  {columnLabel(visible.length, "Client", "Clients")}
+                </TableHeadCenter>
+                <TableHeadCenter className="w-[12%]">Status</TableHeadCenter>
+                <TableHeadCenter className="w-[16%]">
+                  {columnLabel(visible.length, "Team", "Teams")}
+                </TableHeadCenter>
+                <TableHeadCenter className="w-[8%]">
+                  {columnLabel(fieldTotal, "Field", "Fields")}
+                </TableHeadCenter>
+                <TableHeadCenter className="w-[8%]">
+                  {columnLabel(responseTotal, "Response", "Responses")}
+                </TableHeadCenter>
+                {canDelete ? <TableActionsHeader className="w-[8%]" /> : null}
               </tr>
             </thead>
             <tbody>
               {paged.slice.map((form) => (
-                <tr key={form.id} className="border-b border-border last:border-0">
-                  <td className="px-4 py-3 text-left align-middle">
-                    <Link href={form.href} className="block truncate font-medium hover:text-accent">
-                      {form.title}
-                    </Link>
+                <DirectoryTableRow
+                  key={form.id}
+                  href={form.href}
+                  ariaLabel={`Open ${form.title}`}
+                >
+                  <TableCellLeft>
+                    <span className="block truncate font-medium">{form.title}</span>
                     <p className="mt-0.5 truncate text-xs text-muted">
                       {formatMonthYear(form.updatedAt)}
                     </p>
-                  </td>
-                  <td className="px-4 py-3 align-middle text-muted">{form.clientName}</td>
-                  <td className="px-4 py-3 align-middle">
+                  </TableCellLeft>
+                  <TableCellCenter className="text-muted">{form.clientName}</TableCellCenter>
+                  <TableCellCenter>
                     <StatusBadge status={form.status} />
-                  </td>
-                  <td className="truncate px-4 py-3 align-middle text-muted">{form.teamName}</td>
-                  <td className="px-4 py-3 align-middle text-center tabular-nums">{form.fieldCount}</td>
-                  <td className="px-4 py-3 align-middle text-center tabular-nums">
+                  </TableCellCenter>
+                  <TableCellCenter className="truncate text-muted">{form.teamName}</TableCellCenter>
+                  <TableCellCenter className="tabular-nums">{form.fieldCount}</TableCellCenter>
+                  <TableCellCenter className="tabular-nums">
                     <Link
                       href={`/dashboard/responses?form=${form.id}`}
                       className="hover:text-accent"
+                      onClick={(event) => event.stopPropagation()}
                     >
                       {form.responseCount}
                     </Link>
-                  </td>
-                </tr>
+                  </TableCellCenter>
+                  {canDelete ? (
+                    <TableActionsCell className="w-[8%]">
+                      {form.status === "DRAFT" ? (
+                        <TableDeleteButton
+                          label={form.title}
+                          onClick={() => setDeleting(form)}
+                        />
+                      ) : null}
+                    </TableActionsCell>
+                  ) : null}
+                </DirectoryTableRow>
               ))}
             </tbody>
           </table>
@@ -297,6 +348,10 @@ export function YourFormsSection({
           page={paged.page}
           pageCount={paged.pageCount}
           onPageChange={paged.setPage}
+          total={paged.total}
+          rangeStart={paged.rangeStart}
+          rangeEnd={paged.rangeEnd}
+          pageSize={paged.pageSize}
         />
       ) : null}
 
@@ -304,7 +359,7 @@ export function YourFormsSection({
         <SideDrawer
           open={drawerOpen}
           title="New form"
-          description="Start blank or pick a template. Each published link can be submitted once."
+          description="Start blank or pick a template. Publish only after you integrate a client on the builder."
           onClose={closeDrawer}
         >
           <form onSubmit={submitCreate}>
@@ -317,7 +372,7 @@ export function YourFormsSection({
                 maxLength={160}
                 autoFocus
                 placeholder="April client feedback"
-                className="rounded-xl border border-border bg-surface px-3 py-2.5 text-sm outline-none focus:border-accent"
+                className="app-radius border border-border bg-surface px-3 py-2.5 text-sm outline-none focus:border-accent"
               />
             </label>
             <label className="mt-4 flex flex-col gap-1.5 text-sm font-medium">
@@ -343,21 +398,34 @@ export function YourFormsSection({
               <button
                 type="button"
                 onClick={closeDrawer}
-                className="rounded-full border border-border bg-surface px-4 py-2 text-sm font-medium hover:bg-hover"
+                className="app-btn-secondary px-4 py-2 text-sm"
               >
                 Cancel
               </button>
-              <button
-                type="submit"
-                disabled={pending}
-                className="rounded-full bg-accent px-4 py-2 text-sm font-medium text-on-accent hover:bg-accent-hover disabled:opacity-60"
+              <ActionButton
+                pending={pending}
+                className="app-btn-primary px-4 py-2 text-sm"
               >
-                {pending ? "Creating…" : "Create form"}
-              </button>
+                Create form
+              </ActionButton>
             </DrawerActions>
           </form>
         </SideDrawer>
       ) : null}
+
+      <ConfirmDialog
+        open={Boolean(deleting)}
+        title="Delete draft form?"
+        description={
+          deleting
+            ? `“${deleting.title}” will be permanently deleted.`
+            : ""
+        }
+        confirmLabel="Delete draft"
+        pending={pending}
+        onCancel={() => setDeleting(null)}
+        onConfirm={confirmDelete}
+      />
     </section>
   );
 }
@@ -379,32 +447,50 @@ function filterForms(forms: DashboardFormRow[], filter: FormsFilter, query: stri
   });
 }
 
-function formOwnerLabel(form: DashboardFormRow) {
-  const parts = [form.clientName, form.teamName].filter(
-    (name) => name && name !== "—"
-  );
-  return parts.length > 0 ? parts.join(" · ") : "Independent form";
-}
-
-function FormCard({ form }: { form: DashboardFormRow }) {
+function FormCard({
+  form,
+  canDelete,
+  onDelete,
+}: {
+  form: DashboardFormRow;
+  canDelete?: boolean;
+  onDelete?: () => void;
+}) {
   return (
-    <Link
-      href={form.href}
-      className="relative flex h-full flex-col overflow-hidden rounded-3xl border border-border bg-card p-5 shadow-[0_1px_0_rgba(20,38,28,0.04)] transition hover:border-accent/30 hover:bg-surface"
-    >
-      <span className="pointer-events-none absolute -right-10 -bottom-12 h-28 w-28 rounded-full bg-sage/15" />
+    <DirectoryCard>
       <div className="flex items-start justify-between gap-3">
-        <StatusBadge status={form.status} />
-        <span className="text-xs whitespace-nowrap text-muted">{formatMonthYear(form.updatedAt)}</span>
+        <DirectoryCardIcon>
+          <FileText className="h-5 w-5" />
+        </DirectoryCardIcon>
+        <div className="flex shrink-0 items-center gap-2">
+          <StatusBadge status={form.status} />
+          <span className="text-xs whitespace-nowrap text-muted">
+            {formatMonthYear(form.updatedAt)}
+          </span>
+          {canDelete ? (
+            <button
+              type="button"
+              onClick={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                onDelete?.();
+              }}
+              className="inline-flex h-8 w-8 items-center justify-center text-muted hover:bg-hover hover:text-rose-600"
+              aria-label={`Delete draft ${form.title}`}
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+          ) : null}
+        </div>
       </div>
-      <p className="mt-4 line-clamp-2 min-h-[3rem] text-base font-semibold tracking-tight">{form.title}</p>
-      <p className="mt-1 line-clamp-2 min-h-[2.5rem] text-sm text-muted">
-        {form.description || formOwnerLabel(form)}
-      </p>
-      <p className="mt-auto pt-5 text-xs text-muted">
-        {form.responseCount} responses · {form.fieldCount} fields
-      </p>
-    </Link>
+      <Link href={form.href} className="mt-4 block min-w-0 flex-1">
+        <DirectoryCardTitle title={form.title}>{form.title}</DirectoryCardTitle>
+        <div className="mt-5 space-y-2">
+          <DirectoryCardLine label="Client" value={form.clientName} title={form.clientName} />
+          <DirectoryCardLine label="Team" value={form.teamName} title={form.teamName} />
+        </div>
+      </Link>
+    </DirectoryCard>
   );
 }
 
@@ -413,7 +499,7 @@ function StatusBadge({ status }: { status: DashboardFormRow["status"] }) {
   return (
     <span
       className={cn(
-        "rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide whitespace-nowrap",
+        "px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide whitespace-nowrap",
         published ? "bg-sage/20 text-accent" : "bg-hover text-muted"
       )}
     >

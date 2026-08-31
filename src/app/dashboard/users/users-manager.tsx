@@ -4,7 +4,9 @@ import { useMemo, useState, useTransition } from "react";
 import type { ActionResult } from "@/lib/action-result";
 import { toast } from "@/components/ui/toaster";
 import { Select } from "@/components/ui/select";
+import { Spinner } from "@/components/ui/pending-button";
 import { formatMonthYear } from "@/lib/format";
+import { TableHeadLeft, TableCellLeft } from "@/components/directory/directory-table";
 import { DIRECTORY_SORT_OPTIONS, sortDirectoryRows, type DirectorySort } from "@/lib/sort";
 import { usePersistedValue } from "@/lib/use-persisted-value";
 
@@ -92,7 +94,7 @@ export function UsersManager({
             value={sort}
             onChange={(event) => setSort(event.target.value as DirectorySort)}
             aria-label="Sort by"
-            className="rounded-full py-2"
+            className="app-radius py-2"
           >
             {DIRECTORY_SORT_OPTIONS.map((option) => (
               <option key={option.id} value={option.id}>
@@ -104,7 +106,7 @@ export function UsersManager({
       </div>
 
       {resetUrl ? (
-        <div className="mt-4 rounded-xl border border-sage bg-card p-4">
+        <div className="mt-4 app-radius border border-sage bg-card p-4">
           <p className="text-sm font-medium">Latest reset link</p>
           <p className="mt-1 break-all text-xs text-muted">{resetUrl}</p>
           <button
@@ -120,26 +122,26 @@ export function UsersManager({
         </div>
       ) : null}
 
-      <div className="card-enter mt-6 overflow-x-auto rounded-2xl border border-border bg-card">
-        <table className="w-full min-w-[44rem] text-left text-sm">
-          <thead className="border-b border-border text-muted">
+      <div className="directory-table-wrap card-enter mt-6">
+        <table className="directory-table w-full min-w-[44rem] table-fixed text-sm">
+          <thead>
             <tr>
-              <th className="px-4 py-3 font-medium">User</th>
-              <th className="px-4 py-3 font-medium">Role</th>
-              <th className="px-4 py-3 font-medium">Status</th>
-              <th className="px-4 py-3 font-medium">Created</th>
-              <th className="px-4 py-3 font-medium">Actions</th>
+              <TableHeadLeft className="w-[28%]">User</TableHeadLeft>
+              <TableHeadLeft className="w-[14%]">Role</TableHeadLeft>
+              <TableHeadLeft className="w-[22%]">Status</TableHeadLeft>
+              <TableHeadLeft className="w-[14%]">Created</TableHeadLeft>
+              <TableHeadLeft className="w-[22%]">Actions</TableHeadLeft>
             </tr>
           </thead>
           <tbody>
             {visible.map((user) => (
               <tr key={user.id} className="border-b border-border last:border-0">
-                <td className="px-4 py-3">
+                <TableCellLeft>
                   <p className="font-medium">{user.name}</p>
                   <p className="text-xs text-muted">{user.email}</p>
-                </td>
-                <td className="px-4 py-3">{user.role === "ADMIN" ? "Admin" : "Team Lead"}</td>
-                <td className="px-4 py-3">
+                </TableCellLeft>
+                <TableCellLeft>{user.role === "ADMIN" ? "Admin" : "Team Lead"}</TableCellLeft>
+                <TableCellLeft>
                   <p>{user.status}</p>
                   {user.lockedUntil ? (
                     <p className="text-xs text-rose-800">Locked</p>
@@ -147,12 +149,13 @@ export function UsersManager({
                   {user.resetRequested ? (
                     <p className="text-xs text-accent">Reset requested</p>
                   ) : null}
-                </td>
-                <td className="px-4 py-3 whitespace-nowrap text-muted">
+                </TableCellLeft>
+                <TableCellLeft className="whitespace-nowrap text-muted">
                   {formatMonthYear(user.createdAt)}
-                </td>
-                <td className="px-4 py-3">
-                  <div className="flex flex-wrap gap-2">
+                </TableCellLeft>
+                <TableCellLeft>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {pending ? <Spinner className="text-muted" /> : null}
                     {user.status === "PENDING" ? (
                       <>
                         <button
@@ -196,7 +199,7 @@ export function UsersManager({
                       </button>
                     ) : null}
                   </div>
-                </td>
+                </TableCellLeft>
               </tr>
             ))}
           </tbody>

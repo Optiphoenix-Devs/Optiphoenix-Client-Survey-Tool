@@ -59,7 +59,7 @@ async function SummarizeBody({
         hasSummary={Boolean(summary)}
       />
       {data.responseCount === 0 ? (
-        <p className="rounded-2xl border border-dashed border-border bg-card px-4 py-12 text-center text-sm text-muted">
+        <p className="app-radius border border-dashed border-border bg-card px-4 py-12 text-center text-sm text-muted">
           {data.selectedClientId
             ? `No submitted responses for ${data.selectedClientName} yet.`
             : "No submitted responses yet. Publish a form and collect the first one."}
@@ -67,7 +67,7 @@ async function SummarizeBody({
       ) : summary ? (
         <SummarizeBriefing summary={summary} />
       ) : (
-        <p className="rounded-2xl border border-dashed border-border bg-card px-4 py-12 text-center text-sm text-muted">
+        <p className="app-radius border border-dashed border-border bg-card px-4 py-12 text-center text-sm text-muted">
           Choose a client and period, then generate the AI briefing. Switching
           filters stays instant — Gemini only runs when you ask for it.
         </p>

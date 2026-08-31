@@ -9,7 +9,7 @@ export default function TeamNotFound() {
       </p>
       <Link
         href="/dashboard"
-        className="inline-block rounded-lg bg-accent px-4 py-2.5 text-sm font-medium text-on-accent hover:bg-accent-hover"
+        className="app-btn-primary px-4 py-2.5 text-sm"
       >
         Back to dashboard
       </Link>

@@ -3,7 +3,7 @@
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Bookmark, Plus, Trash2 } from "lucide-react";
+import { Bookmark, Pencil, Plus, Trash2 } from "lucide-react";
 import type { ActionResult } from "@/lib/action-result";
 import type { TemplateListRow } from "@/lib/templates";
 import { DirectoryToolbar } from "@/components/directory/directory-toolbar";
@@ -11,9 +11,25 @@ import { Pagination, usePaged } from "@/components/ui/pagination";
 import { DrawerActions, SideDrawer } from "@/components/ui/side-drawer";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Stagger } from "@/components/ui/skeleton";
-import { toast } from "@/components/ui/toaster";
-import { formatMonthYear, pluralize } from "@/lib/format";
+import { ActionButton } from "@/components/ui/pending-button";
+import {
+  TableActionsCell,
+  TableActionsHeader,
+  TableDeleteButton,
+  TableEditLink,
+} from "@/components/ui/table-actions";
+import { formatMonthYear, columnLabel, pluralize } from "@/lib/format";
+import { TableHeadCenter, TableHeadLeft, TableCellCenter, TableCellLeft, DirectoryTableRow } from "@/components/directory/directory-table";
+import {
+  DirectoryCard,
+  DirectoryCardButton,
+  DirectoryCardFooter,
+  DirectoryCardIcon,
+  DirectoryCardTitle,
+} from "@/components/directory/directory-card";
+import { runServerAction } from "@/lib/run-server-action";
 import { sortDirectoryRows, type DirectorySort } from "@/lib/sort";
+import { useDirectoryView } from "@/lib/use-directory-view";
 import { usePersistedValue } from "@/lib/use-persisted-value";
 
 const VIEW_KEY = "optiphoenix.templatesView";
@@ -32,7 +48,7 @@ export function TemplatesDirectory({
 }) {
   const router = useRouter();
   const [query, setQuery] = useState("");
-  const [view, setView] = usePersistedValue(VIEW_KEY, "grid", ["grid", "table"]);
+  const [view, setView] = useDirectoryView(VIEW_KEY);
   const [sort, setSort] = usePersistedValue(SORT_KEY, "newest", [
     "newest",
     "oldest",
@@ -62,19 +78,22 @@ export function TemplatesDirectory({
     );
   }, [templates, query, sort]);
   const paged = usePaged(visible);
+  const fieldTotal = visible.reduce((sum, template) => sum + template.fieldCount, 0);
 
   function createTemplate(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
     startTransition(async () => {
-      const result = await createAction(formData);
-      if (result.error) {
-        toast(result.error, { tone: "error" });
-        return;
-      }
-      toast("Template created.", { tone: "success" });
-      setCreating(false);
-      if (result.templateId) router.push(`/dashboard/templates/${result.templateId}`);
+      await runServerAction({
+        action: createAction,
+        formData,
+        successMessage: "Template created.",
+        onSuccess: (result) => {
+          setCreating(false);
+          if (result.templateId) router.push(`/dashboard/templates/${result.templateId}`);
+        },
+        refresh: () => router.refresh(),
+      });
     });
   }
 
@@ -82,14 +101,16 @@ export function TemplatesDirectory({
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
     startTransition(async () => {
-      const result = await createFormFromTemplateAction(formData);
-      if (result.error) {
-        toast(result.error, { tone: "error" });
-        return;
-      }
-      toast("Form created from template.", { tone: "success" });
-      setUsing(null);
-      if (result.formId) router.push(`/dashboard/forms/${result.formId}`);
+      await runServerAction({
+        action: createFormFromTemplateAction,
+        formData,
+        successMessage: "Form created from template.",
+        onSuccess: (result) => {
+          setUsing(null);
+          if (result.formId) router.push(`/dashboard/forms/${result.formId}`);
+        },
+        refresh: () => router.refresh(),
+      });
     });
   }
 
@@ -98,14 +119,13 @@ export function TemplatesDirectory({
     const formData = new FormData();
     formData.set("templateId", deleting.id);
     startTransition(async () => {
-      const result = await deleteAction(formData);
-      if (result.error) {
-        toast(result.error, { tone: "error" });
-        return;
-      }
-      toast("Template deleted.", { tone: "success" });
-      setDeleting(null);
-      router.refresh();
+      await runServerAction({
+        action: deleteAction,
+        formData,
+        successMessage: "Template deleted.",
+        onSuccess: () => setDeleting(null),
+        refresh: () => router.refresh(),
+      });
     });
   }
 
@@ -129,7 +149,7 @@ export function TemplatesDirectory({
           <button
             type="button"
             onClick={() => setCreating(true)}
-            className="inline-flex shrink-0 items-center justify-center gap-2 rounded-full bg-accent px-4 py-2.5 text-sm font-medium text-on-accent hover:bg-accent-hover"
+            className="app-btn-primary shrink-0 px-4 py-2.5 text-sm"
           >
             <Plus className="h-4 w-4" />
             New template
@@ -141,7 +161,7 @@ export function TemplatesDirectory({
       </p>
 
       {visible.length === 0 ? (
-        <p className="mt-6 rounded-2xl border border-dashed border-border bg-card px-4 py-8 text-center text-sm text-muted">
+        <p className="mt-6 app-radius border border-dashed border-border bg-card px-4 py-8 text-center text-sm text-muted">
           {templates.length === 0
             ? "No templates yet. Create one, or save a form as a template."
             : "No templates match this search."}
@@ -151,17 +171,13 @@ export function TemplatesDirectory({
           {paged.slice.map((template, index) => (
             <li key={template.id} className="h-full">
               <Stagger index={index}>
-                <article className="relative flex h-full flex-col overflow-hidden rounded-3xl border border-border bg-card p-5">
-                  <span className="pointer-events-none absolute -right-10 -bottom-12 h-28 w-28 rounded-full bg-sage/15" />
-                  <span className="grid h-10 w-10 place-items-center rounded-full bg-sage/15 text-accent">
+                <DirectoryCard className="p-5">
+                  <DirectoryCardIcon>
                     <Bookmark className="h-5 w-5" />
-                  </span>
-                  <p
-                    className="mt-4 truncate text-base font-semibold tracking-tight"
-                    title={template.name}
-                  >
+                  </DirectoryCardIcon>
+                  <DirectoryCardTitle className="mt-4" title={template.name}>
                     {template.name}
-                  </p>
+                  </DirectoryCardTitle>
                   <p
                     className="mt-1 truncate text-sm text-muted"
                     title={template.description || "No description"}
@@ -172,89 +188,90 @@ export function TemplatesDirectory({
                     {pluralize(template.fieldCount, "field")} · {template.createdByName} ·{" "}
                     {formatMonthYear(template.updatedAt)}
                   </p>
-                  <div className="mt-auto flex flex-wrap gap-2 pt-4">
-                    <button
-                      type="button"
+                  <DirectoryCardFooter className="mt-auto border-t-0 pt-4">
+                    <DirectoryCardButton
+                      variant="primary"
                       onClick={() => setUsing(template)}
-                      className="inline-flex items-center gap-1.5 rounded-full bg-accent px-3 py-1.5 text-sm font-medium text-on-accent hover:bg-accent-hover"
                     >
                       <Plus className="h-3.5 w-3.5" />
                       Use template
-                    </button>
+                    </DirectoryCardButton>
                     {template.canManage ? (
                       <>
-                        <Link
+                        <DirectoryCardButton
                           href={`/dashboard/templates/${template.id}`}
-                          className="inline-flex items-center rounded-full border border-border bg-surface px-3 py-1.5 text-sm font-medium hover:bg-hover"
+                          variant="secondary"
                         >
+                          <Pencil className="h-3.5 w-3.5" />
                           Edit
-                        </Link>
-                        <button
-                          type="button"
+                        </DirectoryCardButton>
+                        <DirectoryCardButton
+                          variant="danger"
                           onClick={() => setDeleting(template)}
-                          className="inline-flex items-center gap-1 rounded-full border border-rose-200 bg-rose-50 px-3 py-1.5 text-sm font-medium text-rose-900 hover:bg-rose-100"
                         >
                           <Trash2 className="h-3.5 w-3.5" />
                           Delete
-                        </button>
+                        </DirectoryCardButton>
                       </>
                     ) : null}
-                  </div>
-                </article>
+                  </DirectoryCardFooter>
+                </DirectoryCard>
               </Stagger>
             </li>
           ))}
         </ul>
       ) : (
-        <div className="mt-6 overflow-x-auto rounded-2xl border border-border bg-card">
-          <table className="w-full min-w-[40rem] table-fixed text-sm">
-            <thead className="border-b border-border text-muted">
+        <div className="directory-table-wrap mt-6">
+          <table className="directory-table w-full min-w-[40rem] table-fixed text-sm">
+            <thead>
               <tr>
-                <th className="w-[32%] px-4 py-3 text-left font-medium">Template</th>
-                <th className="w-[18%] px-4 py-3 text-left font-medium">Created by</th>
-                <th className="w-[12%] px-4 py-3 text-center font-medium">Fields</th>
-                <th className="w-[18%] px-4 py-3 text-left font-medium">Updated</th>
-                <th className="w-[20%] px-4 py-3 text-right font-medium">Actions</th>
+                <TableHeadLeft className="w-[32%]">
+                  {columnLabel(visible.length, "Template", "Templates")}
+                </TableHeadLeft>
+                <TableHeadCenter className="w-[18%]">Created by</TableHeadCenter>
+                <TableHeadCenter className="w-[12%]">
+                  {columnLabel(fieldTotal, "Field", "Fields")}
+                </TableHeadCenter>
+                <TableHeadCenter className="w-[18%]">Updated</TableHeadCenter>
+                <TableActionsHeader className="w-[20%]" />
               </tr>
             </thead>
             <tbody>
               {paged.slice.map((template) => (
-                <tr key={template.id} className="border-b border-border last:border-0">
-                  <td className="truncate px-4 py-3 align-middle font-medium">{template.name}</td>
-                  <td className="px-4 py-3 align-middle text-muted">{template.createdByName}</td>
-                  <td className="px-4 py-3 align-middle text-center tabular-nums">{template.fieldCount}</td>
-                  <td className="px-4 py-3 align-middle whitespace-nowrap text-muted">
+                <DirectoryTableRow
+                  key={template.id}
+                  href={
+                    template.canManage ? `/dashboard/templates/${template.id}` : undefined
+                  }
+                  ariaLabel={
+                    template.canManage ? `Edit ${template.name}` : undefined
+                  }
+                >
+                  <TableCellLeft className="truncate font-medium">{template.name}</TableCellLeft>
+                  <TableCellCenter className="text-muted">{template.createdByName}</TableCellCenter>
+                  <TableCellCenter className="tabular-nums">{template.fieldCount}</TableCellCenter>
+                  <TableCellCenter className="whitespace-nowrap text-muted">
                     {formatMonthYear(template.updatedAt)}
-                  </td>
-                  <td className="px-4 py-3 align-middle">
-                    <div className="flex flex-nowrap justify-end gap-3">
-                      <button
-                        type="button"
-                        onClick={() => setUsing(template)}
-                        className="text-sm font-medium text-accent hover:text-accent-hover"
-                      >
-                        Use
-                      </button>
-                      {template.canManage ? (
-                        <>
-                          <Link
-                            href={`/dashboard/templates/${template.id}`}
-                            className="text-sm font-medium text-accent hover:text-accent-hover"
-                          >
-                            Edit
-                          </Link>
-                          <button
-                            type="button"
-                            onClick={() => setDeleting(template)}
-                            className="text-sm font-medium text-rose-800 hover:text-rose-900"
-                          >
-                            Delete
-                          </button>
-                        </>
-                      ) : null}
-                    </div>
-                  </td>
-                </tr>
+                  </TableCellCenter>
+                  <TableActionsCell>
+                    <button
+                      type="button"
+                      onClick={() => setUsing(template)}
+                      className="inline-flex h-8 items-center rounded-full px-3 text-xs font-medium text-accent transition hover:bg-hover"
+                    >
+                      Use
+                    </button>
+                    {template.canManage ? (
+                      <>
+                        <TableEditLink href={`/dashboard/templates/${template.id}`} label={template.name} />
+                        <TableDeleteButton
+                          label={template.name}
+                          onClick={() => setDeleting(template)}
+                        />
+                      </>
+                    ) : null}
+                  </TableActionsCell>
+                </DirectoryTableRow>
               ))}
             </tbody>
           </table>
@@ -266,6 +283,10 @@ export function TemplatesDirectory({
           page={paged.page}
           pageCount={paged.pageCount}
           onPageChange={paged.setPage}
+          total={paged.total}
+          rangeStart={paged.rangeStart}
+          rangeEnd={paged.rangeEnd}
+          pageSize={paged.pageSize}
         />
       ) : null}
 
@@ -285,7 +306,7 @@ export function TemplatesDirectory({
               maxLength={160}
               autoFocus
               placeholder="Monthly client feedback"
-              className="rounded-xl border border-border bg-surface px-3 py-2.5 text-sm outline-none focus:border-accent"
+              className="app-radius border border-border bg-surface px-3 py-2.5 text-sm outline-none focus:border-accent"
             />
           </label>
           <label className="mt-4 flex flex-col gap-1.5 text-sm font-medium">
@@ -295,24 +316,23 @@ export function TemplatesDirectory({
               maxLength={500}
               rows={3}
               placeholder="Optional note for your team"
-              className="rounded-xl border border-border bg-surface px-3 py-2.5 text-sm outline-none focus:border-accent"
+              className="app-radius border border-border bg-surface px-3 py-2.5 text-sm outline-none focus:border-accent"
             />
           </label>
           <DrawerActions>
             <button
               type="button"
               onClick={() => setCreating(false)}
-              className="rounded-full border border-border bg-surface px-4 py-2 text-sm font-medium hover:bg-hover"
+              className="app-btn-secondary px-4 py-2 text-sm"
             >
               Cancel
             </button>
-            <button
-              type="submit"
-              disabled={pending}
-              className="rounded-full bg-accent px-4 py-2 text-sm font-medium text-on-accent hover:bg-accent-hover disabled:opacity-60"
+            <ActionButton
+              pending={pending}
+              className="app-btn-primary px-4 py-2 text-sm"
             >
-              {pending ? "Creating…" : "Create template"}
-            </button>
+              Create template
+            </ActionButton>
           </DrawerActions>
         </form>
       </SideDrawer>
@@ -334,24 +354,23 @@ export function TemplatesDirectory({
                 minLength={2}
                 maxLength={160}
                 defaultValue={using.name}
-                className="rounded-xl border border-border bg-surface px-3 py-2.5 text-sm outline-none focus:border-accent"
+                className="app-radius border border-border bg-surface px-3 py-2.5 text-sm outline-none focus:border-accent"
               />
             </label>
             <DrawerActions>
               <button
                 type="button"
                 onClick={() => setUsing(null)}
-                className="rounded-full border border-border bg-surface px-4 py-2 text-sm font-medium hover:bg-hover"
+                className="app-btn-secondary px-4 py-2 text-sm"
               >
                 Cancel
               </button>
-              <button
-                type="submit"
-                disabled={pending}
-                className="rounded-full bg-accent px-4 py-2 text-sm font-medium text-on-accent hover:bg-accent-hover disabled:opacity-60"
+              <ActionButton
+                pending={pending}
+                className="app-btn-primary px-4 py-2 text-sm"
               >
-                {pending ? "Creating…" : "Create form"}
-              </button>
+                Create form
+              </ActionButton>
             </DrawerActions>
           </form>
         ) : null}

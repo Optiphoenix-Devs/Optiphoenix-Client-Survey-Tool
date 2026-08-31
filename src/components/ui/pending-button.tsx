@@ -8,28 +8,40 @@ export function Spinner({ className }: { className?: string }) {
   return <LoaderCircle className={cn("h-4 w-4 shrink-0 animate-spin", className)} />;
 }
 
-export function PendingButton({
+export function ActionButton({
+  pending = false,
   children,
   className,
-  pendingLabel,
   ...props
 }: React.ButtonHTMLAttributes<HTMLButtonElement> & {
-  pendingLabel?: string;
+  pending?: boolean;
 }) {
-  const { pending } = useFormStatus();
-
   return (
     <button
       {...props}
       type={props.type ?? "submit"}
       disabled={pending || props.disabled}
       className={cn(
-        "inline-flex items-center gap-2 disabled:opacity-60",
+        "inline-flex items-center justify-center gap-2 disabled:opacity-60",
         className
       )}
     >
       {pending ? <Spinner /> : null}
-      {pending && pendingLabel ? pendingLabel : children}
+      {children}
     </button>
+  );
+}
+
+export function PendingButton({
+  children,
+  className,
+  ...props
+}: React.ButtonHTMLAttributes<HTMLButtonElement>) {
+  const { pending } = useFormStatus();
+
+  return (
+    <ActionButton pending={pending} className={className} {...props}>
+      {children}
+    </ActionButton>
   );
 }

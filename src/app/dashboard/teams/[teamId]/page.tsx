@@ -37,7 +37,7 @@ export default async function TeamClientsPage({
         {team.name}
       </p>
       <ClientsDirectory
-        title={`${team.name} clients`}
+        title={`Clients: ${team.name}`}
         lockedTeamId={team.id}
         teams={[{ id: team.id, name: team.name }]}
         clients={team.clients.map((client) => ({

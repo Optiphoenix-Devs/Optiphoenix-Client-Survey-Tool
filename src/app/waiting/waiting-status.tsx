@@ -53,7 +53,7 @@ export function WaitingStatus({ token }: { token: string }) {
     return (
       <div className="mt-6 space-y-3 text-sm text-muted">
         <p>This waiting link is invalid or has expired. Create an account again.</p>
-        <Link href="/register" className="font-medium text-accent hover:text-accent-hover">
+        <Link href="/create-account" className="font-medium text-accent hover:text-accent-hover">
           Back to sign up
         </Link>
       </div>

@@ -11,3 +11,7 @@ export function formatMonthYear(value: string | Date) {
 export function pluralize(count: number, singular: string, plural = `${singular}s`) {
   return `${count} ${count > 1 ? plural : singular}`;
 }
+
+export function columnLabel(count: number, singular: string, plural = `${singular}s`) {
+  return count === 1 ? singular : plural;
+}

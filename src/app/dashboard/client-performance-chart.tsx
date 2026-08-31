@@ -34,7 +34,7 @@ export function ClientPerformanceChart({
   })).filter((slice) => slice.count > 0);
 
   return (
-    <article className="card-enter rounded-2xl border border-border bg-card p-5">
+    <article className="card-enter app-radius border border-border bg-card app-shadow-card p-5">
       <div className="flex items-start justify-between gap-3">
         <div>
           <h2 className="text-sm font-medium text-muted">Client satisfaction</h2>

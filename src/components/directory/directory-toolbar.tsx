@@ -40,7 +40,7 @@ export function DirectoryToolbar({
           value={query}
           onChange={(event) => onQueryChange(event.target.value)}
           placeholder={searchPlaceholder}
-          className="w-full rounded-full border border-border bg-surface py-2 pl-9 pr-3 text-sm outline-none focus:border-accent"
+          className="app-toolbar-input outline-none"
         />
       </label>
       {sort && onSortChange ? (
@@ -50,7 +50,7 @@ export function DirectoryToolbar({
             value={sort}
             onChange={(event) => onSortChange(event.target.value as DirectorySort)}
             aria-label="Sort by"
-            className="rounded-full py-2"
+            className="app-radius py-2.5"
           >
             {DIRECTORY_SORT_OPTIONS.map((option) => (
               <option key={option.id} value={option.id}>
@@ -61,7 +61,7 @@ export function DirectoryToolbar({
         </label>
       ) : null}
       <div
-        className="flex rounded-full border border-border bg-surface p-1"
+        className="flex h-10 app-radius border border-border bg-surface p-1"
         role="group"
         aria-label="Layout"
       >
@@ -71,10 +71,8 @@ export function DirectoryToolbar({
             onClick={() => onViewChange("grid")}
             aria-pressed={view === "grid"}
             className={cn(
-              "grid h-8 w-8 place-items-center rounded-full transition",
-              view === "grid"
-                ? "bg-accent text-on-accent"
-                : "text-muted hover:text-foreground"
+              "grid h-full w-9 place-items-center app-radius transition",
+              view === "grid" ? "app-icon-toggle-active" : "app-icon-toggle text-muted"
             )}
           >
             <LayoutGrid className="h-4 w-4" />
@@ -87,10 +85,8 @@ export function DirectoryToolbar({
             onClick={() => onViewChange("table")}
             aria-pressed={view === "table"}
             className={cn(
-              "grid h-8 w-8 place-items-center rounded-full transition",
-              view === "table"
-                ? "bg-accent text-on-accent"
-                : "text-muted hover:text-foreground"
+              "grid h-full w-9 place-items-center app-radius transition",
+              view === "table" ? "app-icon-toggle-active" : "app-icon-toggle text-muted"
             )}
           >
             <Table2 className="h-4 w-4" />

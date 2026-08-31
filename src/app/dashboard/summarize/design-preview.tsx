@@ -58,13 +58,13 @@ export function SummarizeDesignPreview() {
         </div>
         <Link
           href="/dashboard/summarize"
-          className="inline-flex items-center rounded-full border border-border bg-surface px-4 py-2 text-sm font-medium hover:bg-hover"
+          className="inline-flex items-center app-btn-secondary px-4 py-2 text-sm"
         >
           Back to summarize
         </Link>
       </div>
 
-      <div className="flex flex-wrap gap-2 rounded-2xl border border-border bg-card p-2">
+      <div className="flex flex-wrap gap-2 app-radius border border-border bg-card p-2">
         {concepts.map((item) => (
           <button
             key={item.id}
@@ -73,8 +73,8 @@ export function SummarizeDesignPreview() {
             className={cn(
               "rounded-full px-4 py-2 text-sm font-medium transition",
               active === item.id
-                ? "bg-accent text-on-accent"
-                : "border border-border bg-surface text-foreground hover:bg-hover"
+                ? "app-brand-surface"
+                : "border border-border bg-surface text-foreground app-brand-hover"
             )}
           >
             {item.label}: {item.title}
@@ -82,7 +82,7 @@ export function SummarizeDesignPreview() {
         ))}
       </div>
 
-      <article className="overflow-hidden rounded-3xl border border-border bg-card">
+      <article className="overflow-hidden app-radius border border-border bg-card">
         <header className="border-b border-border bg-surface px-6 py-5">
           <p className="text-xs font-semibold uppercase tracking-wide text-muted">{concept.label}</p>
           <h2 className="mt-1 text-2xl font-semibold tracking-tight">{concept.title}</h2>
@@ -99,7 +99,7 @@ export function SummarizeDesignPreview() {
 function ExecutiveConcept() {
   return (
     <div className="space-y-4">
-      <div className="rounded-2xl border border-border bg-surface p-5">
+      <div className="app-radius border border-border bg-surface p-5">
         <p className="text-xs font-semibold uppercase tracking-wide text-muted">AI executive brief</p>
         <p className="mt-2 text-base leading-7">
           Customer satisfaction is stable, but recurring delivery delays are increasing for two key
@@ -155,7 +155,7 @@ function OperationsConcept() {
       </div>
 
       <div className="grid gap-4 xl:grid-cols-3">
-        <div className="rounded-2xl border border-border bg-surface p-5 xl:col-span-2">
+        <div className="app-radius border border-border bg-surface p-5 xl:col-span-2">
           <h3 className="flex items-center gap-2 text-lg font-semibold tracking-tight">
             <Lightbulb className="h-5 w-5 text-accent" />
             Action recommendations
@@ -167,7 +167,7 @@ function OperationsConcept() {
               ["Medium", "Add auto-summary to Friday team sync digest."],
               ["Low", "Publish success stories from top-rated projects monthly."],
             ].map(([priority, text]) => (
-              <li key={text} className="flex items-start gap-3 rounded-xl border border-border bg-card p-3">
+              <li key={text} className="flex items-start gap-3 app-radius border border-border bg-card p-3">
                 <span className="rounded-full bg-hover px-2 py-0.5 text-xs font-semibold">{priority}</span>
                 <span>{text}</span>
               </li>
@@ -175,7 +175,7 @@ function OperationsConcept() {
           </ul>
         </div>
 
-        <div className="rounded-2xl border border-border bg-surface p-5">
+        <div className="app-radius border border-border bg-surface p-5">
           <h3 className="flex items-center gap-2 text-lg font-semibold tracking-tight">
             <Target className="h-5 w-5 text-accent" />
             Attention map
@@ -201,7 +201,7 @@ function OperationsConcept() {
         </div>
       </div>
 
-      <div className="rounded-2xl border border-border bg-surface p-5">
+      <div className="app-radius border border-border bg-surface p-5">
         <h3 className="flex items-center gap-2 text-lg font-semibold tracking-tight">
           <MessageSquareText className="h-5 w-5 text-accent" />
           Sentiment analysis for written feedback
@@ -223,7 +223,7 @@ function OperationsConcept() {
 function StudioConcept() {
   return (
     <div className="space-y-4">
-      <div className="rounded-2xl border border-border bg-surface p-5">
+      <div className="app-radius border border-border bg-surface p-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h3 className="text-lg font-semibold tracking-tight">Monthly summary story</h3>
@@ -261,7 +261,7 @@ function StudioConcept() {
 
       <div className="grid gap-4 xl:grid-cols-2">
         <RecommendationPanel />
-        <div className="rounded-2xl border border-border bg-surface p-5">
+        <div className="app-radius border border-border bg-surface p-5">
           <h3 className="flex items-center gap-2 text-lg font-semibold tracking-tight">
             <TrendingUp className="h-5 w-5 text-accent" />
             Resource and area attention
@@ -272,7 +272,7 @@ function StudioConcept() {
               ["Area: Scope planning", "Comments indicate scope is not explicit enough."],
               ["Resource: Escalation owner", "Needs faster handoff in peak weeks."],
             ].map(([title, detail]) => (
-              <li key={title} className="rounded-xl border border-border bg-card p-3">
+              <li key={title} className="app-radius border border-border bg-card p-3">
                 <p className="font-medium">{title}</p>
                 <p className="mt-1 text-muted">{detail}</p>
               </li>
@@ -286,7 +286,7 @@ function StudioConcept() {
 
 function Metric({ title, value, hint }: { title: string; value: string; hint: string }) {
   return (
-    <div className="rounded-xl border border-border bg-card p-4">
+    <div className="app-radius border border-border bg-card p-4">
       <p className="text-xs font-medium uppercase tracking-wide text-muted">{title}</p>
       <p className="mt-1 text-2xl font-semibold tracking-tight">{value}</p>
       <p className="mt-1 text-xs text-muted">{hint}</p>
@@ -306,7 +306,7 @@ function InsightCard({
   items: string[];
 }) {
   return (
-    <div className="rounded-2xl border border-border bg-surface p-5">
+    <div className="app-radius border border-border bg-surface p-5">
       <h3 className="flex items-center gap-2 text-lg font-semibold tracking-tight">
         <Icon
           className={cn(
@@ -320,7 +320,7 @@ function InsightCard({
       </h3>
       <ul className="mt-4 space-y-2 text-sm text-muted">
         {items.map((item) => (
-          <li key={item} className="rounded-xl border border-border bg-card px-3 py-2">
+          <li key={item} className="app-radius border border-border bg-card px-3 py-2">
             {item}
           </li>
         ))}
@@ -331,21 +331,21 @@ function InsightCard({
 
 function RecommendationPanel() {
   return (
-    <div className="rounded-2xl border border-border bg-surface p-5">
+    <div className="app-radius border border-border bg-surface p-5">
       <h3 className="flex items-center gap-2 text-lg font-semibold tracking-tight">
         <Lightbulb className="h-5 w-5 text-accent" />
         Actionable recommendations
       </h3>
       <ol className="mt-4 space-y-3 text-sm">
-        <li className="rounded-xl border border-border bg-card p-3">
+        <li className="app-radius border border-border bg-card p-3">
           <p className="font-medium">Clarify timeline ownership for each client touchpoint.</p>
           <p className="mt-1 text-muted">Expected impact: fewer delay-related complaints.</p>
         </li>
-        <li className="rounded-xl border border-border bg-card p-3">
+        <li className="app-radius border border-border bg-card p-3">
           <p className="font-medium">Add 48-hour follow-up rule for unresolved feedback.</p>
           <p className="mt-1 text-muted">Expected impact: improved trust and responsiveness.</p>
         </li>
-        <li className="rounded-xl border border-border bg-card p-3">
+        <li className="app-radius border border-border bg-card p-3">
           <p className="font-medium">Share monthly wins from high-rated delivery teams.</p>
           <p className="mt-1 text-muted">Expected impact: reinforce repeatable best practices.</p>
         </li>
@@ -356,7 +356,7 @@ function RecommendationPanel() {
 
 function SentimentPanel() {
   return (
-    <div className="rounded-2xl border border-border bg-surface p-5">
+    <div className="app-radius border border-border bg-surface p-5">
       <h3 className="flex items-center gap-2 text-lg font-semibold tracking-tight">
         <MessageSquareText className="h-5 w-5 text-accent" />
         Sentiment analysis
@@ -365,15 +365,15 @@ function SentimentPanel() {
         Written feedback is parsed by AI to determine tone, confidence, and emotional trajectory.
       </p>
       <div className="mt-5 grid grid-cols-3 gap-3 text-center text-sm">
-        <div className="rounded-xl border border-border bg-card p-3">
+        <div className="app-radius border border-border bg-card p-3">
           <p className="text-xs uppercase tracking-wide text-muted">Positive</p>
           <p className="mt-1 text-xl font-semibold text-emerald-600">68%</p>
         </div>
-        <div className="rounded-xl border border-border bg-card p-3">
+        <div className="app-radius border border-border bg-card p-3">
           <p className="text-xs uppercase tracking-wide text-muted">Mixed</p>
           <p className="mt-1 text-xl font-semibold text-amber-600">21%</p>
         </div>
-        <div className="rounded-xl border border-border bg-card p-3">
+        <div className="app-radius border border-border bg-card p-3">
           <p className="text-xs uppercase tracking-wide text-muted">Negative</p>
           <p className="mt-1 text-xl font-semibold text-rose-600">11%</p>
         </div>

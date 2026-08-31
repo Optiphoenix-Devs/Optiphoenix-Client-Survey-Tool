@@ -62,7 +62,7 @@ export const createClientSchema = z.object({
   company: z
     .string()
     .trim()
-    .max(120, "Company name is too long")
+    .max(120, "Organization name is too long")
     .optional()
     .transform((value) => (value && value.length > 0 ? value : undefined)),
 });
@@ -75,7 +75,7 @@ export const updateClientSchema = z.object({
   company: z
     .string()
     .trim()
-    .max(120, "Company name is too long")
+    .max(120, "Organization name is too long")
     .optional()
     .transform((value) => (value && value.length > 0 ? value : undefined)),
 });

@@ -4,7 +4,7 @@ import { revalidatePath, revalidateTag } from "next/cache";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { createFormSchema } from "@/lib/validations";
-import { createFormForUser } from "@/lib/forms";
+import { createFormForUser, deleteClientForm, requireFormAccess } from "@/lib/forms";
 import type { ActionResult } from "@/lib/action-result";
 
 export async function createFormFromList(
@@ -37,4 +37,44 @@ export async function createFormFromList(
   revalidatePath("/dashboard/forms");
   revalidatePath("/dashboard");
   return { formId: form.id };
+}
+
+/** Delete a draft form from the Forms screen (published forms must be unpublished first). */
+export async function deleteFormFromList(
+  formData: FormData
+): Promise<ActionResult> {
+  const session = await auth();
+  if (!session?.user?.id || !session.user.role) {
+    redirect("/login");
+  }
+
+  const formId = String(formData.get("formId") ?? "");
+  if (!formId) return { error: "Form not found." };
+
+  try {
+    const form = await requireFormAccess(
+      session.user.id,
+      session.user.role,
+      formId
+    );
+    if (form.status !== "DRAFT") {
+      return { error: "Only draft forms can be deleted. Unpublish first." };
+    }
+    await deleteClientForm(
+      session.user.id,
+      session.user.role,
+      form.teamId ?? undefined,
+      form.clientId ?? undefined,
+      formId
+    );
+  } catch (error) {
+    return {
+      error: error instanceof Error ? error.message : "Delete failed.",
+    };
+  }
+
+  revalidateTag("dashboard-shell", "max");
+  revalidatePath("/dashboard/forms");
+  revalidatePath("/dashboard");
+  return {};
 }

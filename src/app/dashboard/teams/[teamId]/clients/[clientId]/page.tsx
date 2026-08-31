@@ -1,6 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { auth } from "@/auth";
-import { getClientWorkspace } from "@/lib/forms";
+import { getClientWorkspace, getUnassignedDraftForms } from "@/lib/forms";
+import { getTemplatesForUser } from "@/lib/templates";
 import { ClientWorkspace } from "./client-workspace";
 
 export default async function ClientPage({
@@ -12,12 +13,11 @@ export default async function ClientPage({
   if (!session?.user?.id || !session.user.role) redirect("/login");
 
   const { teamId, clientId } = await params;
-  const client = await getClientWorkspace(
-    session.user.id,
-    session.user.role,
-    teamId,
-    clientId
-  );
+  const [client, templates, drafts] = await Promise.all([
+    getClientWorkspace(session.user.id, session.user.role, teamId, clientId),
+    getTemplatesForUser(session.user.id, session.user.role),
+    getUnassignedDraftForms(session.user.id, session.user.role),
+  ]);
 
   if (!client) notFound();
 
@@ -40,6 +40,16 @@ export default async function ClientPage({
           0
         ),
         updatedAt: form.updatedAt.toISOString(),
+      }))}
+      templates={templates.map((template) => ({
+        id: template.id,
+        name: template.name,
+        fieldCount: template.fieldCount,
+      }))}
+      draftForms={drafts.map((draft) => ({
+        id: draft.id,
+        title: draft.title,
+        fieldCount: draft._count.questions,
       }))}
     />
   );

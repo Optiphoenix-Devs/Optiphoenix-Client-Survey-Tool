@@ -4,6 +4,7 @@ import { useActionState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { resetPasswordAction } from "../login/actions";
 import { PasswordInput } from "@/components/ui/password-input";
+import { ActionButton } from "@/components/ui/pending-button";
 import { toast, toastOnce } from "@/components/ui/toaster";
 import Link from "next/link";
 
@@ -58,19 +59,18 @@ export function ResetPasswordForm({ token }: { token: string }) {
       <input type="hidden" name="token" value={token} />
       <label className="flex flex-col gap-1.5 text-sm font-semibold">
         New password
-        <PasswordInput autoComplete="new-password" placeholder="********" />
+        <PasswordInput
+          autoComplete="new-password"
+          placeholder="Create a strong password"
+          showStrength
+        />
       </label>
-      <button
-        type="submit"
-        disabled={busy}
-        className="rounded-lg bg-accent px-4 py-2.5 text-sm font-medium text-on-accent transition hover:bg-accent-hover disabled:opacity-60"
+      <ActionButton
+        pending={busy}
+        className="app-btn-primary px-4 py-2.5 text-sm"
       >
-        {redirecting
-          ? "Taking you to login…"
-          : pending
-            ? "Updating…"
-            : "Set new password"}
-      </button>
+        Set new password
+      </ActionButton>
       <Link
         href="/login"
         className="inline-flex w-full items-center justify-center rounded-lg border border-border bg-surface px-4 py-2.5 text-sm font-medium transition hover:bg-background"

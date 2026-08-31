@@ -104,6 +104,25 @@ export async function getClientFormBuilder(
   return getFormBuilder(userId, role, formId);
 }
 
+/** Draft forms not yet linked to a client — pickable from a client workspace. */
+export async function getUnassignedDraftForms(userId: string, role: UserRole) {
+  const where =
+    role === "ADMIN"
+      ? { clientId: null, status: "DRAFT" as const }
+      : { clientId: null, status: "DRAFT" as const, createdById: userId };
+
+  return prisma.form.findMany({
+    where,
+    orderBy: { updatedAt: "desc" },
+    select: {
+      id: true,
+      title: true,
+      updatedAt: true,
+      _count: { select: { questions: true } },
+    },
+  });
+}
+
 export async function createFormForUser(
   userId: string,
   role: UserRole,
@@ -129,6 +148,8 @@ export async function createFormForUser(
     clientId = null;
   }
 
+  const title = data.title.trim();
+
   const template = data.templateId
     ? await prisma.formTemplate.findUnique({
         where: { id: data.templateId },
@@ -143,7 +164,7 @@ export async function createFormForUser(
       teamId,
       clientId,
       createdById: userId,
-      title: data.title,
+      title,
       status: "DRAFT",
       sourceTemplateId: template?.id ?? null,
     },
@@ -243,6 +264,11 @@ export async function setClientFormPublish(
   if (!form) throw new Error("Form not found");
 
   if (publish) {
+    if (!form.clientId) {
+      throw new Error(
+        "Link this form to a client before publishing. Use Integrate with client on the builder."
+      );
+    }
     if (form.questions.length < 1) {
       throw new Error("Add at least one field before publishing.");
     }
@@ -408,24 +434,124 @@ export async function reorderFieldsOnForm(
 
   const fields = await prisma.question.findMany({
     where: { formId },
+    select: { id: true },
   });
 
   const allowedIds = new Set(fields.map((item) => item.id));
-  if (
-    orderedIds.length !== fields.length ||
-    orderedIds.some((id) => !allowedIds.has(id))
-  ) {
-    throw new Error("Invalid field order.");
+  // Ignore stale ids from optimistic UI; only reorder ids that still exist.
+  const nextIds = orderedIds.filter((id) => allowedIds.has(id));
+  if (nextIds.length === 0) {
+    throw new Error("No fields to reorder.");
+  }
+  if (nextIds.length !== fields.length) {
+    // Field list changed mid-drag (add/delete). Persist what we can for matching ids.
+    const missing = [...allowedIds].filter((id) => !nextIds.includes(id));
+    nextIds.push(...missing);
   }
 
   await prisma.$transaction(
-    orderedIds.map((id, index) =>
+    nextIds.map((id, index) =>
       prisma.question.update({
         where: { id },
         data: { order: index + 1 },
       })
     )
   );
+}
+
+/** Link an independent draft form to a client so it can be published. */
+export async function attachFormToClient(
+  userId: string,
+  role: UserRole,
+  formId: string,
+  teamId: string,
+  clientId: string
+) {
+  const form = await requireFormAccess(userId, role, formId);
+  if (form.status === "PUBLISHED" && form.clientId && form.clientId !== clientId) {
+    throw new Error("This published form is already linked to another client.");
+  }
+
+  const allowed = await userCanManageTeam(userId, role, teamId);
+  if (!allowed) throw new Error("No access");
+
+  const client = await prisma.client.findFirst({
+    where: { id: clientId, teamId },
+  });
+  if (!client) throw new Error("Client not found");
+
+  if (form.clientId && form.clientId !== clientId) {
+    throw new Error("This form is already linked to a different client.");
+  }
+
+  return prisma.form.update({
+    where: { id: formId },
+    data: { teamId, clientId },
+  });
+}
+
+/** Replace form fields with a template’s fields, or clear to blank when templateId is empty. */
+export async function applyTemplateToForm(
+  userId: string,
+  role: UserRole,
+  formId: string,
+  templateId: string | null
+) {
+  const form = await requireFormAccess(userId, role, formId);
+  if (form.status === "PUBLISHED") {
+    throw new Error("Unpublish the form before changing the field layout.");
+  }
+
+  const surveys = await prisma.clientSurvey.findMany({
+    where: { formId },
+    include: { _count: { select: { responses: true } } },
+  });
+  if (formHasSubmission(surveys)) {
+    throw new Error("Cannot change fields after responses exist.");
+  }
+
+  if (!templateId) {
+    await prisma.$transaction([
+      prisma.question.deleteMany({ where: { formId } }),
+      prisma.form.update({
+        where: { id: formId },
+        data: { sourceTemplateId: null },
+      }),
+    ]);
+    return getFormBuilder(userId, role, formId);
+  }
+
+  const template = await prisma.formTemplate.findUnique({
+    where: { id: templateId },
+    include: { questions: { orderBy: { order: "asc" } } },
+  });
+  if (!template) throw new Error("Template not found");
+
+  await prisma.$transaction(async (tx) => {
+    await tx.question.deleteMany({ where: { formId } });
+    if (template.questions.length > 0) {
+      await tx.question.createMany({
+        data: template.questions.map((question) => ({
+          formId,
+          type: question.type,
+          label: question.label,
+          description: question.description,
+          order: question.order,
+          required: question.required,
+          options:
+            question.options === null
+              ? Prisma.JsonNull
+              : (question.options as Prisma.InputJsonValue),
+        })),
+      });
+    }
+    await tx.form.update({
+      where: { id: formId },
+      data: { sourceTemplateId: template.id },
+    });
+  });
+
+  return getFormBuilder(userId, role, formId);
 }
 
 export async function getPublishedFormByToken(token: string) {

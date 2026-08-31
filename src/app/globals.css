@@ -2,24 +2,31 @@
 
 /* OptiPhoenix: cream canvas, forest green type/buttons, sage highlights */
 :root {
-  --background: #f9f8f3;
+  --background: #fffbef;
+  --chrome: #fff8ed;
   --foreground: #14261c;
   --card: #ffffff;
   --muted: #3d4f44;
-  --border: #d8d4c8;
-  --accent: #1c3d2e;
+  --border: #ded8cb;
+  --accent: #003339;
   --accent-hover: #14261c;
   --sage: #7d9e86;
-  --on-accent: #f4efe4;
+  --on-accent: #ffffff;
   --surface: #ffffff;
   --hover: rgba(20, 38, 28, 0.06);
-  --grid-line: rgba(20, 38, 28, 0.035);
-  --skeleton-a: #e8e4d8;
-  --skeleton-b: #f4efe4;
+  --skeleton-a: #f0ebe0;
+  --skeleton-b: #faf6ee;
+  --app-radius: 4px;
+  --card-bg: #ffffff;
+  --card-border: #6fab8f;
+  --card-title: #6fab8f;
+  --brand: #6fab8f;
+  --on-brand: #ffffff;
 }
 
 .dark {
   --background: #101814;
+  --chrome: #141f19;
   --foreground: #f4efe4;
   --card: #18241d;
   --muted: #b5c2ba;
@@ -30,13 +37,18 @@
   --on-accent: #101814;
   --surface: #1e2c24;
   --hover: rgba(244, 239, 228, 0.08);
-  --grid-line: rgba(244, 239, 228, 0.06);
   --skeleton-a: #1a2620;
   --skeleton-b: #24332b;
+  --card-bg: var(--card);
+  --card-border: #6fab8f;
+  --card-title: #8fc4a8;
+  --brand: #6fab8f;
+  --on-brand: #ffffff;
 }
 
 @theme inline {
   --color-background: var(--background);
+  --color-chrome: var(--chrome);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
   --color-muted: var(--muted);
@@ -47,14 +59,334 @@
   --color-sage: var(--sage);
   --color-on-accent: var(--on-accent);
   --color-surface: var(--surface);
+  --color-brand: var(--brand);
+  --color-on-brand: var(--on-brand);
+}
+
+.app-chrome {
+  background-color: var(--chrome);
+}
+
+.app-radius {
+  border-radius: var(--app-radius);
+}
+
+.app-toolbar-input {
+  height: 2.5rem;
+  width: 100%;
+  border-radius: var(--app-radius);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  padding: 0 0.75rem 0 2.25rem;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  outline: none;
+}
+
+.app-toolbar-input:focus {
+  border-color: var(--accent);
+}
+
+.app-btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: var(--app-radius);
+  background: var(--brand);
+  color: var(--on-brand);
+  font-weight: 500;
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.app-btn-primary:hover:not(:disabled) {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.app-btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: var(--app-radius);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--foreground);
+  font-weight: 500;
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.app-btn-secondary:hover:not(:disabled) {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.app-brand-surface {
+  background: var(--brand);
+  color: var(--on-brand);
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.app-brand-surface:hover {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.app-brand-hover:hover {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.app-icon-toggle {
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.app-icon-toggle:hover {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.app-icon-toggle-active {
+  background: var(--brand);
+  color: var(--on-brand);
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.app-icon-toggle-active:hover {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.app-menu-item {
+  border-radius: var(--app-radius);
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.app-menu-item:hover {
+  background: var(--accent);
+  color: var(--on-accent);
 }
 
 .app-grid {
+  position: relative;
+  isolation: isolate;
   background-color: var(--background);
-  background-image:
-    linear-gradient(to right, var(--grid-line) 1px, transparent 1px),
-    linear-gradient(to bottom, var(--grid-line) 1px, transparent 1px);
-  background-size: 56px 56px;
+}
+
+.app-grid::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-image: url("/images/hero-bg.svg");
+  background-repeat: repeat-y;
+  background-size: contain;
+  background-position: top center;
+}
+
+html.dark .app-grid::before {
+  opacity: 0.25;
+}
+
+.app-grid-body {
+  position: relative;
+  z-index: 1;
+}
+
+.app-shadow-card {
+  box-shadow:
+    0 10px 32px rgba(20, 38, 28, 0.09),
+    0 2px 8px rgba(20, 38, 28, 0.05);
+}
+
+html.dark .app-shadow-card {
+  box-shadow:
+    0 12px 36px rgba(0, 0, 0, 0.38),
+    0 2px 8px rgba(0, 0, 0, 0.24);
+}
+
+.app-shadow-table {
+  box-shadow:
+    0 12px 36px rgba(20, 38, 28, 0.1),
+    0 2px 10px rgba(20, 38, 28, 0.06);
+}
+
+html.dark .app-shadow-table {
+  box-shadow:
+    0 14px 40px rgba(0, 0, 0, 0.42),
+    0 2px 10px rgba(0, 0, 0, 0.28);
+}
+
+.directory-card {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--card-border);
+  background: var(--card-bg);
+  border-radius: var(--app-radius);
+  box-shadow: none;
+  transition:
+    box-shadow 0.22s ease,
+    border-color 0.22s ease,
+    transform 0.22s ease;
+}
+
+.directory-card:hover {
+  border-color: var(--card-title);
+  box-shadow:
+    0 18px 44px rgba(20, 38, 28, 0.14),
+    0 6px 16px rgba(20, 38, 28, 0.08);
+  transform: translateY(-2px);
+}
+
+html.dark .directory-card:hover {
+  box-shadow:
+    0 20px 48px rgba(0, 0, 0, 0.45),
+    0 8px 18px rgba(0, 0, 0, 0.28);
+}
+
+.directory-card-title {
+  color: var(--card-title);
+  font-size: 1.5rem;
+  line-height: 1.25;
+}
+
+.directory-card-icon {
+  display: grid;
+  height: 2.5rem;
+  width: 2.5rem;
+  flex-shrink: 0;
+  place-items: center;
+  border-radius: var(--app-radius);
+  background: color-mix(in srgb, var(--card-title) 16%, var(--card-bg));
+  color: var(--card-title);
+}
+
+html.dark .directory-card-icon {
+  background: color-mix(in srgb, var(--card-title) 18%, transparent);
+}
+
+.directory-card-footer {
+  border-top: 1px solid color-mix(in srgb, var(--card-border) 70%, transparent);
+}
+
+.directory-card-btn {
+  border-radius: var(--app-radius);
+}
+
+.directory-card-btn-primary {
+  background: var(--brand);
+  color: var(--on-brand);
+}
+
+.directory-card-btn-primary:hover:not(:disabled) {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.directory-card-btn-secondary {
+  border: 1px solid var(--card-border);
+  background: var(--surface);
+  color: var(--foreground);
+}
+
+.directory-card-btn-secondary:hover:not(:disabled) {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.directory-card-btn-danger {
+  border: 1px solid #f5c2c7;
+  background: #fff1f2;
+  color: #9f1239;
+}
+
+.directory-card-btn-danger:hover {
+  background: #ffe4e6;
+}
+
+html.dark .directory-card-btn-danger {
+  border-color: #7f1d1d;
+  background: #3f1519;
+  color: #fecdd3;
+}
+
+html.dark .directory-card-btn-danger:hover {
+  background: #4c1d24;
+}
+
+.directory-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--card-border);
+  background: var(--card);
+  border-radius: var(--app-radius);
+  box-shadow:
+    0 12px 36px rgba(20, 38, 28, 0.1),
+    0 2px 10px rgba(20, 38, 28, 0.06);
+  transition:
+    box-shadow 0.22s ease,
+    border-color 0.22s ease;
+}
+
+html.dark .directory-table-wrap {
+  box-shadow:
+    0 14px 40px rgba(0, 0, 0, 0.42),
+    0 2px 10px rgba(0, 0, 0, 0.28);
+}
+
+.directory-table-wrap:hover {
+  border-color: var(--card-title);
+  box-shadow:
+    0 16px 40px rgba(20, 38, 28, 0.14),
+    0 4px 12px rgba(20, 38, 28, 0.08);
+}
+
+html.dark .directory-table-wrap:hover {
+  box-shadow:
+    0 18px 44px rgba(0, 0, 0, 0.4),
+    0 6px 14px rgba(0, 0, 0, 0.26);
+}
+
+.directory-table tbody tr {
+  transition: background-color 0.15s ease;
+}
+
+.directory-table tbody tr:hover {
+  background: color-mix(in srgb, var(--card-title) 10%, transparent);
+}
+
+.directory-table-row:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: -2px;
+}
+
+.directory-table thead {
+  background-color: var(--chrome);
+  border-bottom: 1px solid var(--border);
+}
+
+.directory-table-head {
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--foreground);
 }
 
 html {
@@ -67,6 +399,7 @@ html.dark {
 
 body {
   color: var(--foreground);
+  background-color: var(--background);
   font-family: var(--font-sans), Arial, Helvetica, sans-serif;
 }
 
@@ -107,6 +440,7 @@ textarea::placeholder {
 }
 
 .skeleton {
+  border-radius: var(--app-radius);
   background-image: linear-gradient(
     90deg,
     var(--skeleton-a) 0%,
@@ -120,31 +454,31 @@ textarea::placeholder {
 @keyframes toast-in {
   from {
     opacity: 0;
-    transform: translateY(calc(-100% - 50px));
+    transform: translateX(calc(100% + 1rem));
   }
   to {
     opacity: 1;
-    transform: translateY(0);
+    transform: translateX(0);
   }
 }
 
 @keyframes toast-out {
   from {
     opacity: 1;
-    transform: translateY(0);
+    transform: translateX(0);
   }
   to {
     opacity: 0;
-    transform: translateY(calc(-100% - 50px));
+    transform: translateX(calc(100% + 1rem));
   }
 }
 
 .toast-enter {
-  animation: toast-in 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: toast-in 240ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 .toast-leave {
-  animation: toast-out 320ms cubic-bezier(0.4, 0, 1, 1) both;
+  animation: toast-out 200ms cubic-bezier(0.4, 0, 1, 1) both;
 }
 
 @keyframes card-in {
@@ -169,8 +503,16 @@ textarea::placeholder {
   .drawer-enter,
   .toast-enter,
   .toast-leave,
-  .skeleton {
+  .skeleton,
+  .directory-card,
+  .directory-table-wrap {
     animation: none;
+    transition: none;
+  }
+
+  .directory-card:hover,
+  .directory-table-wrap:hover {
+    transform: none;
   }
 }
 

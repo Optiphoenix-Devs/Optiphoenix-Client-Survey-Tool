@@ -37,7 +37,7 @@ export function toast(
   };
   items = [item, ...items.filter((toastItem) => !toastItem.leaving)].slice(0, 4);
   emit();
-  window.setTimeout(() => dismissToast(item.id), options?.durationMs ?? 4200);
+  window.setTimeout(() => dismissToast(item.id), options?.durationMs ?? 4000);
 }
 
 export function toastOnce(
@@ -58,33 +58,34 @@ function dismissToast(id: number) {
   window.setTimeout(() => {
     items = items.filter((item) => item.id !== id);
     emit();
-  }, 320);
+  }, 220);
 }
 
 const TONE = {
   success: {
-    className: "bg-emerald-600 text-white",
-    descriptionClass: "text-white/85",
-    closeClass: "text-white/80 hover:bg-white/15 hover:text-white",
+    shell: "border-emerald-950/20 bg-emerald-950 text-emerald-50",
+    descriptionClass: "text-emerald-100/90",
+    iconClass: "text-emerald-200",
+    closeClass: "text-emerald-100/80 hover:bg-emerald-900 hover:text-white",
     Icon: CheckCircle2,
   },
   error: {
-    className: "bg-rose-600 text-white",
-    descriptionClass: "text-white/85",
-    closeClass: "text-white/80 hover:bg-white/15 hover:text-white",
+    shell: "border-rose-950/20 bg-rose-950 text-rose-50",
+    descriptionClass: "text-rose-100/90",
+    iconClass: "text-rose-200",
+    closeClass: "text-rose-100/80 hover:bg-rose-900 hover:text-white",
     Icon: CircleAlert,
   },
   info: {
-    className: "bg-stone-200 text-stone-900 dark:bg-stone-600 dark:text-stone-50",
-    descriptionClass: "text-stone-600 dark:text-stone-200",
-    closeClass:
-      "text-stone-500 hover:bg-black/10 hover:text-stone-900 dark:text-stone-200 dark:hover:bg-white/15 dark:hover:text-white",
+    shell: "border-slate-900/20 bg-slate-900 text-slate-50",
+    descriptionClass: "text-slate-200/90",
+    iconClass: "text-slate-300",
+    closeClass: "text-slate-200/80 hover:bg-slate-800 hover:text-white",
     Icon: Info,
   },
 } as const;
 
 export function Toaster() {
-  // Seed from current in-memory toasts; this avoids setState() in useEffect (lint rule).
   const [toasts, setToasts] = useState<ToastItem[]>(() => items);
 
   useEffect(() => {
@@ -97,19 +98,21 @@ export function Toaster() {
   if (toasts.length === 0) return null;
 
   return (
-    <div className="pointer-events-none fixed top-[50px] left-1/2 z-[90] flex w-[min(92vw,26rem)] -translate-x-1/2 flex-col gap-2">
+    <div className="pointer-events-none fixed top-4 right-4 z-[90] flex w-[min(calc(100vw-2rem),22rem)] flex-col gap-2.5">
       {toasts.map((item) => {
         const tone = TONE[item.tone];
         return (
           <div
             key={item.id}
+            role="status"
+            aria-live="polite"
             className={cn(
-              "pointer-events-auto flex items-start gap-3 rounded-2xl px-4 py-3.5 shadow-[0_16px_40px_rgba(20,38,28,0.18)]",
-              tone.className,
+              "pointer-events-auto flex items-start gap-3 app-radius border px-4 py-3.5 shadow-[0_18px_40px_rgba(15,23,42,0.28)] backdrop-blur-sm",
+              tone.shell,
               item.leaving ? "toast-leave" : "toast-enter"
             )}
           >
-            <tone.Icon className="mt-0.5 h-5 w-5 shrink-0" strokeWidth={2} />
+            <tone.Icon className={cn("mt-0.5 h-5 w-5 shrink-0", tone.iconClass)} strokeWidth={2} />
             <div className="min-w-0 flex-1">
               <p className="text-sm font-semibold leading-5">{item.title}</p>
               {item.description ? (

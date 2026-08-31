@@ -30,77 +30,81 @@ export default async function DashboardPage({
     getClientPerformanceForUser(session.user.id, session.user.role),
   ]);
   const firstName = session.user.name?.split(" ")[0] ?? "there";
+  const formCount = overview.publishedCount + overview.draftCount;
+  const publishedShare =
+    formCount > 0 ? Math.round((overview.publishedCount / formCount) * 100) : 0;
 
   return (
     <main className="mx-auto flex w-full max-w-6xl flex-col gap-8 px-4 py-8 sm:px-8 sm:py-10">
-      <header className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <DashboardGreeting name={firstName} />
-          <p className="mt-1 max-w-xl text-sm leading-6 text-muted">
-            Create a form, save it as a template, and share a new link each month.
-          </p>
-        </div>
-        <Link
-          href="/dashboard/forms"
-          className="inline-flex items-center gap-2 rounded-full bg-accent px-4 py-2.5 text-sm font-medium text-on-accent hover:bg-accent-hover"
-        >
-          <Plus className="h-4 w-4" />
-          New form
-        </Link>
+      <header>
+        <DashboardGreeting name={firstName} />
+        <p className="mt-1 max-w-xl text-sm leading-6 text-muted">
+          Create a form, save it as a template, and share a new link each month.
+        </p>
       </header>
 
       <section className="grid items-stretch gap-4 lg:grid-cols-4">
         <Link
           href="/dashboard/forms"
-          className="relative flex min-h-[14rem] flex-col overflow-hidden rounded-3xl bg-accent p-6 text-on-accent lg:col-span-2 card-enter"
+          className="card-enter app-brand-surface relative flex min-h-[14rem] flex-col overflow-hidden app-radius p-6 lg:col-span-2"
         >
-          <span className="pointer-events-none absolute -right-8 -bottom-10 h-36 w-36 rounded-full bg-on-accent/10" />
-          <span className="grid h-10 w-10 place-items-center rounded-full bg-on-accent/10">
+          <span className="pointer-events-none absolute -right-8 -bottom-10 h-36 w-36 rounded-full bg-on-brand/10" />
+          <span className="grid h-10 w-10 place-items-center rounded-full bg-on-brand/10">
             <FolderOpen className="h-5 w-5" />
           </span>
           <p className="mt-6 text-xl font-semibold tracking-tight">Create a form</p>
-          <p className="mt-1 max-w-sm text-sm leading-6 text-on-accent/80">
+          <p className="mt-1 max-w-sm text-sm leading-6 text-on-brand/80">
             Create a form from scratch or a template. Each public link can be submitted once.
           </p>
-          <span className="mt-auto inline-flex h-9 w-9 items-center justify-center rounded-full bg-on-accent text-accent">
+          <span className="mt-auto inline-flex h-9 w-9 items-center justify-center rounded-full bg-on-brand text-brand">
             <Plus className="h-4 w-4" />
           </span>
         </Link>
 
         <Link
           href="/dashboard?forms=published#forms"
-          className="card-enter relative flex min-h-[14rem] flex-col overflow-hidden rounded-3xl border border-border bg-card p-6"
+          className="card-enter relative flex min-h-[14rem] flex-col overflow-hidden app-radius border border-border bg-card app-shadow-card p-6"
           style={{ animationDelay: "80ms" }}
         >
-          <span className="pointer-events-none absolute -right-8 -bottom-10 h-32 w-32 rounded-full bg-sage/20" />
-          <span className="grid h-10 w-10 place-items-center rounded-full bg-sage/15 text-accent">
+          <span className="pointer-events-none absolute -right-8 -bottom-10 h-32 w-32 rounded-full bg-emerald-100/80 dark:bg-emerald-500/10" />
+          <span className="grid h-11 w-11 place-items-center app-radius bg-emerald-100 text-emerald-800 ring-1 ring-emerald-600/20 dark:bg-emerald-950/60 dark:text-emerald-200 dark:ring-emerald-500/30">
             <Globe className="h-5 w-5" />
           </span>
-          <p className="mt-5 text-3xl font-semibold tracking-tight tabular-nums">
+          <h3 className="mt-5 text-xl font-semibold tracking-tight">Published</h3>
+          <p className="mt-3 text-3xl font-semibold tracking-tight tabular-nums">
             {overview.publishedCount}
           </p>
-          <p className="mt-1 text-lg font-semibold tracking-tight">Published</p>
-          <p className="mt-1 text-sm leading-6 text-muted">
-            Live links collecting client feedback.
+          <p className="mt-4 truncate text-sm">
+            <span className="text-muted">Live share:</span>{" "}
+            <span className="font-medium text-foreground">
+              {overview.publishedCount === 0
+                ? "No live survey links yet"
+                : `${publishedShare}% of your forms`}
+            </span>
           </p>
         </Link>
 
         <Link
-          href="/dashboard?forms=drafts#forms"
-          className="card-enter relative flex min-h-[14rem] flex-col overflow-hidden rounded-3xl border border-border bg-card p-6"
+          href="/dashboard/forms"
+          className="card-enter relative flex min-h-[14rem] flex-col overflow-hidden app-radius border border-border bg-card app-shadow-card p-6"
           style={{ animationDelay: "140ms" }}
         >
-          <span className="pointer-events-none absolute -right-8 -bottom-10 h-32 w-32 rounded-full bg-hover" />
-          <span className="grid h-10 w-10 place-items-center rounded-full bg-hover text-accent">
+          <span className="pointer-events-none absolute -right-8 -bottom-10 h-32 w-32 rounded-full bg-amber-100/70 dark:bg-amber-500/10" />
+          <span className="grid h-11 w-11 place-items-center app-radius bg-amber-100 text-amber-900 ring-1 ring-amber-600/20 dark:bg-amber-950/60 dark:text-amber-200 dark:ring-amber-500/30">
             <FileText className="h-5 w-5" />
           </span>
-          <p className="mt-5 text-3xl font-semibold tracking-tight tabular-nums">
-            {overview.draftCount}
-          </p>
-          <p className="mt-1 text-lg font-semibold tracking-tight">Drafts</p>
-          <p className="mt-1 text-sm leading-6 text-muted">
-            Work in progress, not yet shared with a client.
-          </p>
+          <h3 className="mt-5 text-xl font-semibold tracking-tight">Forms</h3>
+          <p className="mt-3 text-3xl font-semibold tracking-tight tabular-nums">{formCount}</p>
+          <div className="mt-4 space-y-2">
+            <p className="truncate text-sm">
+              <span className="text-muted">Drafts:</span>{" "}
+              <span className="font-medium text-foreground">{overview.draftCount}</span>
+            </p>
+            <p className="truncate text-sm">
+              <span className="text-muted">Published:</span>{" "}
+              <span className="font-medium text-foreground">{overview.publishedCount}</span>
+            </p>
+          </div>
         </Link>
       </section>
 
@@ -110,7 +114,13 @@ export default async function DashboardPage({
             icon={Inbox}
             label="Responses"
             value={overview.responseCount}
-            hint="Submitted client feedback"
+            hint={
+              overview.responseCount === 0
+                ? "Submitted feedback appears after clients complete surveys."
+                : `Total submissions across ${formCount} ${formCount === 1 ? "form" : "forms"}.`
+            }
+            iconClassName="app-radius bg-sky-100 text-sky-800 ring-1 ring-sky-600/20 dark:bg-sky-950/60 dark:text-sky-200 dark:ring-sky-500/30"
+            className="h-full app-radius p-6"
           />
         </Link>
         <div className="lg:col-span-3">

@@ -34,7 +34,7 @@ export function ChoiceOptionEditor({
         <div className="relative">
           <select
             disabled
-            className="w-full appearance-none bg-none rounded-xl border border-border bg-background py-2 pl-3 pr-10 text-sm text-muted"
+            className="w-full appearance-none bg-none app-radius border border-border bg-background py-2 pl-3 pr-10 text-sm text-muted"
           >
             <option>Choose an option</option>
             {options.map((option, index) => (

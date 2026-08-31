@@ -2,12 +2,13 @@
 
 import { useActionState, useEffect } from "react";
 import Link from "next/link";
-import { registerAction } from "../login/actions";
+import { createAccountAction } from "../login/actions";
 import { PasswordInput } from "@/components/ui/password-input";
+import { ActionButton } from "@/components/ui/pending-button";
 import { toast } from "@/components/ui/toaster";
 
-export function RegisterForm() {
-  const [state, action, pending] = useActionState(registerAction, {});
+export function CreateAccountForm() {
+  const [state, action, pending] = useActionState(createAccountAction, {});
 
   useEffect(() => {
     if (state.error) {
@@ -27,6 +28,7 @@ export function RegisterForm() {
             name="name"
             required
             minLength={2}
+            placeholder="Jane Doe"
             className="rounded-lg border border-border bg-surface px-3 py-2.5 text-sm outline-none transition focus:border-accent"
           />
         </label>
@@ -37,20 +39,20 @@ export function RegisterForm() {
             name="email"
             required
             autoComplete="email"
+            placeholder="you@company.com"
             className="rounded-lg border border-border bg-surface px-3 py-2.5 text-sm outline-none transition focus:border-accent"
           />
         </label>
         <label className="flex flex-col gap-1.5 text-sm font-semibold">
           Password
-          <PasswordInput autoComplete="new-password" />
+          <PasswordInput autoComplete="new-password" showStrength placeholder="Create a strong password" />
         </label>
-        <button
-          type="submit"
-          disabled={pending}
-          className="rounded-lg bg-accent px-4 py-2.5 text-sm font-medium text-on-accent transition hover:bg-accent-hover disabled:opacity-60"
+        <ActionButton
+          pending={pending}
+          className="app-btn-primary px-4 py-2.5 text-sm"
         >
-          {pending ? "Creating…" : "Create account"}
-        </button>
+          Create account
+        </ActionButton>
       </form>
       <p className="mt-4 text-center text-sm text-muted">
         Already have an account?{" "}

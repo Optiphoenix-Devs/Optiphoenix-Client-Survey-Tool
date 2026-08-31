@@ -29,6 +29,7 @@ import {
   Globe,
   GripVertical,
   Lightbulb,
+  Link2,
   Pencil,
   Star,
   Trash2,
@@ -56,6 +57,8 @@ import {
 } from "@/components/form/field-settings-controls";
 import {
   addField as addFormField,
+  applyTemplate as applyFormTemplate,
+  attachClient as attachFormClient,
   deleteField as deleteFormField,
   reorderFields as reorderFormFields,
   togglePublishForm as toggleFormPublish,
@@ -64,6 +67,8 @@ import {
   saveAsTemplate as saveFormAsTemplate,
 } from "./actions";
 import * as templateActions from "@/app/dashboard/templates/actions";
+import { useRouter } from "next/navigation";
+import { Select } from "@/components/ui/select";
 
 type BuilderAction = (formData: FormData) => Promise<ActionResult>;
 
@@ -75,6 +80,8 @@ type BuilderActions = {
   updateField: BuilderAction;
   updateForm: BuilderAction;
   saveAsTemplate: BuilderAction;
+  attachClient?: BuilderAction;
+  applyTemplate?: BuilderAction;
 };
 
 const formActions: BuilderActions = {
@@ -85,6 +92,8 @@ const formActions: BuilderActions = {
   updateField: updateFormField,
   updateForm: updateFormMeta,
   saveAsTemplate: saveFormAsTemplate,
+  attachClient: attachFormClient,
+  applyTemplate: applyFormTemplate,
 };
 
 const BuilderActionsContext = createContext<BuilderActions>(formActions);
@@ -115,6 +124,9 @@ type FormBuilderProps = {
   fields: BuilderField[];
   backHref?: string;
   variant?: "form" | "template";
+  templates?: Array<{ id: string; name: string; fieldCount: number }>;
+  clients?: Array<{ id: string; name: string; teamId: string; teamName: string }>;
+  sourceTemplateId?: string | null;
 };
 
 const FIELD_ICONS: Record<FieldTypeValue, LucideIcon> = {
@@ -198,7 +210,7 @@ function SortableFieldCard({
         zIndex: isDragging ? 20 : undefined,
       }}
       className={cn(
-        "group rounded-2xl border bg-card transition",
+        "group app-radius border bg-card transition",
         selected
           ? "border-accent ring-2 ring-accent/15"
           : "border-border hover:border-sage",
@@ -336,7 +348,7 @@ function FieldSettings({
           name="label"
           required
           defaultValue={field.label}
-          className="rounded-xl border border-border bg-surface px-3 py-2.5 text-sm outline-none focus:border-accent"
+          className="app-radius border border-border bg-surface px-3 py-2.5 text-sm outline-none focus:border-accent"
         />
       </label>
       {field.type === "RATING" ? (
@@ -365,8 +377,7 @@ function FieldSettings({
         Required
       </label>
       <PendingButton
-        className="justify-center rounded-xl bg-accent px-3 py-2.5 text-sm font-medium text-on-accent hover:bg-accent-hover"
-        pendingLabel="Saving…"
+        className="justify-center app-btn-primary px-3 py-2.5 text-sm"
       >
         Save field
       </PendingButton>
@@ -407,7 +418,7 @@ function FormIdentityCard({
         if (event.currentTarget.contains(event.relatedTarget as Node | null)) return;
         submitIfChanged(event.currentTarget);
       }}
-      className="rounded-2xl border border-border bg-card px-5 py-5"
+      className="app-radius border border-border bg-card px-5 py-5"
     >
       <input type="hidden" name="teamId" value={teamId} />
       <input type="hidden" name="clientId" value={clientId} />
@@ -450,25 +461,44 @@ export function FormBuilder({
   fields,
   backHref = "/dashboard/forms",
   variant = "form",
+  templates = [],
+  clients = [],
+  sourceTemplateId = null,
 }: FormBuilderProps) {
+  const router = useRouter();
   const isTemplate = variant === "template";
-  const actions = isTemplate ? templateActions : formActions;
+  const actions: BuilderActions = isTemplate
+    ? {
+        addField: templateActions.addField,
+        deleteField: templateActions.deleteField,
+        reorderFields: templateActions.reorderFields,
+        togglePublishForm: templateActions.togglePublishForm,
+        updateField: templateActions.updateField,
+        updateForm: templateActions.updateForm,
+        saveAsTemplate: templateActions.saveAsTemplate,
+      }
+    : formActions;
   const [preview, setPreview] = useState(false);
   const [templateOpen, setTemplateOpen] = useState(false);
   const [items, setItems] = useState(fields);
   const [selectedId, setSelectedId] = useState<string | null>(
     focusFieldId ?? fields[0]?.id ?? null
   );
+  const [integrateTeamClient, setIntegrateTeamClient] = useState("");
+  const [templateChoice, setTemplateChoice] = useState(sourceTemplateId ?? "");
+  const [templateBusy, setTemplateBusy] = useState(false);
   const [, startTransition] = useTransition();
   const isPublished = status === "PUBLISHED";
-  const canPublish = isPublished || items.length > 0;
+  const needsClient = !isTemplate && !clientId;
+  const canPublish = !needsClient && (isPublished || items.length > 0);
 
   // Sync builder cards after server actions add, save, or reorder fields.
   /* eslint-disable react-hooks/set-state-in-effect -- props to local drag state */
   useEffect(() => {
     setItems(fields);
+    setTemplateChoice(sourceTemplateId ?? "");
     if (focusFieldId) setSelectedId(focusFieldId);
-  }, [fields, focusFieldId]);
+  }, [fields, focusFieldId, sourceTemplateId]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
   const sensors = useSensors(
@@ -482,6 +512,7 @@ export function FormBuilder({
 
     const oldIndex = items.findIndex((item) => item.id === active.id);
     const newIndex = items.findIndex((item) => item.id === over.id);
+    const previous = items;
     const next = arrayMove(items, oldIndex, newIndex);
     setItems(next);
 
@@ -490,9 +521,16 @@ export function FormBuilder({
     formData.set("clientId", clientId);
     formData.set("formId", formId);
     formData.set("orderedIds", JSON.stringify(next.map((item) => item.id)));
-    startTransition(() => {
-      void notifyAction(actions.reorderFields, formData);
-    });
+    // Fire immediately (no transition delay) so errors toast faster.
+    void (async () => {
+      const result = await actions.reorderFields(formData);
+      if (result.error) {
+        setItems(previous);
+        toast(result.error, { tone: "error" });
+        return;
+      }
+      router.refresh();
+    })();
   }
 
   return (
@@ -501,7 +539,7 @@ export function FormBuilder({
       <header className="flex items-center gap-3 border-b border-border bg-card px-4 py-3">
         <Link
           href={backHref}
-          className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-border bg-surface px-3 py-2 text-sm font-medium transition hover:bg-background"
+          className="inline-flex shrink-0 items-center gap-1.5 app-radius border border-border bg-surface px-3 py-2 text-sm font-medium transition hover:bg-background"
         >
           <ArrowLeft className="h-4 w-4" />
           Back
@@ -516,12 +554,62 @@ export function FormBuilder({
                 : "Draft"}
         </p>
         <div className="ml-auto flex min-w-0 items-center justify-end gap-2 overflow-x-auto [&>*]:shrink-0">
+          {!isTemplate && !isPublished ? (
+            <label className="inline-flex items-center gap-2 text-sm text-muted">
+              <span className="hidden sm:inline">Format</span>
+              <Select
+                value={templateChoice}
+                disabled={templateBusy}
+                className="min-w-[11rem] app-radius py-2 pr-10"
+                aria-label="Form format"
+                onChange={(event) => {
+                  const next = event.target.value;
+                  const previous = templateChoice;
+                  setTemplateChoice(next);
+                  // Optimistic: blank clears instantly; template clears then refreshes.
+                  setItems([]);
+                  setSelectedId(null);
+                  setTemplateBusy(true);
+                  const formData = new FormData();
+                  formData.set("formId", formId);
+                  formData.set("templateId", next);
+                  formData.set("teamId", teamId);
+                  formData.set("clientId", clientId);
+                  void (async () => {
+                    if (!actions.applyTemplate) {
+                      setTemplateBusy(false);
+                      return;
+                    }
+                    const result = await actions.applyTemplate(formData);
+                    setTemplateBusy(false);
+                    if (result.error) {
+                      setTemplateChoice(previous);
+                      toast(result.error, { tone: "error" });
+                      router.refresh();
+                      return;
+                    }
+                    toast(next ? "Template applied." : "Blank format applied.", {
+                      tone: "success",
+                    });
+                    router.refresh();
+                  })();
+                }}
+              >
+                <option value="">Blank format</option>
+                {templates.map((template) => (
+                  <option key={template.id} value={template.id}>
+                    {template.name}
+                  </option>
+                ))}
+              </Select>
+            </label>
+          ) : null}
           {isTemplate ? null : (
           <button
             type="button"
             onClick={() => setTemplateOpen(true)}
             disabled={items.length === 0}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-surface px-3 py-2 text-sm font-medium transition hover:bg-background disabled:opacity-50"
+            className="inline-flex items-center gap-1.5 app-radius border border-border bg-surface px-3 py-2 text-sm font-medium transition hover:bg-background disabled:opacity-50"
           >
             <Bookmark className="h-4 w-4" />
             Save as template
@@ -530,7 +618,7 @@ export function FormBuilder({
           <button
             type="button"
             onClick={() => setPreview((value) => !value)}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-surface px-3 py-2 text-sm font-medium transition hover:bg-background"
+            className="inline-flex items-center gap-1.5 app-radius border border-border bg-surface px-3 py-2 text-sm font-medium transition hover:bg-background"
           >
             {preview ? <Pencil className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
             {preview ? "Edit" : "Preview"}
@@ -543,6 +631,7 @@ export function FormBuilder({
                 formData,
                 isPublished ? "Form unpublished." : "Form published."
               );
+              router.refresh();
             }}
           >
             <input type="hidden" name="teamId" value={teamId} />
@@ -556,23 +645,28 @@ export function FormBuilder({
             {canPublish ? (
               <PendingButton
                 className={cn(
-                  "inline-flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium",
+                  "inline-flex items-center justify-center gap-1.5 app-radius px-3 py-2 text-sm font-medium",
                   isPublished
-                    ? "border border-border bg-surface text-foreground hover:bg-background"
-                    : "bg-accent text-on-accent hover:bg-accent-hover"
+                    ? "app-btn-secondary px-3 py-2 text-sm"
+                    : "app-brand-surface px-3 py-2 text-sm font-medium"
                 )}
-                pendingLabel={isPublished ? "Unpublishing…" : "Publishing…"}
               >
                 <Globe className="h-4 w-4" />
                 {isPublished ? "Unpublish" : "Publish"}
               </PendingButton>
             ) : (
-              <Tooltip label="Add at least one field to publish" side="bottom">
+              <Tooltip
+                label={
+                  needsClient
+                    ? "Integrate with a client before publishing"
+                    : "Add at least one field to publish"
+                }
+                side="bottom"
+              >
                 <span>
                   <PendingButton
                     disabled
-                    className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-accent px-3 py-2 text-sm font-medium text-on-accent hover:bg-accent-hover"
-                    pendingLabel="Publishing…"
+                    className="inline-flex items-center justify-center gap-1.5 app-btn-primary px-3 py-2 text-sm"
                   >
                     <Globe className="h-4 w-4" />
                     Publish
@@ -587,13 +681,79 @@ export function FormBuilder({
               href={publicFormUrl}
               target="_blank"
               rel="noreferrer"
-              className="inline-flex items-center rounded-lg border border-border bg-surface px-3 py-2 text-sm font-medium hover:bg-background"
+              className="inline-flex items-center app-radius border border-border bg-surface px-3 py-2 text-sm font-medium hover:bg-background"
             >
               Open form
             </a>
           ) : null}
         </div>
       </header>
+      {needsClient ? (
+        <div className="border-b border-border px-4 py-4">
+          <div className="mx-auto flex max-w-3xl flex-col gap-3 app-radius border border-border bg-card p-4 sm:flex-row sm:items-end sm:gap-4">
+            <div className="flex min-w-0 flex-1 gap-3">
+              <span className="mt-0.5 grid h-10 w-10 shrink-0 place-items-center app-radius bg-sage/20 text-accent">
+                <Link2 className="h-4 w-4" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold tracking-tight">
+                  Link a client to publish
+                </p>
+                <p className="mt-0.5 text-xs leading-5 text-muted">
+                  This form was created independently. Choose a client, then publish
+                  from the header.
+                </p>
+                <div className="mt-3">
+                  <Select
+                    value={integrateTeamClient}
+                    onChange={(event) => setIntegrateTeamClient(event.target.value)}
+                    className="app-radius py-2.5 pr-10"
+                    aria-label="Choose client"
+                  >
+                    <option value="">Select client…</option>
+                    {clients.map((client) => (
+                      <option
+                        key={client.id}
+                        value={`${client.teamId}::${client.id}`}
+                      >
+                        {client.name} · {client.teamName}
+                      </option>
+                    ))}
+                  </Select>
+                </div>
+              </div>
+            </div>
+            <form
+              className="shrink-0"
+              action={async (formData) => {
+                const selected = integrateTeamClient;
+                const [nextTeamId, nextClientId] = selected.split("::");
+                if (!nextTeamId || !nextClientId) {
+                  toast("Choose a client.", { tone: "error" });
+                  return;
+                }
+                formData.set("teamId", nextTeamId);
+                formData.set("clientId", nextClientId);
+                formData.set("formId", formId);
+                if (!actions.attachClient) return;
+                const result = await actions.attachClient(formData);
+                if (result.error) {
+                  toast(result.error, { tone: "error" });
+                  return;
+                }
+                toast("Client linked. You can publish now.", { tone: "success" });
+                router.refresh();
+              }}
+            >
+              <PendingButton
+                className="app-btn-primary w-full px-4 py-2.5 text-sm sm:w-auto"
+              >
+                Integrate client
+              </PendingButton>
+            </form>
+          </div>
+        </div>
+      ) : null}
       {hasResponse && !isTemplate ? (
         <p className="border-b border-border bg-sage/10 px-4 py-2 text-sm text-muted">
           This public link already has a response and cannot be submitted again.
@@ -603,7 +763,7 @@ export function FormBuilder({
 
       {preview ? (
         <div className="flex-1 overflow-auto px-4 py-8">
-          <section className="mx-auto max-w-2xl rounded-2xl border border-border bg-card p-6">
+          <section className="mx-auto max-w-2xl app-radius border border-border bg-card p-6">
             <p className="text-xs font-semibold uppercase tracking-wide text-sage">
               Client preview
             </p>
@@ -655,7 +815,7 @@ export function FormBuilder({
                     <input type="hidden" name="clientId" value={clientId} />
                     <input type="hidden" name="formId" value={formId} />
                     <input type="hidden" name="type" value={type.value} />
-                    <PendingButton className="grid w-full grid-cols-[2rem_minmax(0,1fr)] items-center gap-2.5 rounded-xl px-2 py-2 text-left transition duration-150 hover:bg-background">
+                    <PendingButton className="grid w-full grid-cols-[2rem_minmax(0,1fr)] items-center gap-2.5 app-radius px-2 py-2 text-left transition duration-150 hover:bg-background">
                       <span className="grid h-8 w-8 place-items-center rounded-lg bg-background text-accent">
                         {createElement(fieldIcon(type.value), { className: "h-4 w-4" })}
                       </span>
@@ -686,7 +846,7 @@ export function FormBuilder({
               />
 
               {items.length === 0 ? (
-                <div className="mt-4 rounded-2xl border-2 border-dashed border-border px-6 py-16 text-center">
+                <div className="mt-4 app-radius border-2 border-dashed border-border px-6 py-16 text-center">
                   <p className="font-semibold">{isTemplate ? "This template is empty" : "This form is empty"}</p>
                   <p className="mt-1 text-sm text-muted">
                     {isTemplate
@@ -747,7 +907,7 @@ export function FormBuilder({
               minLength={2}
               maxLength={160}
               defaultValue={title}
-              className="rounded-xl border border-border bg-surface px-3 py-2.5 text-sm outline-none focus:border-accent"
+              className="app-radius border border-border bg-surface px-3 py-2.5 text-sm outline-none focus:border-accent"
             />
           </label>
           <label className="mt-4 flex flex-col gap-1.5 text-sm font-medium">
@@ -757,20 +917,19 @@ export function FormBuilder({
               maxLength={500}
               rows={3}
               placeholder="Optional note for your team"
-              className="rounded-xl border border-border bg-surface px-3 py-2.5 text-sm outline-none focus:border-accent"
+              className="app-radius border border-border bg-surface px-3 py-2.5 text-sm outline-none focus:border-accent"
             />
           </label>
           <DrawerActions>
             <button
               type="button"
               onClick={() => setTemplateOpen(false)}
-              className="rounded-full border border-border bg-surface px-4 py-2 text-sm font-medium hover:bg-hover"
+              className="app-btn-secondary px-4 py-2 text-sm"
             >
               Cancel
             </button>
             <PendingButton
-              className="justify-center rounded-full bg-accent px-4 py-2 text-sm font-medium text-on-accent hover:bg-accent-hover"
-              pendingLabel="Saving…"
+              className="justify-center app-btn-primary px-4 py-2 text-sm"
             >
               Save template
             </PendingButton>
