@@ -1,8 +1,8 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { getTeamsForUser } from "@/lib/teams";
-import { createTeam, deleteTeam, updateTeam } from "../actions";
-import { TeamsDirectory } from "./teams-directory";
+import { createTeam, deleteTeam, updateTeam } from "../../actions";
+import { TeamsDirectory } from "../teams-directory";
 
 export default async function TeamsPage() {
   const session = await auth();

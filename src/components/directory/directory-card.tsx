@@ -33,7 +33,7 @@ export function DirectoryCardTitle({
   return (
     <h3
       className={cn(
-        "directory-card-title line-clamp-2 text-2xl font-semibold tracking-tight",
+        "directory-card-title line-clamp-2 text-xl font-semibold tracking-tight sm:text-2xl",
         className
       )}
       {...props}
@@ -82,7 +82,7 @@ export function DirectoryCardButton({
 
   if (href) {
     return (
-      <Link href={href} className={classes}>
+      <Link href={href} className={classes} aria-label={props["aria-label"]}>
         {children}
       </Link>
     );

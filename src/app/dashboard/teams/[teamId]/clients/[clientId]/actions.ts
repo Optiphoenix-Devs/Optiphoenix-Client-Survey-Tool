@@ -4,28 +4,40 @@ import { revalidatePath, revalidateTag } from "next/cache";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import type { ActionResult } from "@/lib/action-result";
+import { saveFormImageUpload } from "@/lib/form-image-upload";
+import { normalizeThankYouBg } from "@/lib/form-thank-you";
 import {
   addFieldSchema,
+  addSectionSchema,
   createFormSchema,
   deleteFieldSchema,
   deleteFormSchema,
+  deleteSectionSchema,
+  duplicateFieldSchema,
+  duplicateFormSchema,
   publishFormSchema,
   reorderFieldsSchema,
   updateFieldSchema,
   updateFormSchema,
+  updateSectionSchema,
   saveTemplateSchema,
 } from "@/lib/validations";
 import {
   addFieldToForm,
+  addSectionToForm,
   applyTemplateToForm,
   attachFormToClient,
   createFormForUser,
   deleteClientForm,
   deleteFieldOnForm,
+  deleteSectionOnForm,
+  duplicateFieldOnForm,
+  duplicateFormForUser,
   reorderFieldsOnForm,
   setClientFormPublish,
   updateClientForm,
   updateFieldOnForm,
+  updateSectionOnForm,
 } from "@/lib/forms";
 import { saveFormAsTemplate } from "@/lib/templates";
 import { prisma } from "@/lib/prisma";
@@ -140,11 +152,43 @@ export async function updateForm(formData: FormData): Promise<ActionResult> {
     formId,
     title: formData.get("title"),
     description: formData.get("description") ?? "",
+    thankYouTitle: formData.get("thankYouTitle") ?? "",
+    thankYouMessage: formData.get("thankYouMessage") ?? "",
+    thankYouBgColor: formData.get("thankYouBgColor") ?? "",
   });
 
   if (!parsed.success) {
     return { error: "Enter a form title." };
   }
+
+  let headerImageUrl: string | null | undefined;
+  if (formData.get("removeHeaderImage") === "1") {
+    headerImageUrl = null;
+  } else {
+    const file = formData.get("headerImage");
+    if (file instanceof File && file.size > 0) {
+      const saved = await saveFormImageUpload(parsed.data.formId, file, "form-headers");
+      if ("error" in saved) return { error: saved.error };
+      headerImageUrl = saved.url;
+    }
+  }
+
+  let thankYouImageUrl: string | null | undefined;
+  if (formData.get("removeThankYouImage") === "1") {
+    thankYouImageUrl = null;
+  } else {
+    const file = formData.get("thankYouImage");
+    if (file instanceof File && file.size > 0) {
+      const saved = await saveFormImageUpload(parsed.data.formId, file, "form-thank-you");
+      if ("error" in saved) return { error: saved.error };
+      thankYouImageUrl = saved.url;
+    }
+  }
+
+  const thankYouBgColor =
+    formData.get("thankYouBgColor") != null
+      ? normalizeThankYouBg(String(formData.get("thankYouBgColor") ?? ""))
+      : undefined;
 
   try {
     await updateClientForm(
@@ -154,7 +198,12 @@ export async function updateForm(formData: FormData): Promise<ActionResult> {
       parsed.data.clientId,
       parsed.data.formId,
       parsed.data.title,
-      parsed.data.description
+      parsed.data.description,
+      parsed.data.thankYouTitle,
+      parsed.data.thankYouMessage,
+      headerImageUrl,
+      thankYouImageUrl,
+      thankYouBgColor
     );
   } catch (error) {
     return { error: error instanceof Error ? error.message : "Save failed." };
@@ -242,6 +291,7 @@ export async function addField(formData: FormData): Promise<ActionResult> {
     clientId,
     formId,
     type: formData.get("type"),
+    sectionId: formData.get("sectionId") ?? "",
   });
 
   if (!parsed.success) {
@@ -256,7 +306,8 @@ export async function addField(formData: FormData): Promise<ActionResult> {
       parsed.data.teamId,
       parsed.data.clientId,
       parsed.data.formId,
-      parsed.data.type
+      parsed.data.type,
+      parsed.data.sectionId ?? null
     );
   } catch (error) {
     return { error: error instanceof Error ? error.message : "Add failed." };
@@ -264,6 +315,107 @@ export async function addField(formData: FormData): Promise<ActionResult> {
 
   revalidateBuilder(teamId, clientId, formId);
   return { fieldId: question.id };
+}
+
+export async function addSection(formData: FormData): Promise<ActionResult> {
+  const session = await requireSession();
+  const teamId = String(formData.get("teamId") ?? "");
+  const clientId = String(formData.get("clientId") ?? "");
+  const formId = String(formData.get("formId") ?? "");
+
+  const parsed = addSectionSchema.safeParse({
+    teamId,
+    clientId,
+    formId,
+    branchValue: formData.get("branchValue"),
+  });
+  if (!parsed.success) return { error: "Could not add section." };
+
+  let section;
+  try {
+    section = await addSectionToForm(
+      session.user.id,
+      session.user.role,
+      parsed.data.teamId,
+      parsed.data.clientId,
+      parsed.data.formId,
+      parsed.data.branchValue
+    );
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Add failed." };
+  }
+
+  revalidateBuilder(teamId, clientId, formId);
+  return { sectionId: section.id };
+}
+
+export async function updateSection(formData: FormData): Promise<ActionResult> {
+  const session = await requireSession();
+  const teamId = String(formData.get("teamId") ?? "");
+  const clientId = String(formData.get("clientId") ?? "");
+  const formId = String(formData.get("formId") ?? "");
+  const sectionId = String(formData.get("sectionId") ?? "");
+
+  const parsed = updateSectionSchema.safeParse({
+    teamId,
+    clientId,
+    formId,
+    sectionId,
+    description: formData.get("description") ?? "",
+  });
+
+  if (!parsed.success) return { error: "Check section details." };
+
+  try {
+    await updateSectionOnForm(
+      session.user.id,
+      session.user.role,
+      parsed.data.teamId,
+      parsed.data.clientId,
+      parsed.data.formId,
+      parsed.data.sectionId,
+      {
+        description: parsed.data.description,
+      }
+    );
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Save failed." };
+  }
+
+  revalidateBuilder(teamId, clientId, formId);
+  return {};
+}
+
+export async function deleteSection(formData: FormData): Promise<ActionResult> {
+  const session = await requireSession();
+  const teamId = String(formData.get("teamId") ?? "");
+  const clientId = String(formData.get("clientId") ?? "");
+  const formId = String(formData.get("formId") ?? "");
+  const sectionId = String(formData.get("sectionId") ?? "");
+
+  const parsed = deleteSectionSchema.safeParse({
+    teamId,
+    clientId,
+    formId,
+    sectionId,
+  });
+  if (!parsed.success) return { error: "Could not remove section." };
+
+  try {
+    await deleteSectionOnForm(
+      session.user.id,
+      session.user.role,
+      parsed.data.teamId,
+      parsed.data.clientId,
+      parsed.data.formId,
+      parsed.data.sectionId
+    );
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Remove failed." };
+  }
+
+  revalidateBuilder(teamId, clientId, formId);
+  return {};
 }
 
 export async function updateField(formData: FormData): Promise<ActionResult> {
@@ -279,8 +431,11 @@ export async function updateField(formData: FormData): Promise<ActionResult> {
     formId,
     fieldId,
     label: formData.get("label"),
+    description: formData.get("description") ?? "",
     required: formData.get("required"),
     optionsText: formData.get("optionsText") ?? undefined,
+    maxLength: formData.get("maxLength") ?? undefined,
+    allowOther: formData.get("allowOther"),
   });
 
   if (!parsed.success) {
@@ -297,8 +452,11 @@ export async function updateField(formData: FormData): Promise<ActionResult> {
       parsed.data.fieldId,
       {
         label: parsed.data.label,
+        description: parsed.data.description,
         required: parsed.data.required,
         optionsText: parsed.data.optionsText,
+        maxLength: parsed.data.maxLength,
+        allowOther: parsed.data.allowOther,
       }
     );
   } catch (error) {
@@ -341,6 +499,73 @@ export async function deleteField(formData: FormData): Promise<ActionResult> {
 
   revalidateBuilder(teamId, clientId, formId);
   return {};
+}
+
+export async function duplicateField(formData: FormData): Promise<ActionResult> {
+  const session = await requireSession();
+  const teamId = String(formData.get("teamId") ?? "");
+  const clientId = String(formData.get("clientId") ?? "");
+  const formId = String(formData.get("formId") ?? "");
+
+  const parsed = duplicateFieldSchema.safeParse({
+    teamId,
+    clientId,
+    formId,
+    fieldId: formData.get("fieldId"),
+  });
+
+  if (!parsed.success) {
+    return { error: "Field not found." };
+  }
+
+  let question;
+  try {
+    question = await duplicateFieldOnForm(
+      session.user.id,
+      session.user.role,
+      parsed.data.teamId,
+      parsed.data.clientId,
+      parsed.data.formId,
+      parsed.data.fieldId
+    );
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Duplicate failed." };
+  }
+
+  revalidateBuilder(teamId, clientId, formId);
+  return { fieldId: question.id };
+}
+
+export async function duplicateForm(formData: FormData): Promise<ActionResult> {
+  const session = await requireSession();
+  const teamId = String(formData.get("teamId") ?? "");
+  const clientId = String(formData.get("clientId") ?? "");
+
+  const parsed = duplicateFormSchema.safeParse({
+    teamId,
+    clientId,
+    formId: formData.get("formId"),
+  });
+
+  if (!parsed.success) {
+    return { error: "Form not found." };
+  }
+
+  let form;
+  try {
+    form = await duplicateFormForUser(
+      session.user.id,
+      session.user.role,
+      parsed.data.formId
+    );
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Duplicate failed." };
+  }
+
+  revalidateTag("dashboard-shell", "max");
+  revalidatePath("/dashboard/forms");
+  if (teamId && clientId) revalidatePath(clientPath(teamId, clientId));
+  return { formId: form.id };
 }
 
 export async function reorderFields(formData: FormData): Promise<ActionResult> {

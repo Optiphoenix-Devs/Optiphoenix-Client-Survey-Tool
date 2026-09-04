@@ -1,10 +1,23 @@
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { unstable_cache } from "next/cache";
-import { auth } from "@/auth";
+import { auth, signOut } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { getSidebarCounts } from "@/lib/teams";
 import { logout } from "./actions";
 import { DashboardShell } from "./dashboard-shell";
+
+function hasAuthSessionCookie(
+  jar: Awaited<ReturnType<typeof cookies>>
+) {
+  return jar
+    .getAll()
+    .some(
+      (cookie) =>
+        cookie.name.includes("authjs.session-token") ||
+        cookie.name.includes("next-auth.session-token")
+    );
+}
 
 const getShellData = (userId: string, role: "ADMIN" | "TEAM_LEAD") =>
   // Sidebar counts are shared across every dashboard route. Cache them so
@@ -32,6 +45,13 @@ export default async function DashboardLayout({
 }) {
   const session = await auth();
   if (!session?.user?.id || !session.user.role) {
+    const jar = await cookies();
+    const replacedElsewhere = hasAuthSessionCookie(jar);
+    // Clear stale cookie only when one exists; avoid racing a fresh login.
+    if (replacedElsewhere) {
+      await signOut({ redirect: false });
+      redirect("/login?notice=signed-out-elsewhere");
+    }
     redirect("/login");
   }
 
@@ -40,7 +60,10 @@ export default async function DashboardLayout({
     session.user.role
   );
 
-  if (!user) redirect("/login");
+  if (!user) {
+    await signOut({ redirect: false });
+    redirect("/login");
+  }
 
   return (
     <DashboardShell

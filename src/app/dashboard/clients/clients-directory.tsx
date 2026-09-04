@@ -32,8 +32,13 @@ import { TableHeadCenter, TableHeadLeft, TableCellCenter, TableCellLeft, Directo
 import { Stagger } from "@/components/ui/skeleton";
 import { Select } from "@/components/ui/select";
 import { columnLabel } from "@/lib/format";
+import { matchesDirectorySearch } from "@/lib/directory-search";
 import { runServerAction } from "@/lib/run-server-action";
-import { sortDirectoryRows, type DirectorySort } from "@/lib/sort";
+import {
+  DIRECTORY_SORT_SELECTION_VALUES,
+  sortDirectoryRows,
+  type DirectorySort,
+} from "@/lib/sort";
 import { useDirectoryView } from "@/lib/use-directory-view";
 import { usePersistedValue } from "@/lib/use-persisted-value";
 
@@ -50,7 +55,7 @@ type ClientsDirectoryProps = {
 };
 
 const VIEW_KEY = "optiphoenix.clientsView";
-const SORT_KEY = "optiphoenix.clientsSort";
+const SORT_KEY = "optiphoenix.clientsSort.v2";
 
 export function ClientsDirectory({
   clients,
@@ -64,24 +69,20 @@ export function ClientsDirectory({
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [view, setView] = useDirectoryView(VIEW_KEY);
-  const [sort, setSort] = usePersistedValue(SORT_KEY, "newest", [
-    "newest",
-    "oldest",
-    "name-asc",
-    "name-desc",
-  ]);
+  const [sort, setSort] = usePersistedValue(SORT_KEY, "", DIRECTORY_SORT_SELECTION_VALUES);
   const [drawer, setDrawer] = useState<"create" | ClientDirectoryRow | null>(null);
   const [deleting, setDeleting] = useState<ClientDirectoryRow | null>(null);
   const [pending, startTransition] = useTransition();
 
   const visible = useMemo(() => {
-    const needle = query.trim().toLowerCase();
-    const filtered = needle
+    const filtered = query.trim()
       ? clients.filter((client) =>
-          [client.name, client.company ?? "", client.email ?? "", client.teamName]
-            .join(" ")
-            .toLowerCase()
-            .includes(needle)
+          matchesDirectorySearch(query, [
+            client.name,
+            client.company,
+            client.email,
+            client.teamName,
+          ])
         )
       : clients;
     return sortDirectoryRows(
@@ -120,32 +121,34 @@ export function ClientsDirectory({
 
   return (
     <section>
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-center">
-        <h1 className="text-3xl font-semibold tracking-tight">{title}</h1>
-        <DirectoryToolbar
-          query={query}
-          onQueryChange={setQuery}
-          view={view}
-          onViewChange={setView}
-          searchPlaceholder="Search clients..."
-          className="flex-1"
-          sort={sort}
-          onSortChange={(next: DirectorySort) => {
-            setSort(next);
-            paged.setPage(1);
-          }}
-        />
-        <button
-          type="button"
-          disabled={!canCreate}
-          onClick={() => {
-            setDrawer("create");
-          }}
-          className="app-btn-primary px-4 py-2.5 text-sm disabled:opacity-50"
-        >
-          <Plus className="h-4 w-4" />
-          New client
-        </button>
+      <div className="flex flex-col gap-4">
+        <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">{title}</h1>
+        <div className="flex w-full min-w-0 flex-col gap-2 lg:flex-row lg:items-center lg:gap-2">
+          <DirectoryToolbar
+            query={query}
+            onQueryChange={setQuery}
+            view={view}
+            onViewChange={setView}
+            searchPlaceholder="Search clients..."
+            className="w-full lg:flex-1"
+            sort={sort}
+            onSortChange={(next: DirectorySort) => {
+              setSort(next);
+              paged.setPage(1);
+            }}
+          />
+          <button
+            type="button"
+            disabled={!canCreate}
+            onClick={() => {
+              setDrawer("create");
+            }}
+            className="app-btn-primary w-full justify-center px-4 py-2.5 text-sm disabled:opacity-50 lg:w-auto lg:shrink-0"
+          >
+            <Plus className="h-4 w-4" />
+            New client
+          </button>
+        </div>
       </div>
 
       {!canCreate ? (
@@ -218,9 +221,12 @@ export function ClientsDirectory({
         </ul>
       ) : (
         <div className="directory-table-wrap mt-6">
-          <table className="directory-table w-full min-w-[44rem] table-fixed text-sm">
+          <table className="directory-table w-full min-w-[48rem] text-sm">
             <thead>
               <tr>
+                <TableHeadLeft className="w-[16%]">
+                  {columnLabel(visible.length, "Team", "Teams")}
+                </TableHeadLeft>
                 <TableHeadLeft className="w-[18%]">
                   {columnLabel(visible.length, "Client", "Clients")}
                 </TableHeadLeft>
@@ -229,9 +235,6 @@ export function ClientsDirectory({
                 </TableHeadCenter>
                 <TableHeadCenter className="w-[22%]">
                   {columnLabel(visible.length, "Email", "Emails")}
-                </TableHeadCenter>
-                <TableHeadCenter className="w-[16%]">
-                  {columnLabel(visible.length, "Team", "Teams")}
                 </TableHeadCenter>
                 <TableHeadCenter className="w-[10%]">
                   {columnLabel(formTotal, "Form", "Forms")}
@@ -246,10 +249,10 @@ export function ClientsDirectory({
                   href={client.href}
                   ariaLabel={`Open ${client.name}`}
                 >
+                  <TableCellLeft className="text-muted">{client.teamName}</TableCellLeft>
                   <TableCellLeft className="font-medium">{client.name}</TableCellLeft>
                   <TableCellCenter className="text-muted">{client.company || "—"}</TableCellCenter>
                   <TableCellCenter className="text-muted">{client.email || "—"}</TableCellCenter>
-                  <TableCellCenter className="text-muted">{client.teamName}</TableCellCenter>
                   <TableCellCenter className="tabular-nums">{client.formCount}</TableCellCenter>
                   <TableActionsCell>
                     <TableEditButton

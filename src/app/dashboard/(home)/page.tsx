@@ -1,15 +1,16 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { FileText, FolderOpen, Globe, Inbox, Plus } from "lucide-react";
+import { FileText, FolderOpen, Globe, Plus } from "lucide-react";
 import { auth } from "@/auth";
 import { getDashboardOverview } from "@/lib/teams";
-import { getClientPerformanceForUser } from "@/lib/analytics";
-import { DashboardGreeting } from "./dashboard-greeting";
-import { YourFormsSection } from "./your-forms-section";
-import { StatCard } from "@/components/ui/page";
-import { DirectorySkeleton } from "@/components/ui/skeleton";
-import { ClientPerformanceChart } from "./client-performance-chart";
+import { DashboardGreeting } from "../dashboard-greeting";
+import { YourFormsSection } from "../your-forms-section";
+import { DirectoryLoadingShell } from "@/components/directory/directory-loading-shell";
+import {
+  buildContinueItems,
+  ContinueWhereLeftOff,
+} from "../continue-where-left-off";
 
 export default async function DashboardPage({
   searchParams,
@@ -25,14 +26,12 @@ export default async function DashboardPage({
   }
 
   await searchParams;
-  const [overview, performance] = await Promise.all([
-    getDashboardOverview(session.user.id, session.user.role),
-    getClientPerformanceForUser(session.user.id, session.user.role),
-  ]);
+  const overview = await getDashboardOverview(session.user.id, session.user.role);
   const firstName = session.user.name?.split(" ")[0] ?? "there";
   const formCount = overview.publishedCount + overview.draftCount;
   const publishedShare =
     formCount > 0 ? Math.round((overview.publishedCount / formCount) * 100) : 0;
+  const continueItems = buildContinueItems(overview.forms);
 
   return (
     <main className="mx-auto flex w-full max-w-6xl flex-col gap-8 px-4 py-8 sm:px-8 sm:py-10">
@@ -53,7 +52,7 @@ export default async function DashboardPage({
             <FolderOpen className="h-5 w-5" />
           </span>
           <p className="mt-6 text-xl font-semibold tracking-tight">Create a form</p>
-          <p className="mt-1 max-w-sm text-sm leading-6 text-on-brand/80">
+          <p className="mt-1 max-w-xl text-sm leading-6 text-on-brand/80 text-pretty">
             Create a form from scratch or a template. Each public link can be submitted once.
           </p>
           <span className="mt-auto inline-flex h-9 w-9 items-center justify-center rounded-full bg-on-brand text-brand">
@@ -108,31 +107,17 @@ export default async function DashboardPage({
         </Link>
       </section>
 
-      <div className="grid items-stretch gap-4 lg:grid-cols-4">
-        <Link href="/dashboard/responses" className="block lg:col-span-1">
-          <StatCard
-            icon={Inbox}
-            label="Responses"
-            value={overview.responseCount}
-            hint={
-              overview.responseCount === 0
-                ? "Submitted feedback appears after clients complete surveys."
-                : `Total submissions across ${formCount} ${formCount === 1 ? "form" : "forms"}.`
-            }
-            iconClassName="app-radius bg-sky-100 text-sky-800 ring-1 ring-sky-600/20 dark:bg-sky-950/60 dark:text-sky-200 dark:ring-sky-500/30"
-            className="h-full app-radius p-6"
-          />
-        </Link>
-        <div className="lg:col-span-3">
-          <ClientPerformanceChart
-            overallAverage={performance.overallAverage}
-            overallCount={performance.overallCount}
-            clients={performance.clients}
-          />
-        </div>
-      </div>
+      <ContinueWhereLeftOff items={continueItems} />
 
-      <Suspense fallback={<DirectorySkeleton />}>
+      <Suspense
+        fallback={
+          <DirectoryLoadingShell
+            storageKey="optiphoenix.formsView"
+            cardVariant="form"
+            tableColumns={6}
+          />
+        }
+      >
         <YourFormsSection forms={overview.forms} />
       </Suspense>
     </main>

@@ -2,12 +2,11 @@ export function BrandLogo({ className }: { className?: string }) {
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
-      width="180"
-      height="29"
       viewBox="0 0 180 29"
       fill="none"
-      className={className ?? "block w-[120px] md:w-[180px]"}
+      className={className ?? "block h-[29px] w-[180px]"}
       aria-label="OptiPhoenix"
+      role="img"
     >
       <path
         d="M176.83 2.92189L170.971 2.90295L170.97 4.81746L174.797 4.81986L174.794 8.65658L176.812 8.65785L176.83 2.92189Z"

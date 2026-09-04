@@ -17,7 +17,7 @@ export default async function ProfilePage() {
 
   return (
     <main className="mx-auto flex w-full max-w-6xl flex-col px-4 py-8 sm:px-8 sm:py-10">
-      <h1 className="text-3xl font-semibold tracking-tight">Profile</h1>
+      <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Profile</h1>
       <p className="mt-1 text-sm text-muted">
         Update how your name and avatar appear in the sidebar.
       </p>

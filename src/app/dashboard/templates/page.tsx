@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import type { UserRole } from "@/generated/prisma/client";
 import { getTemplatesForUser } from "@/lib/templates";
-import { DirectorySkeleton } from "@/components/ui/skeleton";
+import { DirectoryLoadingShell } from "@/components/directory/directory-loading-shell";
 import { TemplatesDirectory } from "./templates-directory";
 import { deleteTemplate, useTemplate, createTemplate } from "./actions";
 
@@ -14,7 +14,16 @@ export default async function TemplatesPage() {
   if (!session?.user?.id || !session.user.role) redirect("/login");
 
   return (
-    <Suspense fallback={<DirectorySkeleton />}>
+    <Suspense
+      fallback={
+        <DirectoryLoadingShell
+          storageKey="optiphoenix.templatesView"
+          withActions
+          tableColumns={5}
+          metaLines={2}
+        />
+      }
+    >
       <TemplatesBody userId={session.user.id} role={session.user.role} />
     </Suspense>
   );

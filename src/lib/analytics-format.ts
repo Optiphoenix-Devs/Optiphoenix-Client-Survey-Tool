@@ -67,6 +67,7 @@ export type AnalyticsSnapshot = {
   };
   resourceAverage: number | null;
   resourceCount: number;
+  resourceDistribution: ScoreDistribution;
   combinedAverage: number | null;
   combinedCount: number;
   questions: RatingRow[];

@@ -4,6 +4,7 @@ import { formsAccessibleWhere } from "@/lib/forms";
 import { getTeamsForUser } from "@/lib/teams";
 import { getClientsForUser } from "@/lib/clients";
 import { NONE_CLIENT } from "@/lib/analytics-format";
+import { resolveAnalyticsClient } from "@/lib/analytics-scope";
 import {
   periodStartDate,
   resolveSummaryPeriod,
@@ -40,12 +41,23 @@ export async function getAnalyticsForUser(
   const formAccess = formsAccessibleWhere(userId, role, teamIds);
   const clients = await getClientsForUser(userId, role);
 
-  const selected =
-    clientFilter === NONE_CLIENT
-      ? NONE_CLIENT
-      : clientFilter && clients.some((client) => client.id === clientFilter)
-        ? clientFilter
-        : "";
+  const independentExists = await prisma.response.findFirst({
+    where: {
+      clientSurvey: {
+        form: formAccess,
+        AND: [{ clientId: null }, { form: { clientId: null } }],
+      },
+    },
+    select: { id: true },
+  });
+  const hasIndependentResponses = Boolean(independentExists);
+
+  const resolved = resolveAnalyticsClient(
+    clientFilter,
+    clients.map((client) => ({ id: client.id, name: client.name })),
+    hasIndependentResponses
+  );
+  const selected = resolved.id;
 
   const clientWhere =
     selected === NONE_CLIENT
@@ -88,16 +100,6 @@ export async function getAnalyticsForUser(
     },
   });
 
-  const independentCount = await prisma.response.count({
-    where: {
-      clientSurvey: {
-        form: formAccess,
-        AND: [{ clientId: null }, { form: { clientId: null } }],
-      },
-      submittedAt: { gte: startDate },
-    },
-  });
-
   const overallDist = emptyDistribution();
   const overallScores: number[] = [];
   const combinedScores: number[] = [];
@@ -114,7 +116,6 @@ export async function getAnalyticsForUser(
     string,
     { name: string; scores: number[]; distribution: ScoreDistribution }
   >();
-  const monthMap = new Map<string, { scores: number[]; responses: number }>();
   const comments: SummaryComment[] = [];
   const formIds = new Set<string>();
   const clientIds = new Set<string>();
@@ -126,10 +127,6 @@ export async function getAnalyticsForUser(
     if (form.client?.id) clientIds.add(form.client.id);
     else if (row.clientSurvey.clientId) clientIds.add(row.clientSurvey.clientId);
 
-    const monthKey = monthKeyFrom(row.submittedAt);
-    const month = monthMap.get(monthKey) ?? { scores: [], responses: 0 };
-    month.responses += 1;
-
     for (const answer of row.answers) {
       const type = answer.question.type;
       const value = answer.value.trim();
@@ -140,7 +137,6 @@ export async function getAnalyticsForUser(
         overallScores.push(score);
         combinedScores.push(score);
         bump(overallDist, score);
-        month.scores.push(score);
 
         const key = normalizeLabel(answer.question.label);
         const question = questionMap.get(key) ?? {
@@ -157,7 +153,6 @@ export async function getAnalyticsForUser(
         for (const item of parseResourceRatings(value)) {
           if (item.score == null) continue;
           combinedScores.push(item.score);
-          month.scores.push(item.score);
           const key = normalizeLabel(item.name);
           const resource = resourceMap.get(key) ?? {
             name: item.name,
@@ -184,27 +179,27 @@ export async function getAnalyticsForUser(
         });
       }
     }
-
-    monthMap.set(monthKey, month);
   }
+
+  const trendStartDate = periodStartDate("yearly");
+  const trends = await buildTrendsForScope(formAccess, clientWhere, trendStartDate);
 
   comments.sort(
     (a, b) => Date.parse(b.submittedAt) - Date.parse(a.submittedAt)
   );
 
-  const selectedClientName =
-    selected === NONE_CLIENT
-      ? "Independent forms"
-      : selected
-        ? (clients.find((client) => client.id === selected)?.name ?? "Client")
-        : "All responses";
+  const selectedClientName = resolved.name;
+
+  const resourceScores = [...resourceMap.values()].flatMap((item) => item.scores);
+  const resourceDist = emptyDistribution();
+  for (const score of resourceScores) bump(resourceDist, score);
 
   return {
     selectedClientId: selected,
     selectedClientName,
     selectedPeriod,
     clients: clients.map((client) => ({ id: client.id, name: client.name })),
-    hasIndependentResponses: independentCount > 0,
+    hasIndependentResponses,
     responseCount: rows.length,
     formCount: formIds.size,
     clientCount: clientIds.size,
@@ -213,13 +208,9 @@ export async function getAnalyticsForUser(
       count: overallScores.length,
       distribution: overallDist,
     },
-    resourceAverage: average(
-      [...resourceMap.values()].flatMap((item) => item.scores)
-    ),
-    resourceCount: [...resourceMap.values()].reduce(
-      (sum, item) => sum + item.scores.length,
-      0
-    ),
+    resourceAverage: average(resourceScores),
+    resourceCount: resourceScores.length,
+    resourceDistribution: resourceDist,
     combinedAverage: average(combinedScores),
     combinedCount: combinedScores.length,
     questions: [...questionMap.values()]
@@ -240,9 +231,58 @@ export async function getAnalyticsForUser(
         distribution: item.distribution,
       }))
       .sort((a, b) => b.average - a.average || b.count - a.count),
-    trends: buildTrend(monthMap),
-    comments: comments.slice(0, 8),
+    trends,
+    comments: comments.slice(0, 12),
   };
+}
+
+async function buildTrendsForScope(
+  formAccess: ReturnType<typeof formsAccessibleWhere>,
+  clientWhere: Record<string, unknown>,
+  trendStartDate: Date
+) {
+  const trendRows = await prisma.response.findMany({
+    where: {
+      clientSurvey: {
+        AND: [{ form: formAccess }, clientWhere],
+      },
+      submittedAt: { gte: trendStartDate },
+    },
+    select: {
+      submittedAt: true,
+      answers: {
+        where: { question: { type: { in: ["RATING", "RESOURCE_RATING"] } } },
+        select: {
+          value: true,
+          question: { select: { type: true } },
+        },
+      },
+    },
+    orderBy: { submittedAt: "asc" },
+  });
+
+  const monthMap = new Map<string, { scores: number[]; responses: number }>();
+
+  for (const row of trendRows) {
+    const monthKey = monthKeyFrom(row.submittedAt);
+    const month = monthMap.get(monthKey) ?? { scores: [], responses: 0 };
+    month.responses += 1;
+
+    for (const answer of row.answers) {
+      if (answer.question.type === "RATING") {
+        const score = parseStar(answer.value);
+        if (score != null) month.scores.push(score);
+      } else if (answer.question.type === "RESOURCE_RATING") {
+        for (const item of parseResourceRatings(answer.value)) {
+          if (item.score != null) month.scores.push(item.score);
+        }
+      }
+    }
+
+    monthMap.set(monthKey, month);
+  }
+
+  return buildTrend(monthMap, monthKeyFrom(trendStartDate));
 }
 
 /** Per-client combined rating (star scores + resource scores) for the dashboard chart. */
@@ -372,11 +412,16 @@ function monthLabel(key: string) {
   });
 }
 
-function buildTrend(monthMap: Map<string, { scores: number[]; responses: number }>) {
+function buildTrend(
+  monthMap: Map<string, { scores: number[]; responses: number }>,
+  rangeStart?: string
+) {
   if (monthMap.size === 0) return [] as TrendPoint[];
 
   const keys = [...monthMap.keys()].sort();
-  const start = keys[0];
+  const dataStart = keys[0];
+  const start =
+    rangeStart && rangeStart > dataStart ? rangeStart : dataStart;
   const now = monthKeyFrom(new Date());
   const end = keys[keys.length - 1] > now ? keys[keys.length - 1] : now;
   const points: TrendPoint[] = [];

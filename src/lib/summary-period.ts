@@ -13,10 +13,10 @@ export function resolveSummaryPeriod(value?: string): SummaryPeriod {
 }
 
 export function summaryPeriodLabel(period: SummaryPeriod) {
-  if (period === "monthly") return "Monthly";
-  if (period === "quarterly") return "Quarterly";
+  if (period === "monthly") return "Last month";
+  if (period === "quarterly") return "Last quarter";
   if (period === "half-year") return "Last 6 months";
-  return "Last 1 year";
+  return "Last year";
 }
 
 export function periodStartDate(period: SummaryPeriod, now = new Date()) {

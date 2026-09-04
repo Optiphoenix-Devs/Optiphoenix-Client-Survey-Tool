@@ -11,11 +11,14 @@ export function LoginForm({ notice }: { notice?: string }) {
   const [state, action, pending] = useActionState(loginAction, {});
 
   useEffect(() => {
-    if (notice) {
-      toastOnce(`login-notice:${notice}`, notice.replaceAll("+", " "), {
-        tone: "success",
-      });
-    }
+    if (!notice) return;
+    const message =
+      notice === "signed-out-elsewhere"
+        ? "You were signed out because you logged in on another device."
+        : notice.replaceAll("+", " ");
+    toastOnce(`login-notice:${notice}`, message, {
+      tone: notice === "signed-out-elsewhere" ? "info" : "success",
+    });
   }, [notice]);
 
   useEffect(() => {

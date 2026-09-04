@@ -1,0 +1,11 @@
+-- Form thank-you customization
+ALTER TABLE `Form` ADD COLUMN `thankYouTitle` VARCHAR(191) NULL;
+ALTER TABLE `Form` ADD COLUMN `thankYouMessage` TEXT NULL;
+
+-- Conditional logic on questions
+ALTER TABLE `Question` ADD COLUMN `logic` JSON NULL;
+ALTER TABLE `FormTemplateQuestion` ADD COLUMN `logic` JSON NULL;
+
+-- Section breaks in forms
+ALTER TABLE `Question` MODIFY `type` ENUM('SHORT_TEXT', 'LONG_TEXT', 'SINGLE_CHOICE', 'MULTIPLE_CHOICE', 'DROPDOWN', 'COMMENT', 'SUGGESTION', 'RATING', 'RESOURCE_RATING', 'YES_NO', 'SECTION') NOT NULL;
+ALTER TABLE `FormTemplateQuestion` MODIFY `type` ENUM('SHORT_TEXT', 'LONG_TEXT', 'SINGLE_CHOICE', 'MULTIPLE_CHOICE', 'DROPDOWN', 'COMMENT', 'SUGGESTION', 'RATING', 'RESOURCE_RATING', 'YES_NO', 'SECTION') NOT NULL;

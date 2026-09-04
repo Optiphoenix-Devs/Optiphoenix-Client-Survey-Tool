@@ -7,6 +7,7 @@ import type { UserRole } from "@/generated/prisma/client";
 import { formsAccessibleWhere } from "@/lib/forms";
 import { getTeamsForUser } from "@/lib/teams";
 import { NONE_CLIENT } from "@/lib/analytics-format";
+import { resolveAnalyticsClient } from "@/lib/analytics-scope";
 import {
   periodStartDate,
   resolveSummaryPeriod,
@@ -28,42 +29,20 @@ export async function getSummarizeScope(
   clientFilter?: string,
   periodFilter?: string
 ): Promise<SummarizeScope> {
+  const selectedPeriod = resolveSummaryPeriod(periodFilter);
+  const startDate = periodStartDate(selectedPeriod);
   const teams = await getTeamsForUser(userId, role);
   const teamIds = teams.map((team) => team.id);
   const formAccess = formsAccessibleWhere(userId, role, teamIds);
-  const selectedPeriod = resolveSummaryPeriod(periodFilter);
-  const startDate = periodStartDate(selectedPeriod);
-  const clients = teamIds.length
-    ? await prisma.client.findMany({
-        where: { teamId: { in: teamIds } },
-        select: { id: true, name: true },
-        orderBy: { name: "asc" },
-      })
-    : [];
 
-  const selected =
-    clientFilter === NONE_CLIENT
-      ? NONE_CLIENT
-      : clientFilter && clients.some((client) => client.id === clientFilter)
-        ? clientFilter
-        : "";
-
-  const clientWhere =
-    selected === NONE_CLIENT
-      ? { AND: [{ clientId: null }, { form: { clientId: null } }] }
-      : selected
-        ? {
-            OR: [{ clientId: selected }, { form: { clientId: selected } }],
-          }
-        : {};
-
-  const [responseCount, independent] = await Promise.all([
-    prisma.response.count({
-      where: {
-        submittedAt: { gte: startDate },
-        clientSurvey: { AND: [{ form: formAccess }, clientWhere] },
-      },
-    }),
+  const [clients, independent] = await Promise.all([
+    teamIds.length
+      ? prisma.client.findMany({
+          where: { teamId: { in: teamIds } },
+          select: { id: true, name: true },
+          orderBy: { name: "asc" },
+        })
+      : Promise.resolve([] as Array<{ id: string; name: string }>),
     prisma.response.findFirst({
       where: {
         submittedAt: { gte: startDate },
@@ -76,19 +55,36 @@ export async function getSummarizeScope(
     }),
   ]);
 
-  const selectedClientName =
+  const hasIndependentResponses = Boolean(independent);
+  const resolved = resolveAnalyticsClient(
+    clientFilter,
+    clients,
+    hasIndependentResponses
+  );
+  const selected = resolved.id;
+
+  const clientWhere =
     selected === NONE_CLIENT
-      ? "Independent forms"
+      ? { AND: [{ clientId: null }, { form: { clientId: null } }] }
       : selected
-        ? (clients.find((client) => client.id === selected)?.name ?? "Client")
-        : "All responses";
+        ? {
+            OR: [{ clientId: selected }, { form: { clientId: selected } }],
+          }
+        : {};
+
+  const responseCount = await prisma.response.count({
+    where: {
+      submittedAt: { gte: startDate },
+      clientSurvey: { AND: [{ form: formAccess }, clientWhere] },
+    },
+  });
 
   return {
     selectedClientId: selected,
-    selectedClientName,
+    selectedClientName: resolved.name,
     selectedPeriod,
     clients,
-    hasIndependentResponses: Boolean(independent),
+    hasIndependentResponses,
     responseCount,
   };
 }

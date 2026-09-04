@@ -10,7 +10,7 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
         </div>
       </div>
       <div className="app-grid-body flex w-full max-w-md flex-col items-center">
-        <BrandLogo className="block w-[120px] text-foreground md:w-[180px]" />
+        <BrandLogo className="block h-5 w-[120px] text-foreground md:h-[29px] md:w-[180px]" />
         <div className="card-enter mt-8 w-full app-radius border border-border bg-card p-6 pb-5 shadow-sm">
           {children}
         </div>

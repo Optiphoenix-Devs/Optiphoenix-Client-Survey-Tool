@@ -6,11 +6,10 @@
 import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
-import { getCachedAiSummary, isGeminiConfigured } from "@/lib/ai-summary";
+import { getCachedAiSummary } from "@/lib/ai-summary";
 import { getSummarizeScope } from "@/lib/summarize-scope";
-import { DashboardSkeleton } from "@/components/ui/skeleton";
-import { SummarizeBriefing } from "./summarize-briefing";
-import { SummarizeToolbar } from "./summarize-toolbar";
+import { SummarizeSkeleton } from "@/components/ui/skeleton";
+import { SummarizeView } from "./summarize-view";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -24,7 +23,7 @@ export default async function SummarizePage({
   if (!session?.user?.id || !session.user.role) redirect("/login");
 
   return (
-    <Suspense fallback={<DashboardSkeleton />}>
+    <Suspense fallback={<SummarizeSkeleton />}>
       <SummarizeBody
         userId={session.user.id}
         role={session.user.role}
@@ -45,33 +44,26 @@ async function SummarizeBody({
 }) {
   const { client, period } = await searchParams;
   const data = await getSummarizeScope(userId, role, client, period);
+  // Must use resolved selectedClientId (same as Generate), not the raw URL
+  // `client` param — otherwise cache miss after generate when the URL has no client.
   const summary =
     data.responseCount > 0
-      ? getCachedAiSummary(userId, role, client, data.selectedPeriod)
+      ? getCachedAiSummary(
+          userId,
+          role,
+          data.selectedClientId,
+          data.selectedPeriod,
+          { allowStale: true }
+        )
       : null;
 
   return (
-    <main className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 py-8 sm:px-8 sm:py-10">
-      <SummarizeToolbar
-        key={`${data.selectedClientId}-${data.selectedPeriod}`}
-        data={data}
-        geminiReady={isGeminiConfigured()}
-        hasSummary={Boolean(summary)}
-      />
-      {data.responseCount === 0 ? (
-        <p className="app-radius border border-dashed border-border bg-card px-4 py-12 text-center text-sm text-muted">
-          {data.selectedClientId
-            ? `No submitted responses for ${data.selectedClientName} yet.`
-            : "No submitted responses yet. Publish a form and collect the first one."}
-        </p>
-      ) : summary ? (
-        <SummarizeBriefing summary={summary} />
-      ) : (
-        <p className="app-radius border border-dashed border-border bg-card px-4 py-12 text-center text-sm text-muted">
-          Choose a client and period, then generate the AI briefing. Switching
-          filters stays instant — Gemini only runs when you ask for it.
-        </p>
-      )}
-    </main>
+    <SummarizeView
+      data={data}
+      clientParam={client}
+      periodParam={period}
+      hasSummary={Boolean(summary)}
+      summary={summary}
+    />
   );
 }

@@ -29,7 +29,7 @@ export function ProfileForm({
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   return (
-    <div className="mt-6 max-w-2xl space-y-6">
+    <div className="mt-6 w-full max-w-none space-y-6 lg:max-w-2xl">
       <form
         className="space-y-4 app-radius border border-border bg-card app-shadow-card p-6"
         onSubmit={(event) => {
@@ -160,7 +160,7 @@ export function ProfileForm({
         <div>
           <h2 className="text-base font-semibold tracking-tight">Change password</h2>
           <p className="mt-1 text-sm text-muted">
-            Set a new password for your account (at least 8 characters).
+            Choose a strong password. You only need to enter it once.
           </p>
         </div>
         <label className="flex flex-col gap-1.5 text-sm font-medium">
@@ -170,14 +170,6 @@ export function ProfileForm({
             autoComplete="new-password"
             placeholder="Create a strong password"
             showStrength
-          />
-        </label>
-        <label className="flex flex-col gap-1.5 text-sm font-medium">
-          Confirm new password
-          <PasswordInput
-            name="confirmNewPassword"
-            autoComplete="new-password"
-            placeholder="Re-enter your new password"
           />
         </label>
         <ActionButton

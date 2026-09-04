@@ -53,6 +53,7 @@ export async function loginAction(
   }
 
   try {
+    // rotateSessionVersion() inside authorize() invalidates every other device.
     await signIn("credentials", {
       email,
       password: parsed.data.password,
@@ -60,6 +61,17 @@ export async function loginAction(
     });
   } catch (error) {
     if (error instanceof AuthError) {
+      console.error("[loginAction] AuthError", error.type, error.cause);
+      const latest = await prisma.user.findUnique({
+        where: { email },
+        select: { lockedUntil: true, failedLoginAttempts: true },
+      });
+      if (isLocked(latest?.lockedUntil)) {
+        return {
+          error:
+            "This account is locked for 3 hours after 3 failed sign-ins. Ask an admin to unlock it.",
+        };
+      }
       return { error: "That email or password is incorrect." };
     }
     throw error;

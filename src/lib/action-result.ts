@@ -3,6 +3,7 @@ export type ActionResult = {
   ok?: boolean;
   resetUrl?: string;
   fieldId?: string;
+  sectionId?: string;
   formId?: string;
   templateId?: string;
 };

@@ -1,7 +1,11 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { Spinner } from "@/components/ui/pending-button";
+import { cn } from "@/lib/cn";
+
+const MOTION_MS = 300;
 
 type ConfirmDialogProps = {
   open: boolean;
@@ -22,8 +26,24 @@ export function ConfirmDialog({
   onCancel,
   onConfirm,
 }: ConfirmDialogProps) {
+  const [mounted, setMounted] = useState(open);
+  const [visible, setVisible] = useState(open);
+
   useEffect(() => {
-    if (!open) return;
+    if (open) {
+      setMounted(true);
+      const id = window.requestAnimationFrame(() => {
+        window.requestAnimationFrame(() => setVisible(true));
+      });
+      return () => window.cancelAnimationFrame(id);
+    }
+    setVisible(false);
+    const timeout = window.setTimeout(() => setMounted(false), MOTION_MS);
+    return () => window.clearTimeout(timeout);
+  }, [open]);
+
+  useEffect(() => {
+    if (!mounted) return;
     function onKey(event: KeyboardEvent) {
       if (event.key === "Escape") onCancel();
     }
@@ -33,15 +53,18 @@ export function ConfirmDialog({
       window.removeEventListener("keydown", onKey);
       document.body.style.overflow = "";
     };
-  }, [open, onCancel]);
+  }, [mounted, onCancel]);
 
-  if (!open) return null;
+  if (!mounted || typeof document === "undefined") return null;
 
-  return (
-    <div className="fixed inset-0 z-50 grid place-items-center p-4">
+  return createPortal(
+    <div className="fixed inset-0 z-[100] grid place-items-center p-4">
       <button
         type="button"
-        className="absolute inset-0 bg-foreground/40 transition-opacity"
+        className={cn(
+          "absolute inset-0 bg-foreground/40 transition-opacity duration-300 ease-out",
+          visible ? "opacity-100" : "opacity-0"
+        )}
         aria-label="Close dialog"
         onClick={onCancel}
       />
@@ -49,17 +72,22 @@ export function ConfirmDialog({
         role="alertdialog"
         aria-modal="true"
         aria-labelledby="confirm-title"
-        className="relative w-full max-w-[28rem] app-radius border border-border bg-card p-6"
+        className={cn(
+          "relative w-full max-w-[28rem] app-radius border border-border bg-card p-6 shadow-[0_24px_60px_rgba(20,38,28,0.18)] transition-all duration-300 ease-out",
+          visible
+            ? "translate-y-0 scale-100 opacity-100"
+            : "translate-y-3 scale-95 opacity-0"
+        )}
       >
         <h2 id="confirm-title" className="text-lg font-semibold tracking-tight">
           {title}
         </h2>
         <p className="mt-2 text-sm leading-6 text-muted">{description}</p>
-        <div className="mt-6 flex justify-end gap-2">
+        <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
           <button
             type="button"
             onClick={onCancel}
-            className="app-btn-secondary px-4 py-2 text-sm"
+            className="app-btn-secondary w-full justify-center px-4 py-2.5 text-sm sm:w-auto"
           >
             Cancel
           </button>
@@ -67,13 +95,14 @@ export function ConfirmDialog({
             type="button"
             onClick={onConfirm}
             disabled={pending}
-            className="app-btn-primary px-4 py-2 text-sm disabled:opacity-60"
+            className="app-btn-primary w-full justify-center px-4 py-2.5 text-sm disabled:opacity-60 sm:w-auto"
           >
             {pending ? <Spinner /> : null}
             {confirmLabel}
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

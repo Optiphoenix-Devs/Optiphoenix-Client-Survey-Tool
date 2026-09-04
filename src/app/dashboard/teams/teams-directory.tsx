@@ -16,10 +16,15 @@ import {
   TableEditButton,
 } from "@/components/ui/table-actions";
 import { runServerAction } from "@/lib/run-server-action";
-import { sortDirectoryRows, type DirectorySort } from "@/lib/sort";
+import {
+  DIRECTORY_SORT_SELECTION_VALUES,
+  sortDirectoryRows,
+  type DirectorySort,
+} from "@/lib/sort";
 import { useDirectoryView } from "@/lib/use-directory-view";
 import { usePersistedValue } from "@/lib/use-persisted-value";
 import { columnLabel } from "@/lib/format";
+import { matchesDirectorySearch } from "@/lib/directory-search";
 import { DirectoryToolbar } from "@/components/directory/directory-toolbar";
 import { CountCardLine } from "@/components/directory/directory-card-meta";
 import {
@@ -50,7 +55,7 @@ type TeamsDirectoryProps = {
 };
 
 const VIEW_KEY = "optiphoenix.teamsView";
-const SORT_KEY = "optiphoenix.teamsSort";
+const SORT_KEY = "optiphoenix.teamsSort.v2";
 
 export function TeamsDirectory({
   teams,
@@ -61,20 +66,14 @@ export function TeamsDirectory({
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [view, setView] = useDirectoryView(VIEW_KEY);
-  const [sort, setSort] = usePersistedValue(SORT_KEY, "newest", [
-    "newest",
-    "oldest",
-    "name-asc",
-    "name-desc",
-  ]);
+  const [sort, setSort] = usePersistedValue(SORT_KEY, "", DIRECTORY_SORT_SELECTION_VALUES);
   const [drawer, setDrawer] = useState<"create" | TeamDirectoryRow | null>(null);
   const [deleting, setDeleting] = useState<TeamDirectoryRow | null>(null);
   const [pending, startTransition] = useTransition();
 
   const visible = useMemo(() => {
-    const needle = query.trim().toLowerCase();
-    const filtered = needle
-      ? teams.filter((team) => team.name.toLowerCase().includes(needle))
+    const filtered = query.trim()
+      ? teams.filter((team) => matchesDirectorySearch(query, [team.name]))
       : teams;
     return sortDirectoryRows(
       filtered,
@@ -113,31 +112,33 @@ export function TeamsDirectory({
 
   return (
     <section>
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-center">
-        <h1 className="text-3xl font-semibold tracking-tight">Teams</h1>
-        <DirectoryToolbar
-          query={query}
-          onQueryChange={setQuery}
-          view={view}
-          onViewChange={setView}
-          searchPlaceholder="Search teams..."
-          className="flex-1"
-          sort={sort}
-          onSortChange={(next: DirectorySort) => {
-            setSort(next);
-            paged.setPage(1);
-          }}
-        />
-        <button
-          type="button"
-          onClick={() => {
-            setDrawer("create");
-          }}
-          className="app-btn-primary px-4 py-2.5 text-sm"
-        >
-          <Plus className="h-4 w-4" />
-          New team
-        </button>
+      <div className="flex flex-col gap-4">
+        <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Teams</h1>
+        <div className="flex w-full min-w-0 flex-col gap-2 lg:flex-row lg:items-center lg:gap-2">
+          <DirectoryToolbar
+            query={query}
+            onQueryChange={setQuery}
+            view={view}
+            onViewChange={setView}
+            searchPlaceholder="Search teams..."
+            className="w-full lg:flex-1"
+            sort={sort}
+            onSortChange={(next: DirectorySort) => {
+              setSort(next);
+              paged.setPage(1);
+            }}
+          />
+          <button
+            type="button"
+            onClick={() => {
+              setDrawer("create");
+            }}
+            className="app-btn-primary w-full justify-center px-4 py-2.5 text-sm lg:w-auto lg:shrink-0"
+          >
+            <Plus className="h-4 w-4" />
+            New team
+          </button>
+        </div>
       </div>
 
       {visible.length === 0 ? (
@@ -147,7 +148,7 @@ export function TeamsDirectory({
             : "No teams match this search."}
         </p>
       ) : view === "grid" ? (
-        <ul className="mt-6 grid items-stretch gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        <ul className="mt-6 grid items-stretch gap-4 grid-cols-1 md:grid-cols-2 xl:grid-cols-3">
           {paged.slice.map((team, index) => (
             <li key={team.id} className="h-full">
               <Stagger index={index}>
@@ -193,7 +194,7 @@ export function TeamsDirectory({
         </ul>
       ) : (
         <div className="directory-table-wrap mt-6">
-          <table className="directory-table w-full min-w-[40rem] table-fixed text-sm">
+          <table className="directory-table w-full min-w-[44rem] text-sm">
             <thead>
               <tr>
                 <TableHeadLeft className="w-[32%]">

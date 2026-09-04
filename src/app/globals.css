@@ -1,5 +1,14 @@
 @import "tailwindcss";
 
+html {
+  overflow-x: clip;
+}
+
+body {
+  overflow-x: clip;
+  min-width: 0;
+}
+
 /* OptiPhoenix: cream canvas, forest green type/buttons, sage highlights */
 :root {
   --background: #fffbef;
@@ -10,7 +19,7 @@
   --border: #ded8cb;
   --accent: #003339;
   --accent-hover: #14261c;
-  --sage: #7d9e86;
+  --sage: #4f7d63;
   --on-accent: #ffffff;
   --surface: #ffffff;
   --hover: rgba(20, 38, 28, 0.06);
@@ -18,9 +27,10 @@
   --skeleton-b: #faf6ee;
   --app-radius: 4px;
   --card-bg: #ffffff;
-  --card-border: #6fab8f;
-  --card-title: #6fab8f;
-  --brand: #6fab8f;
+  --card-border: #3d7a5c;
+  --card-title: #245c43;
+  /* Darker brand so white label text stays readable on buttons/chips */
+  --brand: #1f4d3a;
   --on-brand: #ffffff;
 }
 
@@ -31,8 +41,8 @@
   --card: #18241d;
   --muted: #b5c2ba;
   --border: #2c3f34;
-  --accent: #8faf97;
-  --accent-hover: #a8c4ae;
+  --accent: #9bc4a8;
+  --accent-hover: #b5d4bf;
   --sage: #8faf97;
   --on-accent: #101814;
   --surface: #1e2c24;
@@ -40,9 +50,9 @@
   --skeleton-a: #1a2620;
   --skeleton-b: #24332b;
   --card-bg: var(--card);
-  --card-border: #6fab8f;
-  --card-title: #8fc4a8;
-  --brand: #6fab8f;
+  --card-border: #4a9b72;
+  --card-title: #9bc4a8;
+  --brand: #2a6b4a;
   --on-brand: #ffffff;
 }
 
@@ -183,6 +193,40 @@
   color: var(--on-accent);
 }
 
+.app-icon-action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 2rem;
+  width: 2rem;
+  border-radius: var(--app-radius);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--muted);
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.app-icon-action-btn:hover {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.app-icon-action-btn-danger:hover {
+  border-color: #be123c;
+  background: #be123c;
+  color: #ffffff;
+}
+
+html.dark .app-icon-action-btn-danger:hover {
+  border-color: #fb7185;
+  background: #881337;
+  color: #ffe4e6;
+}
+
 .app-grid {
   position: relative;
   isolation: isolate;
@@ -263,8 +307,14 @@ html.dark .directory-card:hover {
 
 .directory-card-title {
   color: var(--card-title);
-  font-size: 1.5rem;
+  font-size: 1.25rem;
   line-height: 1.25;
+}
+
+@media (min-width: 640px) {
+  .directory-card-title {
+    font-size: 1.5rem;
+  }
 }
 
 .directory-card-icon {
@@ -333,7 +383,9 @@ html.dark .directory-card-btn-danger:hover {
 }
 
 .directory-table-wrap {
-  overflow-x: auto;
+  max-height: min(70dvh, calc(100dvh - 11rem));
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
   border: 1px solid var(--card-border);
   background: var(--card);
   border-radius: var(--app-radius);
@@ -364,6 +416,12 @@ html.dark .directory-table-wrap:hover {
     0 6px 14px rgba(0, 0, 0, 0.26);
 }
 
+.directory-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
 .directory-table tbody tr {
   transition: background-color 0.15s ease;
 }
@@ -377,13 +435,19 @@ html.dark .directory-table-wrap:hover {
   outline-offset: -2px;
 }
 
-.directory-table thead {
+.directory-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
   background-color: var(--chrome);
   border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+  vertical-align: middle;
+  box-shadow: 0 1px 0 var(--border);
 }
 
 .directory-table-head {
-  font-size: 1rem;
+  font-size: 0.9375rem;
   font-weight: 700;
   letter-spacing: -0.02em;
   color: var(--foreground);
@@ -527,6 +591,36 @@ textarea::placeholder {
 
 .page-enter {
   animation: page-in 320ms ease-out;
+}
+
+@keyframes tooltip-in {
+  from {
+    opacity: 0;
+    filter: blur(2px);
+  }
+  to {
+    opacity: 1;
+    filter: blur(0);
+  }
+}
+
+@keyframes tooltip-out {
+  from {
+    opacity: 1;
+    filter: blur(0);
+  }
+  to {
+    opacity: 0;
+    filter: blur(2px);
+  }
+}
+
+.tooltip-enter {
+  animation: tooltip-in 160ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.tooltip-leave {
+  animation: tooltip-out 140ms ease-in both;
 }
 
 @keyframes overlay-in {

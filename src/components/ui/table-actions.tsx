@@ -1,12 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { Pencil, Trash2 } from "lucide-react";
+import { Pencil, Plus, Trash2 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { Tooltip } from "@/components/ui/tooltip";
 
-const iconButtonClass =
-  "inline-flex h-8 w-8 items-center justify-center app-radius text-muted transition hover:bg-hover hover:text-[color:var(--card-title)]";
+const iconButtonClass = "app-icon-action-btn";
+const dangerButtonClass = "app-icon-action-btn app-icon-action-btn-danger";
 
 export function TableActionsHeader({
   label = "Actions",
@@ -35,7 +35,7 @@ export function TableActionsCell({
       onClick={(event) => event.stopPropagation()}
       onKeyDown={(event) => event.stopPropagation()}
     >
-      <div className="flex items-center justify-center gap-1">{children}</div>
+      <div className="flex items-center justify-center gap-1.5">{children}</div>
     </td>
   );
 }
@@ -52,7 +52,7 @@ export function TableEditButton({
       <button
         type="button"
         onClick={onClick}
-        className={cn(iconButtonClass, "hover:text-accent")}
+        className={iconButtonClass}
         aria-label={`Edit ${label}`}
       >
         <Pencil className="h-4 w-4" />
@@ -70,13 +70,30 @@ export function TableEditLink({
 }) {
   return (
     <Tooltip label="Edit" side="top">
-      <Link
-        href={href}
-        className={cn(iconButtonClass, "hover:text-accent")}
-        aria-label={`Edit ${label}`}
-      >
+      <Link href={href} className={iconButtonClass} aria-label={`Edit ${label}`}>
         <Pencil className="h-4 w-4" />
       </Link>
+    </Tooltip>
+  );
+}
+
+export function TableUseButton({
+  onClick,
+  label,
+}: {
+  onClick: () => void;
+  label: string;
+}) {
+  return (
+    <Tooltip label="Use template" side="top">
+      <button
+        type="button"
+        onClick={onClick}
+        className={iconButtonClass}
+        aria-label={`Use template ${label}`}
+      >
+        <Plus className="h-4 w-4" />
+      </button>
     </Tooltip>
   );
 }
@@ -93,7 +110,7 @@ export function TableDeleteButton({
       <button
         type="button"
         onClick={onClick}
-        className={cn(iconButtonClass, "hover:text-rose-600")}
+        className={dangerButtonClass}
         aria-label={`Delete ${label}`}
       >
         <Trash2 className="h-4 w-4" />

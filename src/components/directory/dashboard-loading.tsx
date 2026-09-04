@@ -1,14 +1,12 @@
-"use client";
-
-import { useSearchParams } from "next/navigation";
-import { resolveDirectoryView } from "@/lib/directory-view";
+import { cookies } from "next/headers";
 import { DashboardSkeleton } from "@/components/ui/skeleton";
+import { directoryViewCookieName, parseDirectoryView } from "@/lib/directory-view";
 
-const FORMS_VIEW_KEY = "optiphoenix.formsView";
-
-export function DashboardLoadingShell() {
-  const searchParams = useSearchParams();
-  const formsView = resolveDirectoryView(searchParams.get("view"), FORMS_VIEW_KEY);
+export async function DashboardLoadingShell() {
+  const cookieStore = await cookies();
+  const formsView = parseDirectoryView(
+    cookieStore.get(directoryViewCookieName("optiphoenix.formsView"))?.value
+  );
 
   return <DashboardSkeleton formsView={formsView} />;
 }

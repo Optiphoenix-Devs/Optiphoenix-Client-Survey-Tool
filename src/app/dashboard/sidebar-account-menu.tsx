@@ -9,6 +9,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 
 const VIEWPORT_PAD = 12;
 const MENU_WIDTH = 224;
+const ESTIMATED_PANEL_HEIGHT = 220;
 
 type MenuPosition = {
   top: number;
@@ -77,49 +78,71 @@ export function AccountMenuPanel({
   onClose,
   logoutAction,
 }: AccountMenuPanelProps) {
-  const [position, setPosition] = useState<MenuPosition>({
-    top: VIEWPORT_PAD,
-    left: VIEWPORT_PAD,
-    width: MENU_WIDTH,
-  });
+  const [position, setPosition] = useState<MenuPosition | null>(null);
+  const [mounted, setMounted] = useState(open);
+  const [visible, setVisible] = useState(false);
+  const positioned = position !== null;
+
+  useEffect(() => {
+    if (open) {
+      setMounted(true);
+      setVisible(false);
+      setPosition(null);
+      return;
+    }
+    setVisible(false);
+    const timeout = window.setTimeout(() => {
+      setMounted(false);
+      setPosition(null);
+    }, 200);
+    return () => window.clearTimeout(timeout);
+  }, [open]);
 
   useLayoutEffect(() => {
-    if (!open || !anchorRef.current) return;
+    if (!open || !mounted || !anchorRef.current) return;
 
     function updatePosition() {
-      if (!anchorRef.current || !panelRef.current) return;
+      if (!anchorRef.current) return;
       const anchor = anchorRef.current.getBoundingClientRect();
-      const panel = panelRef.current.getBoundingClientRect();
+      const panel = panelRef.current;
+      const panelHeight = panel?.offsetHeight || ESTIMATED_PANEL_HEIGHT;
+      const panelWidth = panel?.offsetWidth || MENU_WIDTH;
       const compact = anchor.width < 120;
-      setPosition(
-        clampMenuPosition(
-          anchor,
-          panel.width || MENU_WIDTH,
-          panel.height || 240,
-          compact
-        )
-      );
+      setPosition(clampMenuPosition(anchor, panelWidth, panelHeight, compact));
     }
 
     updatePosition();
+    const frame = window.requestAnimationFrame(() => {
+      updatePosition();
+      setVisible(true);
+    });
     window.addEventListener("resize", updatePosition);
     window.addEventListener("scroll", updatePosition, true);
     return () => {
+      window.cancelAnimationFrame(frame);
       window.removeEventListener("resize", updatePosition);
       window.removeEventListener("scroll", updatePosition, true);
     };
-  }, [open, anchorRef, panelRef, name, email]);
+  }, [open, mounted, anchorRef, panelRef, name, email]);
 
-  if (!open || typeof document === "undefined") return null;
+  if (!mounted || typeof document === "undefined") return null;
 
   return createPortal(
     <div
       ref={panelRef}
-      className="fixed z-[70] app-radius border border-border bg-card p-2 shadow-lg"
+      className={cn(
+        "fixed z-[100] app-radius border border-border bg-card p-2 shadow-lg",
+        "transition-[opacity,transform] duration-200 ease-out",
+        visible && positioned
+          ? "translate-y-0 scale-100 opacity-100"
+          : "pointer-events-none translate-y-2 scale-95 opacity-0"
+      )}
       style={{
-        top: position.top,
-        left: position.left,
-        width: position.width,
+        top: position?.top ?? 0,
+        left: position?.left ?? 0,
+        width: position?.width ?? MENU_WIDTH,
+        // Keep off-screen until measured — do not animate `top` or it flies from the viewport top.
+        visibility: positioned ? "visible" : "hidden",
       }}
     >
       <div className="flex items-center gap-3 px-2 py-2">

@@ -165,8 +165,11 @@ export async function updateField(formData: FormData): Promise<ActionResult> {
     formId: templateId,
     fieldId: formData.get("fieldId"),
     label: formData.get("label"),
+    description: formData.get("description") ?? "",
     required: formData.get("required"),
     optionsText: formData.get("optionsText") ?? undefined,
+    maxLength: formData.get("maxLength") ?? undefined,
+    allowOther: formData.get("allowOther"),
   });
   if (!parsed.success) return { error: "Check field details." };
 
@@ -178,8 +181,11 @@ export async function updateField(formData: FormData): Promise<ActionResult> {
       parsed.data.fieldId,
       {
         label: parsed.data.label,
+        description: parsed.data.description,
         required: parsed.data.required,
         optionsText: parsed.data.optionsText,
+        maxLength: parsed.data.maxLength,
+        allowOther: parsed.data.allowOther,
       }
     );
   } catch (error) {

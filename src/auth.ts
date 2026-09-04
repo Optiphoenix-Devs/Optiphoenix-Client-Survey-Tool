@@ -4,14 +4,113 @@ import bcrypt from "bcryptjs";
 import { authConfig } from "@/auth.config";
 import { prisma } from "@/lib/prisma";
 import { loginSchema } from "@/lib/validations";
-import { clearLoginLock, consumeSignupToken, isLocked, recordFailedLogin } from "@/lib/auth-security";
+import {
+  consumeSignupToken,
+  isLocked,
+  recordFailedLogin,
+  rotateSessionVersion,
+} from "@/lib/auth-security";
+
+const SESSION_MAX_AGE_SEC = 60 * 60 * 24; // 24 hours
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   ...authConfig,
   secret: process.env.AUTH_SECRET ?? process.env.NEXTAUTH_SECRET,
   session: {
     strategy: "jwt",
-    maxAge: 60 * 60 * 24 * 7,
+    maxAge: SESSION_MAX_AGE_SEC,
+  },
+  callbacks: {
+    async jwt({ token, user }) {
+      // New sign-in: always re-read sessionVersion from DB (custom authorize
+      // fields are not always forwarded onto `user` by Auth.js).
+      if (user?.id) {
+        const dbUser = await prisma.user.findUnique({
+          where: { id: user.id },
+          select: {
+            sessionVersion: true,
+            role: true,
+            name: true,
+            avatarUrl: true,
+            status: true,
+          },
+        });
+        if (!dbUser || dbUser.status !== "APPROVED") {
+          return { ...token, error: "InvalidSession" };
+        }
+        return {
+          ...token,
+          id: user.id,
+          email: user.email,
+          role: dbUser.role,
+          name: dbUser.name,
+          picture: dbUser.avatarUrl,
+          sessionVersion: dbUser.sessionVersion,
+          error: undefined,
+        };
+      }
+
+      const userId = (token.id as string | undefined) ?? token.sub;
+      if (!userId || typeof token.sessionVersion !== "number") {
+        return { ...token, error: "InvalidSession" };
+      }
+
+      try {
+        const dbUser = await prisma.user.findUnique({
+          where: { id: userId },
+          select: {
+            sessionVersion: true,
+            status: true,
+            role: true,
+            name: true,
+            avatarUrl: true,
+          },
+        });
+
+        if (
+          !dbUser ||
+          dbUser.status !== "APPROVED" ||
+          dbUser.sessionVersion !== token.sessionVersion
+        ) {
+          return { ...token, error: "SessionReplaced" };
+        }
+
+        return {
+          ...token,
+          id: userId,
+          role: dbUser.role,
+          name: dbUser.name,
+          picture: dbUser.avatarUrl,
+          error: undefined,
+        };
+      } catch {
+        // Keep the existing token if DB is briefly unreachable.
+        return token;
+      }
+    },
+    session({ session, token }) {
+      if (
+        token.error ||
+        !token.id ||
+        typeof token.sessionVersion !== "number" ||
+        !token.role
+      ) {
+        return {
+          ...session,
+          user: undefined as unknown as typeof session.user,
+          expires: new Date(0).toISOString(),
+        };
+      }
+      session.user = {
+        ...session.user,
+        id: token.id as string,
+        role: token.role as "ADMIN" | "TEAM_LEAD",
+        name: token.name,
+        email: (token.email as string | undefined) ?? session.user?.email ?? "",
+        image: token.picture,
+      };
+      return session;
+    },
   },
   providers: [
     Credentials({
@@ -26,16 +125,21 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         if (signupToken) {
           const user = await consumeSignupToken(signupToken);
           if (!user) return null;
+          const sessionUser = await rotateSessionVersion(user.id);
           return {
-            id: user.id,
-            email: user.email,
-            name: user.name,
-            role: user.role,
-            image: user.avatarUrl,
+            id: sessionUser.id,
+            email: sessionUser.email,
+            name: sessionUser.name,
+            role: sessionUser.role,
+            image: sessionUser.avatarUrl,
+            sessionVersion: sessionUser.sessionVersion,
           };
         }
 
-        const parsed = loginSchema.safeParse(credentials);
+        const parsed = loginSchema.safeParse({
+          email: credentials?.email,
+          password: credentials?.password,
+        });
         if (!parsed.success) {
           return null;
         }
@@ -66,14 +170,16 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           return null;
         }
 
-        await clearLoginLock(user.id);
+        // New login wins — bump version so other devices are signed out.
+        const sessionUser = await rotateSessionVersion(user.id);
 
         return {
-          id: user.id,
-          email: user.email,
-          name: user.name,
-          role: user.role,
-          image: user.avatarUrl,
+          id: sessionUser.id,
+          email: sessionUser.email,
+          name: sessionUser.name,
+          role: sessionUser.role,
+          image: sessionUser.avatarUrl,
+          sessionVersion: sessionUser.sessionVersion,
         };
       },
     }),

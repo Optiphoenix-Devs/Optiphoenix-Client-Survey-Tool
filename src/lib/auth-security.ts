@@ -43,6 +43,18 @@ export async function clearLoginLock(userId: string) {
   });
 }
 
+/** New login wins: bump version so every older JWT is signed out elsewhere. */
+export async function rotateSessionVersion(userId: string) {
+  return prisma.user.update({
+    where: { id: userId },
+    data: {
+      sessionVersion: { increment: 1 },
+      failedLoginAttempts: 0,
+      lockedUntil: null,
+    },
+  });
+}
+
 export async function createPasswordResetToken(userId: string) {
   const token = createResetTokenValue();
   const tokenHash = hashToken(token);

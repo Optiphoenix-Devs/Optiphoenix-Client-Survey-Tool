@@ -26,7 +26,9 @@ const MAX_COMMENTS = 80;
 const MAX_COMMENT_CHARS = 600;
 const DEFAULT_GEMINI_MODEL = "gemini-3.6-flash";
 const DEFAULT_OPENAI_MODEL = "gpt-4o-mini";
-const CACHE_TTL_MS = 10 * 60 * 1000;
+const CACHE_TTL_MS = 2 * 60 * 60 * 1000; // 2h — keep briefings warm for demos
+/** Stale entries still shown on page load so demos never wait on a cold Generate. */
+const STALE_TTL_MS = 24 * 60 * 60 * 1000;
 
 type SummarySource = "gemini" | "openai" | "local";
 type CacheEntry = { summary: AiSummary; expires: number };
@@ -48,10 +50,15 @@ export function getCachedAiSummary(
   userId: string,
   role: string,
   clientFilter?: string,
-  periodFilter?: string
+  periodFilter?: string,
+  options?: { allowStale?: boolean }
 ) {
   const cached = summaryCache.get(summaryCacheKey(userId, role, clientFilter, periodFilter));
-  if (cached && cached.expires > Date.now()) return cached.summary;
+  if (!cached) return null;
+  if (cached.expires > Date.now()) return cached.summary;
+  if (options?.allowStale && cached.expires > Date.now() - STALE_TTL_MS) {
+    return cached.summary;
+  }
   return null;
 }
 
@@ -149,17 +156,15 @@ export async function generateAiSummaryForUser(
         evidence
       );
       const parsed = aiSummarySchema.safeParse(raw);
-      if (!parsed.success) {
-        return { error: "Gemini returned an unexpected shape. Try generating again." };
+      if (parsed.success) {
+        return cacheAndReturn(cacheKey, toSummary(parsed.data, evidence, "gemini"));
       }
-      return cacheAndReturn(cacheKey, toSummary(parsed.data, evidence, "gemini"));
+      console.warn("[ai-summary] Gemini returned unexpected shape; falling back.");
     } catch (error) {
-      return {
-        error:
-          error instanceof Error
-            ? error.message
-            : "Could not reach Gemini. Try again in a moment.",
-      };
+      console.warn(
+        "[ai-summary] Gemini failed; falling back.",
+        error instanceof Error ? error.message : error
+      );
     }
   }
 
@@ -172,17 +177,15 @@ export async function generateAiSummaryForUser(
         evidence
       );
       const parsed = aiSummarySchema.safeParse(raw);
-      if (!parsed.success) {
-        return { error: "The model returned an unexpected shape. Try generating again." };
+      if (parsed.success) {
+        return cacheAndReturn(cacheKey, toSummary(parsed.data, evidence, "openai"));
       }
-      return cacheAndReturn(cacheKey, toSummary(parsed.data, evidence, "openai"));
+      console.warn("[ai-summary] OpenAI returned unexpected shape; falling back.");
     } catch (error) {
-      return {
-        error:
-          error instanceof Error
-            ? error.message
-            : "Could not reach OpenAI. Try again in a moment.",
-      };
+      console.warn(
+        "[ai-summary] OpenAI failed; falling back.",
+        error instanceof Error ? error.message : error
+      );
     }
   }
 
@@ -422,6 +425,79 @@ const NEGATIVE_WORDS = [
   "disappoint",
 ];
 
+const SUMMARY_SYSTEM_PROMPT =
+  "You analyze OptiPhoenix client survey responses for a delivery team. Be specific and grounded in the data. Do not invent people, clients, or scores that are not present. If written comments are thin, say so and lean on ratings. Keep titles short. The overview must be 4–5 full sentences (about 4–5 lines when rendered). Each sentence should add new information: scope and volume, overall score, written-comment sentiment, strengths, and priorities. Recommendations must be practical next steps a team lead can take this month.";
+
+const SUMMARY_USER_INSTRUCTION =
+  "Summarize this survey evidence. Identify positive feedback, pain points, recurring themes, sentiment of written comments, resources or areas that need attention, and actionable recommendations. Write overview as 4–5 sentences.";
+
+function buildOverviewParagraph(
+  evidence: SurveyEvidence,
+  score: number,
+  overallLabel: "positive" | "mixed" | "negative",
+  options: {
+    positiveCount: number;
+    negativeCount: number;
+    mixedCount: number;
+    commentCount: number;
+    strongResources: SurveyEvidence["resources"];
+    weakResources: SurveyEvidence["resources"];
+    strongQuestions: SurveyEvidence["questions"];
+    weakQuestions: SurveyEvidence["questions"];
+  }
+) {
+  const sentences: string[] = [
+    `This briefing covers ${evidence.scope}, with ${evidence.responseCount} submitted ${evidence.responseCount === 1 ? "form" : "forms"} and ${evidence.commentCount} written ${evidence.commentCount === 1 ? "answer" : "answers"}.`,
+    `The overall average score is ${score.toFixed(1)} out of 5, which reads as ${overallLabel} for this period.`,
+  ];
+
+  if (options.commentCount > 0) {
+    const tone =
+      options.positiveCount > options.negativeCount
+        ? "mostly positive"
+        : options.negativeCount > options.positiveCount
+          ? "more critical"
+          : "mixed";
+    sentences.push(
+      `Written feedback is ${tone}: ${options.positiveCount} positive, ${options.mixedCount} neutral, and ${options.negativeCount} negative comments in this view.`
+    );
+  } else {
+    sentences.push(
+      "Written comments are limited here, so this summary relies mainly on rating scores."
+    );
+  }
+
+  const strengths = [
+    ...options.strongResources.slice(0, 2).map((item) => `${item.name} (${item.average.toFixed(1)} / 5)`),
+    ...options.strongQuestions.slice(0, 1).map((item) => `${item.label} (${item.average.toFixed(1)} / 5)`),
+  ];
+  if (strengths.length > 0) {
+    sentences.push(`Clients called out ${strengths.join(" and ")} as relative strengths.`);
+  } else {
+    sentences.push("No single area scored strongly enough to stand out as a clear win this cycle.");
+  }
+
+  const priorities = [
+    ...options.weakResources.slice(0, 2).map((item) => item.name),
+    ...options.weakQuestions.slice(0, 1).map((item) => item.label),
+  ];
+  if (priorities.length > 0) {
+    sentences.push(
+      `Start with ${priorities.join(" and ")} — these are the weakest signals and the best place for follow-up before the next check-in.`
+    );
+  } else if (overallLabel === "positive") {
+    sentences.push(
+      "No urgent weak spots were flagged — keep the current cadence and watch for any drop next month."
+    );
+  } else {
+    sentences.push(
+      "Review the improvement areas below and pick one concrete change to test in the next delivery cycle."
+    );
+  }
+
+  return sentences.slice(0, 5).join(" ");
+}
+
 function buildLocalSummary(
   evidence: SurveyEvidence
 ): z.infer<typeof aiSummarySchema> {
@@ -569,12 +645,16 @@ function buildLocalSummary(
         ? "Mixed feedback, with a few clear fixes"
         : "This cycle needs attention";
 
-  const overview =
-    overallLabel === "positive"
-      ? `Clients are largely satisfied. Average score ${score.toFixed(1)} / 5 across ${evidence.responseCount} ${evidence.responseCount === 1 ? "response" : "responses"}.`
-      : overallLabel === "mixed"
-        ? `Feedback is mixed. Average score ${score.toFixed(1)} / 5 — a few areas are holding the rest back.`
-        : `Feedback is leaning negative. Average score ${score.toFixed(1)} / 5. Start with the items under What to fix.`;
+  const overview = buildOverviewParagraph(evidence, score, overallLabel, {
+    positiveCount,
+    negativeCount,
+    mixedCount,
+    commentCount: tones.length,
+    strongResources,
+    weakResources,
+    strongQuestions,
+    weakQuestions,
+  });
 
   return {
     headline,
@@ -627,7 +707,7 @@ async function callGemini(apiKey: string, model: string, evidence: SurveyEvidenc
         systemInstruction: {
           parts: [
             {
-              text: "You analyze OptiPhoenix client survey responses for a delivery team. Be specific and grounded in the data. Do not invent people, clients, or scores that are not present. If written comments are thin, say so and lean on ratings. Keep titles short. Recommendations must be practical next steps a team lead can take this month. Return only JSON matching the requested schema.",
+              text: `${SUMMARY_SYSTEM_PROMPT} Return only JSON matching the requested schema.`,
             },
           ],
         },
@@ -637,8 +717,7 @@ async function callGemini(apiKey: string, model: string, evidence: SurveyEvidenc
             parts: [
               {
                 text: JSON.stringify({
-                  instruction:
-                    "Summarize this survey evidence. Identify positive feedback, pain points, recurring themes, sentiment of written comments, resources or areas that need attention, and actionable recommendations.",
+                  instruction: SUMMARY_USER_INSTRUCTION,
                   schema: geminiSchema,
                   evidence,
                 }),
@@ -744,14 +823,12 @@ async function callOpenAi(
         messages: [
           {
             role: "system",
-            content:
-              "You analyze OptiPhoenix client survey responses for a delivery team. Be specific and grounded in the data. Do not invent people, clients, or scores that are not present. If written comments are thin, say so and lean on ratings. Keep titles short. Recommendations must be practical next steps a team lead can take this month.",
+            content: SUMMARY_SYSTEM_PROMPT,
           },
           {
             role: "user",
             content: JSON.stringify({
-              instruction:
-                "Summarize this survey evidence. Identify positive feedback, pain points, recurring themes, sentiment of written comments, resources or areas that need attention, and actionable recommendations.",
+              instruction: SUMMARY_USER_INSTRUCTION,
               evidence,
             }),
           },

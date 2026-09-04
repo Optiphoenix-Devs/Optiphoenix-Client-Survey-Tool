@@ -1,10 +1,11 @@
 "use client";
 
-import { useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { cn } from "@/lib/cn";
 
 const VIEWPORT_PAD = 8;
+const EXIT_MS = 140;
 
 export function Tooltip({
   label,
@@ -20,24 +21,75 @@ export function Tooltip({
   enabled?: boolean;
 }) {
   const [anchor, setAnchor] = useState<DOMRect | null>(null);
+  const [mounted, setMounted] = useState(false);
+  const [open, setOpen] = useState(false);
+  const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  function clearHideTimer() {
+    if (hideTimer.current) {
+      clearTimeout(hideTimer.current);
+      hideTimer.current = null;
+    }
+  }
+
+  function hideNow() {
+    clearHideTimer();
+    setOpen(false);
+    setMounted(false);
+    setAnchor(null);
+  }
+
+  function hide() {
+    setOpen(false);
+    clearHideTimer();
+    hideTimer.current = setTimeout(() => {
+      setMounted(false);
+      setAnchor(null);
+      hideTimer.current = null;
+    }, EXIT_MS);
+  }
+
+  function show(rect: DOMRect) {
+    if (!enabled) return;
+    clearHideTimer();
+    setAnchor(rect);
+    setMounted(true);
+    requestAnimationFrame(() => setOpen(true));
+  }
+
+  useEffect(() => {
+    return () => clearHideTimer();
+  }, []);
+
+  useEffect(() => {
+    if (!enabled) hideNow();
+  }, [enabled]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!mounted) return;
+    function onDismiss() {
+      hideNow();
+    }
+    window.addEventListener("scroll", onDismiss, true);
+    window.addEventListener("resize", onDismiss);
+    return () => {
+      window.removeEventListener("scroll", onDismiss, true);
+      window.removeEventListener("resize", onDismiss);
+    };
+  }, [mounted]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <span
       className={cn("inline-flex", className)}
-      onMouseEnter={(event) => {
-        if (!enabled) return;
-        setAnchor(event.currentTarget.getBoundingClientRect());
-      }}
-      onMouseLeave={() => setAnchor(null)}
-      onFocus={(event) => {
-        if (!enabled) return;
-        setAnchor(event.currentTarget.getBoundingClientRect());
-      }}
-      onBlur={() => setAnchor(null)}
+      onMouseEnter={(event) => show(event.currentTarget.getBoundingClientRect())}
+      onMouseLeave={hide}
+      onFocus={(event) => show(event.currentTarget.getBoundingClientRect())}
+      onBlur={hide}
+      onPointerDown={hideNow}
     >
       {children}
-      {enabled && anchor && typeof document !== "undefined" ? (
-        <TooltipBubble label={label} anchor={anchor} side={side} />
+      {enabled && mounted && anchor && typeof document !== "undefined" ? (
+        <TooltipBubble label={label} anchor={anchor} side={side} open={open} />
       ) : null}
     </span>
   );
@@ -47,10 +99,12 @@ function TooltipBubble({
   label,
   anchor,
   side,
+  open,
 }: {
   label: string;
   anchor: DOMRect;
   side: "right" | "top" | "bottom";
+  open: boolean;
 }) {
   const ref = useRef<HTMLSpanElement>(null);
   const [nudge, setNudge] = useState({ x: 0, y: 0 });
@@ -77,7 +131,10 @@ function TooltipBubble({
     <span
       ref={ref}
       role="tooltip"
-      className="pointer-events-none fixed z-[80] whitespace-nowrap rounded-md bg-accent px-2 py-1 text-[11px] font-medium text-on-accent shadow-sm"
+      className={cn(
+        "pointer-events-none fixed z-[80] max-w-xs rounded-lg border border-white/10 bg-foreground/92 px-2.5 py-1.5 text-[11px] leading-4 font-medium text-background shadow-lg backdrop-blur-sm",
+        open ? "tooltip-enter" : "tooltip-leave"
+      )}
       style={{
         top: base.top,
         left: base.left,

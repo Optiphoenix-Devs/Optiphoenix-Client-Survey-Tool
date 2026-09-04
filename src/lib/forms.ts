@@ -2,7 +2,9 @@ import { prisma } from "@/lib/prisma";
 import type { QuestionType, UserRole } from "@/generated/prisma/client";
 import { Prisma } from "@/generated/prisma/client";
 import { userCanManageTeam } from "@/lib/teams";
-import { fieldNeedsOptions, fieldTypeMeta, minOptionsForType, parseOptionList } from "@/lib/question-types";
+import { fieldNeedsOptions, fieldTypeMeta, getFieldType, minOptionsForType, parseFieldAnswer, getChoiceList, buildChoiceOptions, buildTextOptions } from "@/lib/question-types";
+import { buildQuestionLogic } from "@/lib/field-types/logic";
+import { getVisibleQuestionsForSubmit } from "@/lib/form-sections";
 import { sendEmail } from "@/lib/email/send-email";
 import { feedbackSubmittedEmail } from "@/lib/email/templates";
 import { getAppBaseUrl } from "@/lib/app-url";
@@ -85,6 +87,7 @@ export async function getFormBuilder(
     include: {
       client: true,
       team: true,
+      sections: { orderBy: { order: "asc" } },
       questions: { orderBy: { order: "asc" } },
       surveys: { include: { _count: { select: { responses: true } } } },
     },
@@ -183,6 +186,10 @@ export async function createFormForUser(
           question.options === null
             ? Prisma.JsonNull
             : (question.options as Prisma.InputJsonValue),
+        logic:
+          question.logic === null
+            ? Prisma.JsonNull
+            : (question.logic as Prisma.InputJsonValue),
       })),
     });
   }
@@ -207,7 +214,12 @@ export async function updateClientForm(
   _clientId: string | undefined,
   formId: string,
   title: string,
-  description?: string | null
+  description?: string | null,
+  thankYouTitle?: string | null,
+  thankYouMessage?: string | null,
+  headerImageUrl?: string | null | undefined,
+  thankYouImageUrl?: string | null | undefined,
+  thankYouBgColor?: string | null | undefined
 ) {
   await requireFormAccess(userId, role, formId);
 
@@ -216,6 +228,17 @@ export async function updateClientForm(
     data: {
       title,
       description: description?.trim() ? description.trim() : null,
+      thankYouTitle: thankYouTitle?.trim() ? thankYouTitle.trim() : null,
+      thankYouMessage: thankYouMessage?.trim() ? thankYouMessage.trim() : null,
+      ...(headerImageUrl !== undefined ? { headerImageUrl } : {}),
+      ...(thankYouImageUrl !== undefined ? { thankYouImageUrl } : {}),
+      ...(thankYouBgColor !== undefined
+        ? {
+            thankYouBgColor: thankYouBgColor?.trim()
+              ? thankYouBgColor.trim()
+              : null,
+          }
+        : {}),
     },
   });
 }
@@ -307,12 +330,32 @@ export async function addFieldToForm(
   _teamId: string | undefined,
   _clientId: string | undefined,
   formId: string,
-  type: QuestionType
+  type: QuestionType,
+  sectionId?: string | null
 ) {
   await requireFormAccess(userId, role, formId);
 
   const meta = fieldTypeMeta(type);
   if (!meta) throw new Error("Unknown field type");
+
+  if (type === "BRANCHING_DROPDOWN") {
+    if (sectionId) {
+      throw new Error("Section branching belongs in intro questions only.");
+    }
+    const existingBranch = await prisma.question.findFirst({
+      where: { formId, type: "BRANCHING_DROPDOWN", sectionId: null },
+    });
+    if (existingBranch) {
+      throw new Error("This form already has a section branching field.");
+    }
+  }
+
+  if (sectionId) {
+    const section = await prisma.formSection.findFirst({
+      where: { id: sectionId, formId },
+    });
+    if (!section) throw new Error("Section not found");
+  }
 
   const form = await prisma.form.findUnique({
     where: { id: formId },
@@ -324,13 +367,14 @@ export async function addFieldToForm(
     form.questions.reduce((max, item) => Math.max(max, item.order), 0) + 1;
 
   let options: Prisma.InputJsonValue | typeof Prisma.DbNull = Prisma.DbNull;
-  if ("defaultOptions" in meta) {
-    options = [...meta.defaultOptions];
+  if ("defaultOptions" in meta && meta.defaultOptions) {
+    options = buildChoiceOptions([...meta.defaultOptions]) as Prisma.InputJsonValue;
   }
 
   return prisma.question.create({
     data: {
       formId,
+      sectionId: sectionId ?? null,
       type,
       label: meta.defaultLabel,
       required: false,
@@ -340,6 +384,126 @@ export async function addFieldToForm(
   });
 }
 
+export async function addSectionToForm(
+  userId: string,
+  role: UserRole,
+  _teamId: string | undefined,
+  _clientId: string | undefined,
+  formId: string,
+  branchValue: string
+) {
+  await requireFormAccess(userId, role, formId);
+
+  const trimmed = branchValue.trim();
+  if (!trimmed) throw new Error("Choose a section option.");
+
+  const form = await prisma.form.findUnique({
+    where: { id: formId },
+    include: {
+      questions: {
+        where: { sectionId: null },
+        orderBy: { order: "asc" },
+      },
+      sections: { select: { order: true, branchValue: true } },
+    },
+  });
+  if (!form) throw new Error("Form not found");
+
+  const branchingField = form.questions.find(
+    (question) => question.type === "BRANCHING_DROPDOWN"
+  );
+  if (!branchingField) {
+    throw new Error("Add a section branching field before creating sections.");
+  }
+
+  const options = getChoiceList(branchingField.options);
+  if (!options.includes(trimmed)) {
+    throw new Error("That option is not on the section branching field.");
+  }
+
+  if (form.sections.some((section) => section.branchValue === trimmed)) {
+    throw new Error("A section for that option already exists.");
+  }
+
+  const nextOrder =
+    form.sections.reduce((max, item) => Math.max(max, item.order), 0) + 1;
+
+  const logic = buildQuestionLogic({
+    questionId: branchingField.id,
+    operator: "equals",
+    value: trimmed,
+  });
+
+  return prisma.formSection.create({
+    data: {
+      formId,
+      title: trimmed,
+      branchValue: trimmed,
+      order: nextOrder,
+      logic: logic ? (logic as Prisma.InputJsonValue) : Prisma.DbNull,
+    },
+  });
+}
+
+export async function updateSectionOnForm(
+  userId: string,
+  role: UserRole,
+  _teamId: string | undefined,
+  _clientId: string | undefined,
+  formId: string,
+  sectionId: string,
+  data: {
+    description?: string;
+  }
+) {
+  await requireFormAccess(userId, role, formId);
+
+  const section = await prisma.formSection.findFirst({
+    where: { id: sectionId, formId },
+  });
+  if (!section) throw new Error("Section not found");
+
+  return prisma.formSection.update({
+    where: { id: sectionId },
+    data: {
+      description: data.description?.trim() ? data.description.trim() : null,
+    },
+  });
+}
+
+export async function deleteSectionOnForm(
+  userId: string,
+  role: UserRole,
+  _teamId: string | undefined,
+  _clientId: string | undefined,
+  formId: string,
+  sectionId: string
+) {
+  await requireFormAccess(userId, role, formId);
+
+  const section = await prisma.formSection.findFirst({
+    where: { id: sectionId, formId },
+    include: {
+      questions: { include: { _count: { select: { answers: true } } } },
+    },
+  });
+  if (!section) throw new Error("Section not found");
+
+  const hasAnswers = section.questions.some(
+    (question) => question._count.answers > 0
+  );
+  if (hasAnswers) {
+    throw new Error(
+      "This section has submitted answers. Leave it so existing responses stay readable."
+    );
+  }
+
+  await prisma.$transaction([
+    prisma.question.deleteMany({ where: { sectionId } }),
+    prisma.formSection.delete({ where: { id: sectionId } }),
+  ]);
+}
+
 export async function updateFieldOnForm(
   userId: string,
   role: UserRole,
@@ -347,7 +511,14 @@ export async function updateFieldOnForm(
   clientId: string,
   formId: string,
   fieldId: string,
-  data: { label: string; required: boolean; optionsText?: string }
+  data: {
+    label: string;
+    description?: string;
+    required: boolean;
+    optionsText?: string;
+    maxLength?: number;
+    allowOther?: boolean;
+  }
 ) {
   await requireFormAccess(userId, role, formId);
 
@@ -356,7 +527,10 @@ export async function updateFieldOnForm(
   });
   if (!field) throw new Error("Field not found");
 
+  const plugin = getFieldType(field.type);
   let options: Prisma.InputJsonValue | typeof Prisma.DbNull = Prisma.DbNull;
+  let nextChoices: string[] | null = null;
+
   if (fieldNeedsOptions(field.type)) {
     const parsed = (data.optionsText ?? "")
       .split("\n")
@@ -370,17 +544,256 @@ export async function updateFieldOnForm(
           : "Add at least one option."
       );
     }
-    options = parsed;
+    if (field.type === "BRANCHING_DROPDOWN") {
+      const unique = new Set(parsed);
+      if (unique.size !== parsed.length) {
+        throw new Error("Section branching options must be unique.");
+      }
+    }
+    nextChoices = parsed;
+    options = buildChoiceOptions(parsed, data.allowOther) as Prisma.InputJsonValue;
+  } else if (plugin?.supportsMaxLength && data.maxLength) {
+    options = buildTextOptions(data.maxLength) as Prisma.InputJsonValue;
+  }
+
+  if (field.type === "BRANCHING_DROPDOWN" && nextChoices) {
+    await syncBranchingOptionSections({
+      formId,
+      branchingQuestionId: field.id,
+      previousOptions: getChoiceList(field.options),
+      nextOptions: nextChoices,
+    });
   }
 
   return prisma.question.update({
     where: { id: fieldId },
     data: {
       label: data.label,
+      description: data.description?.trim() ? data.description.trim() : null,
       required: data.required,
       options,
     },
   });
+}
+
+async function syncBranchingOptionSections(input: {
+  formId: string;
+  branchingQuestionId: string;
+  previousOptions: string[];
+  nextOptions: string[];
+}) {
+  const { formId, branchingQuestionId, previousOptions, nextOptions } = input;
+  const renames = new Map<string, string>();
+
+  if (previousOptions.length === nextOptions.length) {
+    for (let index = 0; index < previousOptions.length; index += 1) {
+      const previous = previousOptions[index];
+      const next = nextOptions[index];
+      if (previous !== next) renames.set(previous, next);
+    }
+  }
+
+  const removed = previousOptions.filter((option) => !nextOptions.includes(option));
+  const sections = await prisma.formSection.findMany({
+    where: { formId, branchValue: { not: null } },
+  });
+
+  for (const option of removed) {
+    if (renames.has(option)) continue;
+    const linked = sections.find((section) => section.branchValue === option);
+    if (linked) {
+      throw new Error(
+        `Remove the "${option}" section before deleting that branching option.`
+      );
+    }
+  }
+
+  if (renames.size === 0) return;
+
+  const plannedValues = sections
+    .map((section) => {
+      const current = section.branchValue;
+      if (!current) return null;
+      return renames.get(current) ?? current;
+    })
+    .filter((value): value is string => Boolean(value));
+
+  if (new Set(plannedValues).size !== plannedValues.length) {
+    throw new Error(
+      "Another section is already linked to that option. Use unique option names."
+    );
+  }
+
+  const linkedToRename = sections.filter(
+    (section) => section.branchValue && renames.has(section.branchValue)
+  );
+  if (linkedToRename.length === 0) return;
+
+  await prisma.$transaction(async (tx) => {
+    for (const section of linkedToRename) {
+      await tx.formSection.update({
+        where: { id: section.id },
+        data: {
+          branchValue: `__tmp__${section.id}`,
+        },
+      });
+    }
+
+    for (const section of linkedToRename) {
+      const previous = section.branchValue!;
+      const next = renames.get(previous)!;
+      const logic = buildQuestionLogic({
+        questionId: branchingQuestionId,
+        operator: "equals",
+        value: next,
+      });
+      await tx.formSection.update({
+        where: { id: section.id },
+        data: {
+          title: next,
+          branchValue: next,
+          logic: logic ? (logic as Prisma.InputJsonValue) : Prisma.DbNull,
+        },
+      });
+    }
+  });
+}
+
+export async function duplicateFieldOnForm(
+  userId: string,
+  role: UserRole,
+  _teamId: string | undefined,
+  _clientId: string | undefined,
+  formId: string,
+  fieldId: string
+) {
+  await requireFormAccess(userId, role, formId);
+
+  const field = await prisma.question.findFirst({
+    where: { id: fieldId, formId },
+  });
+  if (!field) throw new Error("Field not found");
+
+  if (field.type === "BRANCHING_DROPDOWN") {
+    throw new Error("Only one section branching field is allowed.");
+  }
+
+  const form = await prisma.form.findUnique({
+    where: { id: formId },
+    include: { questions: { select: { order: true } } },
+  });
+  if (!form) throw new Error("Form not found");
+
+  const nextOrder =
+    form.questions.reduce((max, item) => Math.max(max, item.order), 0) + 1;
+
+  return prisma.question.create({
+    data: {
+      formId,
+      sectionId: field.sectionId,
+      type: field.type,
+      label: `${field.label} (copy)`,
+      description: field.description,
+      required: field.required,
+      order: nextOrder,
+      options:
+        field.options === null
+          ? Prisma.JsonNull
+          : (field.options as Prisma.InputJsonValue),
+    },
+  });
+}
+
+export async function duplicateFormForUser(
+  userId: string,
+  role: UserRole,
+  formId: string
+) {
+  const form = await prisma.form.findUnique({
+    where: { id: formId },
+    include: {
+      questions: { orderBy: { order: "asc" } },
+      sections: { orderBy: { order: "asc" } },
+    },
+  });
+  if (!form) throw new Error("Form not found");
+  if (!(await userCanAccessFormRecord(userId, role, form))) {
+    throw new Error("No access");
+  }
+
+  const copy = await prisma.form.create({
+    data: {
+      teamId: form.teamId,
+      clientId: form.clientId,
+      createdById: userId,
+      title: `${form.title} (copy)`,
+      description: form.description,
+      thankYouTitle: form.thankYouTitle,
+      thankYouMessage: form.thankYouMessage,
+      headerImageUrl: form.headerImageUrl,
+      thankYouImageUrl: form.thankYouImageUrl,
+      thankYouBgColor: form.thankYouBgColor,
+      status: "DRAFT",
+      sourceTemplateId: form.sourceTemplateId,
+    },
+  });
+
+  if (form.sections.length > 0) {
+    const sectionMap = new Map<string, string>();
+    for (const section of form.sections) {
+      const created = await prisma.formSection.create({
+        data: {
+          formId: copy.id,
+          title: section.title,
+          description: section.description,
+          order: section.order,
+          branchValue: section.branchValue,
+          logic:
+            section.logic === null
+              ? Prisma.JsonNull
+              : (section.logic as Prisma.InputJsonValue),
+        },
+      });
+      sectionMap.set(section.id, created.id);
+    }
+
+    if (form.questions.length > 0) {
+      await prisma.question.createMany({
+        data: form.questions.map((question) => ({
+          formId: copy.id,
+          sectionId: question.sectionId
+            ? sectionMap.get(question.sectionId) ?? null
+            : null,
+          type: question.type,
+          label: question.label,
+          description: question.description,
+          order: question.order,
+          required: question.required,
+          options:
+            question.options === null
+              ? Prisma.JsonNull
+              : (question.options as Prisma.InputJsonValue),
+        })),
+      });
+    }
+  } else if (form.questions.length > 0) {
+    await prisma.question.createMany({
+      data: form.questions.map((question) => ({
+        formId: copy.id,
+        type: question.type,
+        label: question.label,
+        description: question.description,
+        order: question.order,
+        required: question.required,
+        options:
+          question.options === null
+            ? Prisma.JsonNull
+            : (question.options as Prisma.InputJsonValue),
+      })),
+    });
+  }
+
+  return copy;
 }
 
 export async function deleteFieldOnForm(
@@ -398,6 +811,17 @@ export async function deleteFieldOnForm(
     include: { _count: { select: { answers: true } } },
   });
   if (!field) throw new Error("Field not found");
+
+  if (field.type === "BRANCHING_DROPDOWN") {
+    const linkedSections = await prisma.formSection.count({
+      where: { formId, branchValue: { not: null } },
+    });
+    if (linkedSections > 0) {
+      throw new Error(
+        "Remove linked sections before deleting the section branching field."
+      );
+    }
+  }
 
   if (field._count.answers > 0) {
     throw new Error(
@@ -542,6 +966,10 @@ export async function applyTemplateToForm(
             question.options === null
               ? Prisma.JsonNull
               : (question.options as Prisma.InputJsonValue),
+          logic:
+            question.logic === null
+              ? Prisma.JsonNull
+              : (question.logic as Prisma.InputJsonValue),
         })),
       });
     }
@@ -560,6 +988,7 @@ export async function getPublishedFormByToken(token: string) {
     include: {
       client: true,
       createdBy: { select: { email: true, name: true } },
+      sections: { orderBy: { order: "asc" } },
       questions: { orderBy: { order: "asc" } },
       surveys: {
         orderBy: { createdAt: "desc" },
@@ -595,36 +1024,70 @@ export async function submitPublicForm(
 
   const answers: { questionId: string; value: string }[] = [];
 
-  for (const question of form.questions) {
-    let value = "";
+  const sectionRecords = (form.sections ?? []).map((section) => ({
+    id: section.id,
+    title: section.title,
+    description: section.description,
+    order: section.order,
+    branchValue: section.branchValue,
+    logic: section.logic,
+  }));
+  const questionRecords = form.questions.map((question) => ({
+    id: question.id,
+    type: question.type,
+    label: question.label,
+    description: question.description,
+    required: question.required,
+    options: question.options,
+    sectionId: question.sectionId,
+    order: question.order,
+  }));
+
+  const parsedAnswers: Record<string, string> = {};
+  for (const question of questionRecords) {
+    const plugin = getFieldType(question.type);
+    if (plugin && !plugin.hasAnswer) continue;
+    const value = parseFieldAnswer(
+      question.type,
+      formData,
+      question.id,
+      question.options
+    );
+    if (value) parsedAnswers[question.id] = value;
+  }
+
+  const submittableQuestions = getVisibleQuestionsForSubmit(
+    sectionRecords,
+    questionRecords,
+    parsedAnswers
+  );
+
+  for (const question of submittableQuestions) {
+    const plugin = getFieldType(question.type);
+    if (plugin && !plugin.hasAnswer) continue;
+
+    const value =
+      parsedAnswers[question.id] ??
+      parseFieldAnswer(question.type, formData, question.id, question.options);
 
     if (question.type === "RESOURCE_RATING") {
-      const rows = parseOptionList(question.options);
-      const scores = rows.map((row, index) => ({
-        name: row,
-        score: String(formData.get(`q_${question.id}__${index}`) ?? ""),
-      }));
+      const rows = getChoiceList(question.options);
+      const scores = JSON.parse(value || "[]") as Array<{ score?: string }>;
       if (question.required && scores.some((item) => !item.score)) {
         throw new Error("Please rate every name.");
       }
-      value = JSON.stringify(scores);
     } else if (question.type === "MULTIPLE_CHOICE") {
-      const selected = formData
-        .getAll(`q_${question.id}[]`)
-        .map(String)
-        .filter(Boolean);
+      const selected = JSON.parse(value || "[]") as string[];
       if (question.required && selected.length === 0) {
         throw new Error("Please complete all required questions.");
       }
-      value = JSON.stringify(selected);
-    } else {
-      value = String(formData.get(`q_${question.id}`) ?? "").trim();
-      if (question.required && !value) {
-        throw new Error("Please complete all required questions.");
-      }
+    } else if (question.required && !value) {
+      throw new Error("Please complete all required questions.");
     }
 
-    answers.push({ questionId: question.id, value });
+    if (value) {
+      answers.push({ questionId: question.id, value });
+    }
   }
 
   await prisma.$transaction(async (tx) => {

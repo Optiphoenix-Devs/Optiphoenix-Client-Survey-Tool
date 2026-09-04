@@ -8,20 +8,26 @@ import type { ActionResult } from "@/lib/action-result";
 import type { DashboardFormRow } from "@/lib/teams";
 import { cn } from "@/lib/cn";
 import { formatMonthYear, columnLabel } from "@/lib/format";
+import { matchesDirectorySearch } from "@/lib/directory-search";
 import {
   DirectoryCardLine,
 } from "@/components/directory/directory-card-meta";
 import { DirectoryCard, DirectoryCardIcon, DirectoryCardTitle } from "@/components/directory/directory-card";
 import { TableHeadCenter, TableHeadLeft, TableCellCenter, TableCellLeft, DirectoryTableRow } from "@/components/directory/directory-table";
 import { runServerAction } from "@/lib/run-server-action";
-import { DIRECTORY_SORT_OPTIONS, sortDirectoryRows, type DirectorySort } from "@/lib/sort";
+import {
+  DIRECTORY_SORT_OPTIONS,
+  DIRECTORY_SORT_SELECTION_VALUES,
+  sortDirectoryRows,
+  type DirectorySort,
+} from "@/lib/sort";
 import { Pagination, usePaged } from "@/components/ui/pagination";
 import { DrawerActions, SideDrawer } from "@/components/ui/side-drawer";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { TableActionsCell, TableActionsHeader, TableDeleteButton } from "@/components/ui/table-actions";
 import { ActionButton } from "@/components/ui/pending-button";
 import { Stagger } from "@/components/ui/skeleton";
-import { Select } from "@/components/ui/select";
+import { Select, SortByOption } from "@/components/ui/select";
 import { Tooltip } from "@/components/ui/tooltip";
 import { useDirectoryView } from "@/lib/use-directory-view";
 import { usePersistedValue } from "@/lib/use-persisted-value";
@@ -35,7 +41,7 @@ type TemplateOption = {
 };
 
 const VIEW_STORAGE_KEY = "optiphoenix.formsView";
-const SORT_KEY = "optiphoenix.formsSort";
+const SORT_KEY = "optiphoenix.formsSort.v2";
 
 const FILTERS: Array<{ id: FormsFilter; label: string }> = [
   { id: "all", label: "All" },
@@ -66,12 +72,7 @@ export function YourFormsSection({
   const searchParams = useSearchParams();
   const filter = parseFilter(searchParams.get("forms"));
   const [view, setView] = useDirectoryView(VIEW_STORAGE_KEY);
-  const [sort, setSort] = usePersistedValue(SORT_KEY, "newest", [
-    "newest",
-    "oldest",
-    "name-asc",
-    "name-desc",
-  ]);
+  const [sort, setSort] = usePersistedValue(SORT_KEY, "", DIRECTORY_SORT_SELECTION_VALUES);
   const [query, setQuery] = useState("");
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [deleting, setDeleting] = useState<DashboardFormRow | null>(null);
@@ -103,7 +104,6 @@ export function YourFormsSection({
     [forms, filter, query, sort]
   );
   const paged = usePaged(visible);
-  const fieldTotal = visible.reduce((sum, form) => sum + form.fieldCount, 0);
   const responseTotal = visible.reduce((sum, form) => sum + form.responseCount, 0);
 
   function closeDrawer() {
@@ -145,107 +145,224 @@ export function YourFormsSection({
 
   return (
     <section id="forms" className="scroll-mt-8">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-center">
+      <div className="flex flex-col gap-4">
         <h2
           className={
             title === "Your forms"
               ? "text-lg font-semibold tracking-tight"
-              : "text-3xl font-semibold tracking-tight"
+              : "text-2xl font-semibold tracking-tight sm:text-3xl"
           }
         >
           {title}
         </h2>
-        <div className="flex flex-1 flex-wrap items-center gap-2 lg:justify-end">
-          <div className="flex app-radius border border-border bg-surface p-1">
-            {FILTERS.map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => setFilter(item.id)}
-                className={cn(
-                  "app-radius px-3 py-1.5 text-sm font-medium transition",
-                  filter === item.id
-                    ? "app-brand-surface"
-                    : "text-muted app-brand-hover"
-                )}
+        <div className="flex w-full min-w-0 flex-col gap-2">
+          {/* ≥768: search · sort · layout, then filters · new */}
+          <div className="hidden w-full min-w-0 flex-col gap-2 md:flex">
+            <div className="flex w-full min-w-0 items-center gap-2">
+              <label className="relative min-w-0 flex-1">
+                <span className="sr-only">Search forms</span>
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
+                <input
+                  type="search"
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  placeholder="Search forms..."
+                  className="app-toolbar-input min-w-0 outline-none"
+                />
+              </label>
+              <label className="min-w-0 w-[13.5rem] shrink-0">
+                <span className="sr-only">Sort by</span>
+                <Select
+                  value={sort}
+                  onChange={(event) => {
+                    const next = event.target.value;
+                    if (!next) return;
+                    setSort(next as DirectorySort);
+                    paged.setPage(1);
+                  }}
+                  aria-label="Sort by"
+                  className="w-full"
+                >
+                  <SortByOption />
+                  {DIRECTORY_SORT_OPTIONS.map((option) => (
+                    <option key={option.id} value={option.id}>
+                      {option.label}
+                    </option>
+                  ))}
+                </Select>
+              </label>
+              <div
+                className="flex h-10 shrink-0 app-radius border border-border bg-surface p-1"
+                role="group"
+                aria-label="Forms layout"
               >
-                {item.label}
-              </button>
-            ))}
+                <Tooltip label="Card grid" side="bottom">
+                  <button
+                    type="button"
+                    onClick={() => setView("grid")}
+                    aria-pressed={view === "grid"}
+                    className={cn(
+                      "grid h-full w-9 place-items-center app-radius transition",
+                      view === "grid"
+                        ? "app-icon-toggle-active"
+                        : "app-icon-toggle text-muted"
+                    )}
+                  >
+                    <LayoutGrid className="h-4 w-4" />
+                    <span className="sr-only">Card grid</span>
+                  </button>
+                </Tooltip>
+                <Tooltip label="Table" side="bottom">
+                  <button
+                    type="button"
+                    onClick={() => setView("table")}
+                    aria-pressed={view === "table"}
+                    className={cn(
+                      "grid h-full w-9 place-items-center app-radius transition",
+                      view === "table"
+                        ? "app-icon-toggle-active"
+                        : "app-icon-toggle text-muted"
+                    )}
+                  >
+                    <Table2 className="h-4 w-4" />
+                    <span className="sr-only">Table</span>
+                  </button>
+                </Tooltip>
+              </div>
+            </div>
+            <div className="flex w-full min-w-0 items-center gap-2">
+              <div className="flex min-w-0 overflow-x-auto app-radius border border-border bg-surface p-1">
+                {FILTERS.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => setFilter(item.id)}
+                    className={cn(
+                      "shrink-0 app-radius px-3 py-1.5 text-sm font-medium transition",
+                      filter === item.id
+                        ? "app-brand-surface"
+                        : "text-muted app-brand-hover"
+                    )}
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+              {canCreate ? (
+                <button
+                  type="button"
+                  onClick={() => setDrawerOpen(true)}
+                  className="app-btn-primary ml-auto shrink-0 justify-center px-4 py-2.5 text-sm"
+                >
+                  <Plus className="h-4 w-4" />
+                  New form
+                </button>
+              ) : null}
+            </div>
           </div>
-          <label className="relative min-w-[12rem] flex-1 sm:max-w-xs">
-            <span className="sr-only">Search forms</span>
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
-            <input
-              type="search"
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search forms..."
-              className="app-toolbar-input outline-none"
-            />
-          </label>
-          <label className="w-[11.5rem] shrink-0">
-            <span className="sr-only">Sort by</span>
-            <Select
-              value={sort}
-              onChange={(event) => {
-                setSort(event.target.value as DirectorySort);
-                paged.setPage(1);
-              }}
-              aria-label="Sort by"
-              className="app-radius py-2"
-            >
-              {DIRECTORY_SORT_OPTIONS.map((option) => (
-                <option key={option.id} value={option.id}>
-                  {option.label}
-                </option>
-              ))}
-            </Select>
-          </label>
-          <div
-            className="flex h-10 app-radius border border-border bg-surface p-1"
-            role="group"
-            aria-label="Forms layout"
-          >
-            <Tooltip label="Card grid" side="bottom">
+
+          {/* <768: search → Sort by + dropdown → filters + layout → full-width new */}
+          <div className="flex w-full min-w-0 flex-col gap-2 md:hidden">
+            <label className="relative w-full min-w-0">
+              <span className="sr-only">Search forms</span>
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
+              <input
+                type="search"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Search forms..."
+                className="app-toolbar-input min-w-0 outline-none"
+              />
+            </label>
+            <label className="w-full min-w-0">
+              <span className="sr-only">Sort by</span>
+              <Select
+                value={sort}
+                onChange={(event) => {
+                  const next = event.target.value;
+                  if (!next) return;
+                  setSort(next as DirectorySort);
+                  paged.setPage(1);
+                }}
+                aria-label="Sort by"
+                className="w-full"
+              >
+                <SortByOption />
+                {DIRECTORY_SORT_OPTIONS.map((option) => (
+                  <option key={option.id} value={option.id}>
+                    {option.label}
+                  </option>
+                ))}
+              </Select>
+            </label>
+            <div className="flex w-full min-w-0 items-center gap-2">
+              <div className="flex min-w-0 flex-1 overflow-x-auto app-radius border border-border bg-surface p-1">
+                {FILTERS.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => setFilter(item.id)}
+                    className={cn(
+                      "shrink-0 app-radius px-2.5 py-1.5 text-sm font-medium transition",
+                      filter === item.id
+                        ? "app-brand-surface"
+                        : "text-muted app-brand-hover"
+                    )}
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+              <div
+                className="flex h-10 shrink-0 app-radius border border-border bg-surface p-1"
+                role="group"
+                aria-label="Forms layout"
+              >
+                <Tooltip label="Card grid" side="bottom">
+                  <button
+                    type="button"
+                    onClick={() => setView("grid")}
+                    aria-pressed={view === "grid"}
+                    className={cn(
+                      "grid h-full w-9 place-items-center app-radius transition",
+                      view === "grid"
+                        ? "app-icon-toggle-active"
+                        : "app-icon-toggle text-muted"
+                    )}
+                  >
+                    <LayoutGrid className="h-4 w-4" />
+                    <span className="sr-only">Card grid</span>
+                  </button>
+                </Tooltip>
+                <Tooltip label="Table" side="bottom">
+                  <button
+                    type="button"
+                    onClick={() => setView("table")}
+                    aria-pressed={view === "table"}
+                    className={cn(
+                      "grid h-full w-9 place-items-center app-radius transition",
+                      view === "table"
+                        ? "app-icon-toggle-active"
+                        : "app-icon-toggle text-muted"
+                    )}
+                  >
+                    <Table2 className="h-4 w-4" />
+                    <span className="sr-only">Table</span>
+                  </button>
+                </Tooltip>
+              </div>
+            </div>
+            {canCreate ? (
               <button
                 type="button"
-                onClick={() => setView("grid")}
-                aria-pressed={view === "grid"}
-                className={cn(
-                  "grid h-full w-9 place-items-center app-radius transition",
-                  view === "grid" ? "app-icon-toggle-active" : "app-icon-toggle text-muted"
-                )}
+                onClick={() => setDrawerOpen(true)}
+                className="app-btn-primary w-full justify-center px-4 py-2.5 text-sm"
               >
-                <LayoutGrid className="h-4 w-4" />
-                <span className="sr-only">Card grid</span>
+                <Plus className="h-4 w-4" />
+                New form
               </button>
-            </Tooltip>
-            <Tooltip label="Table" side="bottom">
-              <button
-                type="button"
-                onClick={() => setView("table")}
-                aria-pressed={view === "table"}
-                className={cn(
-                  "grid h-full w-9 place-items-center app-radius transition",
-                  view === "table" ? "app-icon-toggle-active" : "app-icon-toggle text-muted"
-                )}
-              >
-                <Table2 className="h-4 w-4" />
-                <span className="sr-only">Table</span>
-              </button>
-            </Tooltip>
+            ) : null}
           </div>
-          {canCreate ? (
-            <button
-              type="button"
-              onClick={() => setDrawerOpen(true)}
-              className="app-btn-primary px-4 py-2.5 text-sm"
-            >
-              <Plus className="h-4 w-4" />
-              New form
-            </button>
-          ) : null}
         </div>
       </div>
 
@@ -277,26 +394,23 @@ export function YourFormsSection({
         </ul>
       ) : (
         <div className="directory-table-wrap card-enter mt-6">
-          <table className="directory-table w-full min-w-[44rem] table-fixed text-sm">
+          <table className="directory-table w-full min-w-[44rem] text-sm">
             <thead>
               <tr>
-                <TableHeadLeft className="w-[30%]">
+                <TableHeadLeft className="min-w-[12rem] w-[32%]">
                   {columnLabel(visible.length, "Form", "Forms")}
                 </TableHeadLeft>
-                <TableHeadCenter className="w-[18%]">
-                  {columnLabel(visible.length, "Client", "Clients")}
-                </TableHeadCenter>
-                <TableHeadCenter className="w-[12%]">Status</TableHeadCenter>
-                <TableHeadCenter className="w-[16%]">
+                <TableHeadCenter className="min-w-[8rem] w-[18%]">
                   {columnLabel(visible.length, "Team", "Teams")}
                 </TableHeadCenter>
-                <TableHeadCenter className="w-[8%]">
-                  {columnLabel(fieldTotal, "Field", "Fields")}
+                <TableHeadCenter className="min-w-[8rem] w-[18%]">
+                  {columnLabel(visible.length, "Client", "Clients")}
                 </TableHeadCenter>
-                <TableHeadCenter className="w-[8%]">
+                <TableHeadCenter className="min-w-[7rem] w-[12%]">Status</TableHeadCenter>
+                <TableHeadCenter className="min-w-[6.5rem] w-[12%]">
                   {columnLabel(responseTotal, "Response", "Responses")}
                 </TableHeadCenter>
-                {canDelete ? <TableActionsHeader className="w-[8%]" /> : null}
+                {canDelete ? <TableActionsHeader className="min-w-[4.5rem] w-[8%]" /> : null}
               </tr>
             </thead>
             <tbody>
@@ -312,12 +426,11 @@ export function YourFormsSection({
                       {formatMonthYear(form.updatedAt)}
                     </p>
                   </TableCellLeft>
+                  <TableCellCenter className="truncate text-muted">{form.teamName}</TableCellCenter>
                   <TableCellCenter className="text-muted">{form.clientName}</TableCellCenter>
                   <TableCellCenter>
                     <StatusBadge status={form.status} />
                   </TableCellCenter>
-                  <TableCellCenter className="truncate text-muted">{form.teamName}</TableCellCenter>
-                  <TableCellCenter className="tabular-nums">{form.fieldCount}</TableCellCenter>
                   <TableCellCenter className="tabular-nums">
                     <Link
                       href={`/dashboard/responses?form=${form.id}`}
@@ -431,19 +544,17 @@ export function YourFormsSection({
 }
 
 function filterForms(forms: DashboardFormRow[], filter: FormsFilter, query: string) {
-  const needle = query.trim().toLowerCase();
   return forms.filter((form) => {
     const statusOk =
       filter === "all" ||
       (filter === "published" && form.status === "PUBLISHED") ||
       (filter === "drafts" && form.status === "DRAFT");
     if (!statusOk) return false;
-    if (!needle) return true;
-    return (
-      form.title.toLowerCase().includes(needle) ||
-      form.clientName.toLowerCase().includes(needle) ||
-      form.teamName.toLowerCase().includes(needle)
-    );
+    return matchesDirectorySearch(query, [
+      form.title,
+      form.clientName,
+      form.teamName,
+    ]);
   });
 }
 
@@ -486,8 +597,8 @@ function FormCard({
       <Link href={form.href} className="mt-4 block min-w-0 flex-1">
         <DirectoryCardTitle title={form.title}>{form.title}</DirectoryCardTitle>
         <div className="mt-5 space-y-2">
-          <DirectoryCardLine label="Client" value={form.clientName} title={form.clientName} />
           <DirectoryCardLine label="Team" value={form.teamName} title={form.teamName} />
+          <DirectoryCardLine label="Client" value={form.clientName} title={form.clientName} />
         </div>
       </Link>
     </DirectoryCard>
@@ -500,7 +611,9 @@ function StatusBadge({ status }: { status: DashboardFormRow["status"] }) {
     <span
       className={cn(
         "px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide whitespace-nowrap",
-        published ? "bg-sage/20 text-accent" : "bg-hover text-muted"
+        published
+          ? "bg-emerald-100 text-emerald-800"
+          : "bg-zinc-100 text-zinc-600"
       )}
     >
       {published ? "Published" : "Draft"}

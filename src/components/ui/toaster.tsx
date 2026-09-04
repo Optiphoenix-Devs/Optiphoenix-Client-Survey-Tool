@@ -25,6 +25,46 @@ function emit() {
   for (const listener of listeners) listener(items);
 }
 
+const debouncedToastTimers = new Map<string, number>();
+const debouncedToastPending = new Map<
+  string,
+  { title: string; options?: { description?: string; tone?: ToastTone; durationMs?: number } }
+>();
+
+export function toastDebounced(
+  key: string,
+  title: string,
+  options?: {
+    description?: string;
+    tone?: ToastTone;
+    durationMs?: number;
+    delayMs?: number;
+  }
+) {
+  const delayMs = options?.delayMs ?? 1500;
+  debouncedToastPending.set(key, {
+    title,
+    options: {
+      description: options?.description,
+      tone: options?.tone,
+      durationMs: options?.durationMs,
+    },
+  });
+
+  const existing = debouncedToastTimers.get(key);
+  if (existing) window.clearTimeout(existing);
+
+  debouncedToastTimers.set(
+    key,
+    window.setTimeout(() => {
+      debouncedToastTimers.delete(key);
+      const pending = debouncedToastPending.get(key);
+      debouncedToastPending.delete(key);
+      if (pending) toast(pending.title, pending.options);
+    }, delayMs)
+  );
+}
+
 export function toast(
   title: string,
   options?: { description?: string; tone?: ToastTone; durationMs?: number }
@@ -98,7 +138,7 @@ export function Toaster() {
   if (toasts.length === 0) return null;
 
   return (
-    <div className="pointer-events-none fixed top-4 right-4 z-[90] flex w-[min(calc(100vw-2rem),22rem)] flex-col gap-2.5">
+    <div className="pointer-events-none fixed top-[max(1rem,env(safe-area-inset-top))] right-4 z-[90] flex w-[min(calc(100vw-2rem),22rem)] flex-col gap-2.5 lg:top-4">
       {toasts.map((item) => {
         const tone = TONE[item.tone];
         return (
@@ -124,7 +164,10 @@ export function Toaster() {
             <button
               type="button"
               onClick={() => dismissToast(item.id)}
-              className={cn("rounded-md p-1 transition", tone.closeClass)}
+              className={cn(
+                "inline-flex min-h-9 min-w-9 items-center justify-center rounded-md transition",
+                tone.closeClass
+              )}
               aria-label="Close notification"
             >
               <X className="h-4 w-4" />

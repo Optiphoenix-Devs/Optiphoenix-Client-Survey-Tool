@@ -22,7 +22,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       <head>
         <script dangerouslySetInnerHTML={{ __html: bootScript }} />
       </head>
-      <body className={`${dmSans.className} flex min-h-dvh flex-col bg-background text-foreground`}>
+      <body
+        className={`${dmSans.className} flex min-h-dvh flex-col bg-background text-foreground`}
+        suppressHydrationWarning
+      >
         <ThemeProvider>
           {children}
           <Toaster />

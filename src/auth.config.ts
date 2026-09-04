@@ -8,18 +8,23 @@ export const authConfig = {
   trustHost: true,
   session: {
     strategy: "jwt",
+    maxAge: 60 * 60 * 24,
   },
   pages: {
     signIn: "/login",
   },
   providers: [],
   callbacks: {
+    // Edge-safe: middleware only needs a present cookie. Server `auth()` in
+    // auth.ts re-validates sessionVersion against the database.
     jwt({ token, user }) {
       if (user) {
         token.role = user.role;
         token.id = user.id;
         token.name = user.name;
         token.picture = user.image;
+        token.sessionVersion = user.sessionVersion;
+        token.error = undefined;
       }
       return token;
     },

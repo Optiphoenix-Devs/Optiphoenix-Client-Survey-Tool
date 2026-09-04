@@ -1,3 +1,5 @@
+import { redirect } from "next/navigation";
+import { auth } from "@/auth";
 import { LoginForm } from "./login-form";
 import { AuthShell } from "@/components/auth-shell";
 
@@ -6,6 +8,11 @@ export default async function LoginPage({
 }: {
   searchParams: Promise<{ error?: string; notice?: string }>;
 }) {
+  const session = await auth();
+  if (session?.user?.id) {
+    redirect("/dashboard");
+  }
+
   const { notice } = await searchParams;
 
   return (

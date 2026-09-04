@@ -3,6 +3,7 @@ import { DefaultSession } from "next-auth";
 declare module "next-auth" {
   interface User {
     role: "ADMIN" | "TEAM_LEAD";
+    sessionVersion: number;
   }
 
   interface Session {
@@ -17,5 +18,7 @@ declare module "next-auth/jwt" {
   interface JWT {
     id?: string;
     role?: "ADMIN" | "TEAM_LEAD";
+    sessionVersion?: number;
+    error?: "InvalidSession" | "SessionReplaced";
   }
 }

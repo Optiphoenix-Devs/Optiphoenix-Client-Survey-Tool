@@ -35,8 +35,10 @@ export default async function TemplateBuilderPage({
           id: question.id,
           type: question.type,
           label: question.label,
+          description: question.description,
           required: question.required,
           options: question.options,
+          logic: question.logic,
           order: question.order,
         }))}
       />

@@ -1,13 +1,15 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { scrollToPageTop } from "@/lib/scroll-to-page-top";
 
 export const PAGE_SIZE = 12;
 
 export function usePaged<T>(items: T[], pageSize = PAGE_SIZE) {
   const [page, setPage] = useState(1);
+  const skipScrollRef = useRef(true);
   const pageCount = Math.max(1, Math.ceil(items.length / pageSize));
   const currentPage = Math.min(page, pageCount);
 
@@ -18,6 +20,15 @@ export function usePaged<T>(items: T[], pageSize = PAGE_SIZE) {
 
   const rangeStart = items.length === 0 ? 0 : (currentPage - 1) * pageSize + 1;
   const rangeEnd = Math.min(currentPage * pageSize, items.length);
+
+  useEffect(() => {
+    if (skipScrollRef.current) {
+      skipScrollRef.current = false;
+      return;
+    }
+
+    scrollToPageTop();
+  }, [currentPage]);
 
   return {
     page: currentPage,

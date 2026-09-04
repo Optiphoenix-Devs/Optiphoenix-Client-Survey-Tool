@@ -17,8 +17,10 @@ import {
   TableActionsHeader,
   TableDeleteButton,
   TableEditLink,
+  TableUseButton,
 } from "@/components/ui/table-actions";
 import { formatMonthYear, columnLabel, pluralize } from "@/lib/format";
+import { matchesDirectorySearch } from "@/lib/directory-search";
 import { TableHeadCenter, TableHeadLeft, TableCellCenter, TableCellLeft, DirectoryTableRow } from "@/components/directory/directory-table";
 import {
   DirectoryCard,
@@ -28,12 +30,16 @@ import {
   DirectoryCardTitle,
 } from "@/components/directory/directory-card";
 import { runServerAction } from "@/lib/run-server-action";
-import { sortDirectoryRows, type DirectorySort } from "@/lib/sort";
+import {
+  DIRECTORY_SORT_SELECTION_VALUES,
+  sortDirectoryRows,
+  type DirectorySort,
+} from "@/lib/sort";
 import { useDirectoryView } from "@/lib/use-directory-view";
 import { usePersistedValue } from "@/lib/use-persisted-value";
 
 const VIEW_KEY = "optiphoenix.templatesView";
-const SORT_KEY = "optiphoenix.templatesSort";
+const SORT_KEY = "optiphoenix.templatesSort.v2";
 
 export function TemplatesDirectory({
   templates,
@@ -49,25 +55,20 @@ export function TemplatesDirectory({
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [view, setView] = useDirectoryView(VIEW_KEY);
-  const [sort, setSort] = usePersistedValue(SORT_KEY, "newest", [
-    "newest",
-    "oldest",
-    "name-asc",
-    "name-desc",
-  ]);
+  const [sort, setSort] = usePersistedValue(SORT_KEY, "", DIRECTORY_SORT_SELECTION_VALUES);
   const [creating, setCreating] = useState(false);
   const [using, setUsing] = useState<TemplateListRow | null>(null);
   const [deleting, setDeleting] = useState<TemplateListRow | null>(null);
   const [pending, startTransition] = useTransition();
 
   const visible = useMemo(() => {
-    const needle = query.trim().toLowerCase();
-    const filtered = needle
+    const filtered = query.trim()
       ? templates.filter((template) =>
-          [template.name, template.description ?? "", template.createdByName]
-            .join(" ")
-            .toLowerCase()
-            .includes(needle)
+          matchesDirectorySearch(query, [
+            template.name,
+            template.description,
+            template.createdByName,
+          ])
         )
       : templates;
     return sortDirectoryRows(
@@ -131,15 +132,16 @@ export function TemplatesDirectory({
 
   return (
     <section>
-      <div className="flex flex-wrap items-center gap-3">
-        <h1 className="shrink-0 text-3xl font-semibold tracking-tight">Templates</h1>
-        <div className="flex min-w-0 flex-1 flex-wrap items-center justify-end gap-2">
+      <div className="flex flex-col gap-3">
+        <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Templates</h1>
+        <div className="flex w-full min-w-0 flex-col gap-2 lg:flex-row lg:items-center lg:justify-end lg:gap-2">
           <DirectoryToolbar
             query={query}
             onQueryChange={setQuery}
             view={view}
             onViewChange={setView}
             searchPlaceholder="Search templates..."
+            className="w-full lg:flex-1"
             sort={sort}
             onSortChange={(next: DirectorySort) => {
               setSort(next);
@@ -149,16 +151,13 @@ export function TemplatesDirectory({
           <button
             type="button"
             onClick={() => setCreating(true)}
-            className="app-btn-primary shrink-0 px-4 py-2.5 text-sm"
+            className="app-btn-primary w-full justify-center px-4 py-2.5 text-sm lg:w-auto lg:shrink-0"
           >
             <Plus className="h-4 w-4" />
             New template
           </button>
         </div>
       </div>
-      <p className="mt-1 text-sm text-muted">
-        Reuse the same questions each month. A new form gets a new public link.
-      </p>
 
       {visible.length === 0 ? (
         <p className="mt-6 app-radius border border-dashed border-border bg-card px-4 py-8 text-center text-sm text-muted">
@@ -222,7 +221,7 @@ export function TemplatesDirectory({
         </ul>
       ) : (
         <div className="directory-table-wrap mt-6">
-          <table className="directory-table w-full min-w-[40rem] table-fixed text-sm">
+          <table className="directory-table w-full min-w-[48rem] text-sm">
             <thead>
               <tr>
                 <TableHeadLeft className="w-[32%]">
@@ -254,13 +253,10 @@ export function TemplatesDirectory({
                     {formatMonthYear(template.updatedAt)}
                   </TableCellCenter>
                   <TableActionsCell>
-                    <button
-                      type="button"
+                    <TableUseButton
+                      label={template.name}
                       onClick={() => setUsing(template)}
-                      className="inline-flex h-8 items-center rounded-full px-3 text-xs font-medium text-accent transition hover:bg-hover"
-                    >
-                      Use
-                    </button>
+                    />
                     {template.canManage ? (
                       <>
                         <TableEditLink href={`/dashboard/templates/${template.id}`} label={template.name} />

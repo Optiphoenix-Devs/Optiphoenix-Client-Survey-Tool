@@ -16,6 +16,7 @@ import { Stagger } from "@/components/ui/skeleton";
 import { DirectoryToolbar } from "@/components/directory/directory-toolbar";
 import { Pagination, usePaged } from "@/components/ui/pagination";
 import { formatMonthYear, columnLabel } from "@/lib/format";
+import { matchesDirectorySearch } from "@/lib/directory-search";
 import {
   TableHeadCenter,
   TableHeadLeft,
@@ -31,7 +32,11 @@ import {
   DirectoryCardTitle,
 } from "@/components/directory/directory-card";
 import { runServerAction } from "@/lib/run-server-action";
-import { sortDirectoryRows, type DirectorySort } from "@/lib/sort";
+import {
+  DIRECTORY_SORT_SELECTION_VALUES,
+  sortDirectoryRows,
+  type DirectorySort,
+} from "@/lib/sort";
 import { useDirectoryView } from "@/lib/use-directory-view";
 import { usePersistedValue } from "@/lib/use-persisted-value";
 import { createForm, deleteForm } from "./actions";
@@ -51,7 +56,7 @@ type ClientFormRow = {
 };
 
 const VIEW_KEY = "optiphoenix.clientFormsView";
-const SORT_KEY = "optiphoenix.clientFormsSort";
+const SORT_KEY = "optiphoenix.clientFormsSort.v2";
 
 const FILTERS: Array<{ id: FormsFilter; label: string }> = [
   { id: "all", label: "All" },
@@ -86,12 +91,7 @@ export function ClientWorkspace({
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<FormsFilter>("all");
   const [view, setView] = useDirectoryView(VIEW_KEY);
-  const [sort, setSort] = usePersistedValue(SORT_KEY, "newest", [
-    "newest",
-    "oldest",
-    "name-asc",
-    "name-desc",
-  ]);
+  const [sort, setSort] = usePersistedValue(SORT_KEY, "", DIRECTORY_SORT_SELECTION_VALUES);
   const publishedCount = forms.filter((form) => form.status === "PUBLISHED").length;
   const initials = name
     .split(" ")
@@ -101,18 +101,13 @@ export function ClientWorkspace({
     .join("");
 
   const visible = useMemo(() => {
-    const needle = query.trim().toLowerCase();
     const filtered = forms.filter((form) => {
       const statusOk =
         filter === "all" ||
         (filter === "published" && form.status === "PUBLISHED") ||
         (filter === "drafts" && form.status === "DRAFT");
       if (!statusOk) return false;
-      if (!needle) return true;
-      return (
-        form.title.toLowerCase().includes(needle) ||
-        (form.description ?? "").toLowerCase().includes(needle)
-      );
+      return matchesDirectorySearch(query, [form.title, form.description]);
     });
     return sortDirectoryRows(
       filtered,
@@ -166,7 +161,7 @@ export function ClientWorkspace({
               {initials || "C"}
             </span>
             <div>
-              <h1 className="text-3xl font-semibold tracking-tight">{name}</h1>
+              <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">{name}</h1>
               <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted">
                 <span className="inline-flex items-center gap-1.5">
                   <Mail className="h-3.5 w-3.5" />
@@ -176,7 +171,8 @@ export function ClientWorkspace({
               </p>
             </div>
           </div>
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex w-full min-w-0 flex-col gap-3 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center">
+            <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:gap-3">
             <div className="app-radius bg-hover px-4 py-3 text-center">
               <p className="text-2xl font-semibold tabular-nums">{forms.length}</p>
               <p className="text-xs text-muted">Forms</p>
@@ -185,20 +181,24 @@ export function ClientWorkspace({
               <p className="text-2xl font-semibold tabular-nums">{publishedCount}</p>
               <p className="text-xs text-muted">Published</p>
             </div>
+            </div>
+            <div className="grid w-full grid-cols-1 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:gap-3">
             <Link
               href={`/dashboard/insights?client=${clientId}`}
-              className="inline-flex items-center gap-1.5 app-radius border border-border bg-surface px-4 py-3 text-sm font-medium hover:bg-hover"
+              className="inline-flex w-full items-center justify-center gap-1.5 app-radius border border-border bg-surface px-4 py-3 text-sm font-medium hover:bg-hover sm:w-auto"
             >
               <BarChart3 className="h-4 w-4 text-accent" />
               Insights
             </Link>
             <Link
               href={`/dashboard/summarize?client=${clientId}`}
-              className="inline-flex items-center gap-1.5 app-radius border border-border bg-surface px-4 py-3 text-sm font-medium hover:bg-hover"
+              className="inline-flex w-full items-center justify-center gap-1.5 app-radius border border-border bg-surface px-4 py-3 text-sm font-medium hover:bg-hover sm:w-auto"
             >
               <Sparkles className="h-4 w-4 text-accent" />
-              Summarize
+              <span className="sm:hidden">Summary</span>
+              <span className="hidden sm:inline">AI-based summary</span>
             </Link>
+            </div>
           </div>
         </div>
       </header>
@@ -246,7 +246,7 @@ export function ClientWorkspace({
           <input type="hidden" name="clientId" value={clientId} />
           <label className="flex min-w-0 flex-1 flex-col gap-1.5 text-sm font-medium">
             Start from
-            <Select name="pick" defaultValue="blank" className="app-radius py-2.5 pr-10">
+            <Select name="pick" defaultValue="blank">
               <option value="blank">Blank form</option>
               {templates.length > 0 ? (
                 <optgroup label="Templates">
@@ -279,9 +279,9 @@ export function ClientWorkspace({
       </section>
 
       <section>
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center">
-          <h2 className="shrink-0 text-lg font-semibold tracking-tight">Feedback forms</h2>
-          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2 lg:justify-end">
+        <div className="flex flex-col gap-4">
+          <h2 className="text-lg font-semibold tracking-tight">Feedback forms</h2>
+          <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
             <div className="flex shrink-0 app-radius border border-border bg-surface p-1">
               {FILTERS.map((item) => (
                 <button
@@ -305,7 +305,7 @@ export function ClientWorkspace({
               view={view}
               onViewChange={setView}
               searchPlaceholder="Search forms..."
-              className="min-w-0"
+              className="min-w-0 flex-1"
               sort={sort}
               onSortChange={(next: DirectorySort) => {
                 setSort(next);
@@ -337,7 +337,9 @@ export function ClientWorkspace({
                         <span
                           className={cn(
                             "px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide",
-                            published ? "bg-sage/20 text-accent" : "bg-hover text-muted"
+                            published
+                              ? "bg-emerald-100 text-emerald-800"
+                              : "bg-zinc-100 text-zinc-600"
                           )}
                         >
                           {published ? "Published" : "Draft"}
@@ -373,7 +375,7 @@ export function ClientWorkspace({
           </ul>
         ) : (
           <div className="directory-table-wrap card-enter mt-6">
-            <table className="directory-table w-full min-w-[48rem] table-fixed text-sm">
+            <table className="directory-table w-full min-w-[52rem] text-sm">
               <thead>
                 <tr>
                   <TableHeadLeft className="w-[26%]">
@@ -412,7 +414,9 @@ export function ClientWorkspace({
                         <span
                           className={cn(
                             "inline-flex whitespace-nowrap px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide",
-                            published ? "bg-sage/20 text-accent" : "bg-hover text-muted"
+                            published
+                              ? "bg-emerald-100 text-emerald-800"
+                              : "bg-zinc-100 text-zinc-600"
                           )}
                         >
                           {published ? "Published" : "Draft"}

@@ -7,8 +7,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
-import { z } from "zod";
-import { updateProfileSchema } from "@/lib/validations";
+import { updateProfileSchema, changePasswordSchema } from "@/lib/validations";
 import type { ActionResult } from "@/lib/action-result";
 
 async function requireUser() {
@@ -62,21 +61,10 @@ export async function updateProfile(formData: FormData): Promise<ActionResult> {
   return {};
 }
 
-const changePasswordSchema = z
-  .object({
-    newPassword: z.string().min(8, "Password must be at least 8 characters"),
-    confirmNewPassword: z.string().min(8, "Password must be at least 8 characters"),
-  })
-  .refine((data) => data.newPassword === data.confirmNewPassword, {
-    message: "New passwords do not match.",
-    path: ["confirmNewPassword"],
-  });
-
 export async function changePasswordAction(formData: FormData): Promise<ActionResult> {
   const session = await requireUser();
   const parsed = changePasswordSchema.safeParse({
     newPassword: formData.get("newPassword"),
-    confirmNewPassword: formData.get("confirmNewPassword"),
   });
 
   if (!parsed.success) {

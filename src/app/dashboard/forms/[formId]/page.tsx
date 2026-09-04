@@ -30,6 +30,11 @@ export default async function FormBuilderPage({
         formId={form.id}
         title={form.title}
         description={form.description}
+        thankYouTitle={form.thankYouTitle}
+        thankYouMessage={form.thankYouMessage}
+        headerImageUrl={form.headerImageUrl}
+        thankYouImageUrl={form.thankYouImageUrl}
+        thankYouBgColor={form.thankYouBgColor}
         status={form.status}
         hasResponse={formHasSubmission(form.surveys)}
         publicFormUrl={`${getAppBaseUrl()}/survey/${form.publicToken}`}
@@ -45,18 +50,24 @@ export default async function FormBuilderPage({
           teamId: client.teamId,
           teamName: client.teamName,
         }))}
-        backHref={
-          form.teamId && form.clientId
-            ? `/dashboard/teams/${form.teamId}/clients/${form.clientId}`
-            : "/dashboard/forms"
-        }
+        backHref="/dashboard/forms"
         fields={form.questions.map((question) => ({
           id: question.id,
           type: question.type,
           label: question.label,
+          description: question.description,
           required: question.required,
           options: question.options,
+          sectionId: question.sectionId,
           order: question.order,
+        }))}
+        sections={form.sections.map((section) => ({
+          id: section.id,
+          title: section.title,
+          description: section.description,
+          order: section.order,
+          branchValue: section.branchValue,
+          logic: section.logic,
         }))}
       />
     </div>

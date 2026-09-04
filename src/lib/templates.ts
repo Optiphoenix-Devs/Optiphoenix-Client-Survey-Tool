@@ -2,7 +2,14 @@ import { prisma } from "@/lib/prisma";
 import type { QuestionType, UserRole } from "@/generated/prisma/client";
 import { Prisma } from "@/generated/prisma/client";
 import { requireFormAccess } from "@/lib/forms";
-import { fieldNeedsOptions, fieldTypeMeta, minOptionsForType } from "@/lib/question-types";
+import {
+  buildChoiceOptions,
+  buildTextOptions,
+  fieldNeedsOptions,
+  fieldTypeMeta,
+  getFieldType,
+  minOptionsForType,
+} from "@/lib/question-types";
 
 export type TemplateListRow = {
   id: string;
@@ -80,6 +87,10 @@ export async function saveFormAsTemplate(
             question.options === null
               ? Prisma.DbNull
               : (question.options as Prisma.InputJsonValue),
+          logic:
+            question.logic === null
+              ? Prisma.DbNull
+              : (question.logic as Prisma.InputJsonValue),
         })),
       },
     },
@@ -179,8 +190,8 @@ export async function addFieldToTemplate(
     existing.reduce((max, item) => Math.max(max, item.order), 0) + 1;
 
   let options: Prisma.InputJsonValue | typeof Prisma.DbNull = Prisma.DbNull;
-  if ("defaultOptions" in meta) {
-    options = [...meta.defaultOptions];
+  if ("defaultOptions" in meta && meta.defaultOptions) {
+    options = buildChoiceOptions([...meta.defaultOptions]) as Prisma.InputJsonValue;
   }
 
   return prisma.formTemplateQuestion.create({
@@ -200,7 +211,14 @@ export async function updateFieldOnTemplate(
   role: UserRole,
   templateId: string,
   fieldId: string,
-  data: { label: string; required: boolean; optionsText?: string }
+  data: {
+    label: string;
+    description?: string;
+    required: boolean;
+    optionsText?: string;
+    maxLength?: number;
+    allowOther?: boolean;
+  }
 ) {
   await requireTemplateAccess(userId, role, templateId);
   const field = await prisma.formTemplateQuestion.findFirst({
@@ -208,7 +226,9 @@ export async function updateFieldOnTemplate(
   });
   if (!field) throw new Error("Field not found");
 
+  const plugin = getFieldType(field.type);
   let options: Prisma.InputJsonValue | typeof Prisma.DbNull = Prisma.DbNull;
+
   if (fieldNeedsOptions(field.type)) {
     const parsed = (data.optionsText ?? "")
       .split("\n")
@@ -222,13 +242,16 @@ export async function updateFieldOnTemplate(
           : "Add at least one option."
       );
     }
-    options = parsed;
+    options = buildChoiceOptions(parsed, data.allowOther) as Prisma.InputJsonValue;
+  } else if (plugin?.supportsMaxLength && data.maxLength) {
+    options = buildTextOptions(data.maxLength) as Prisma.InputJsonValue;
   }
 
   return prisma.formTemplateQuestion.update({
     where: { id: fieldId },
     data: {
       label: data.label,
+      description: data.description?.trim() ? data.description.trim() : null,
       required: data.required,
       options,
     },

@@ -16,7 +16,7 @@ export function DashboardGreeting({ name }: { name: string }) {
   );
 
   return (
-    <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
+    <h1 className="text-2xl font-semibold tracking-tight sm:text-4xl">
       {hello}, {name}!
     </h1>
   );

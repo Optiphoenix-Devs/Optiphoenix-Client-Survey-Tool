@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import type { AiSummary } from "@/lib/ai-summary";
 import { cn } from "@/lib/cn";
+import { pluralize } from "@/lib/format";
 
 function clampShare(value: number) {
   if (!Number.isFinite(value)) return 0;
@@ -63,8 +64,8 @@ function SentimentDonut({
         <MessageSquareText className="h-5 w-5 text-accent" />
         Sentiment
       </h3>
-      <div className="mt-4 flex items-center gap-5">
-        <svg viewBox="0 0 140 140" className="h-36 w-36 shrink-0" role="img" aria-label="Sentiment donut">
+      <div className="mt-4 flex flex-col items-center gap-5 sm:flex-row sm:items-center">
+        <svg viewBox="0 0 140 140" className="h-28 w-28 shrink-0 sm:h-36 sm:w-36" role="img" aria-label="Sentiment donut">
           <circle cx="70" cy="70" r={r} fill="none" stroke="currentColor" className="text-hover" strokeWidth="16" />
           {segments.map((segment) => {
             const length = Math.max(0, segment.value) * c;
@@ -111,18 +112,10 @@ function PositiveFeedbackCard({
 }) {
   return (
     <section className="app-radius border border-emerald-200/70 bg-emerald-50/40 p-6">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h3 className="flex items-center gap-2 text-lg font-semibold tracking-tight">
-            <CheckCircle2 className="h-5 w-5 text-emerald-700" />
-            Positive feedback
-          </h3>
-          <p className="mt-1 text-sm text-muted">What clients are already praising.</p>
-        </div>
-        <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-900">
-          {items.length} highlight{items.length === 1 ? "" : "s"}
-        </span>
-      </div>
+      <h3 className="flex items-center gap-2 text-lg font-semibold tracking-tight">
+        <CheckCircle2 className="h-5 w-5 text-emerald-700" />
+        Positive feedback
+      </h3>
       {items.length === 0 ? (
         <p className="mt-5 text-sm text-muted">No strong positives for this cycle.</p>
       ) : (
@@ -149,27 +142,19 @@ function PositiveFeedbackCard({
   );
 }
 
-function RecurringThemesCard({
+function RecurringPatternsCard({
   items,
 }: {
   items: AiSummary["themes"];
 }) {
   return (
     <section className="app-radius border border-border bg-surface p-6">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h3 className="flex items-center gap-2 text-lg font-semibold tracking-tight">
-            <Radar className="h-5 w-5 text-accent" />
-            Recurring themes
-          </h3>
-          <p className="mt-1 text-sm text-muted">Patterns that keep showing up in comments.</p>
-        </div>
-        <span className="rounded-full bg-sage/15 px-2.5 py-1 text-xs font-semibold text-accent">
-          {items.length} theme{items.length === 1 ? "" : "s"}
-        </span>
-      </div>
+      <h3 className="flex items-center gap-2 text-lg font-semibold tracking-tight">
+        <Radar className="h-5 w-5 text-accent" />
+        Recurring patterns
+      </h3>
       {items.length === 0 ? (
-        <p className="mt-5 text-sm text-muted">No recurring themes detected.</p>
+        <p className="mt-5 text-sm text-muted">No recurring patterns detected.</p>
       ) : (
         <ul className="mt-5 grid gap-3">
           {items.map((theme, index) => (
@@ -184,7 +169,10 @@ function RecurringThemesCard({
               )}
             >
               <div className="flex items-start justify-between gap-3">
-                <p className="font-medium">{theme.title}</p>
+                <div className="min-w-0">
+                  <p className="font-medium">{theme.title}</p>
+                  <p className="mt-1 text-sm leading-6 text-muted">{theme.detail}</p>
+                </div>
                 <span
                   className={cn(
                     "shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold capitalize",
@@ -197,7 +185,6 @@ function RecurringThemesCard({
                   {theme.sentiment}
                 </span>
               </div>
-              <p className="mt-1 text-sm leading-6 text-muted">{theme.detail}</p>
             </li>
           ))}
         </ul>
@@ -215,31 +202,20 @@ export function SummarizeBriefing({ summary }: { summary: AiSummary }) {
   const recommendations = summary.recommendations.slice(0, 4);
   const attention = summary.attention.slice(0, 5);
   const themes = summary.themes.slice(0, 4);
-  const sourceLabel =
-    summary.source === "gemini"
-      ? "Gemini"
-      : summary.source === "openai"
-        ? "OpenAI"
-        : "Local fallback";
 
   return (
     <article className="app-radius border border-border bg-card p-6 sm:p-8">
       <div className="space-y-6">
         <section className="grid gap-4 xl:grid-cols-[1.4fr_1fr]">
           <div className="app-radius border border-border bg-surface p-6">
-            <div className="flex flex-wrap items-center gap-2">
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted">
-                AI briefing
-              </p>
-              <span className="rounded-full bg-sage/15 px-2 py-0.5 text-xs font-semibold text-accent">
-                {sourceLabel}
-              </span>
-            </div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted">
+              AI briefing
+            </p>
             <h2 className="mt-2 text-2xl font-semibold tracking-tight">{summary.headline}</h2>
             <p className="mt-2 text-sm leading-6 text-muted">{summary.overview}</p>
-            <p className="mt-4 text-sm text-muted">
-              Scope: {summary.scope} · {summary.responseCount} responses ·{" "}
-              {summary.commentCount} written comments
+            <p className="mt-4 text-xs leading-5 text-muted">
+              Based on · {pluralize(summary.responseCount, "submitted form", "submitted forms")}{" "}
+              · {pluralize(summary.commentCount, "written answer", "written answers")}
             </p>
           </div>
           <SentimentDonut
@@ -254,7 +230,7 @@ export function SummarizeBriefing({ summary }: { summary: AiSummary }) {
 
         <section className="grid gap-4 lg:grid-cols-2">
           <PositiveFeedbackCard items={positives} />
-          <RecurringThemesCard items={themes} />
+          <RecurringPatternsCard items={themes} />
         </section>
 
         <section className="grid gap-4 xl:grid-cols-3">
@@ -306,26 +282,20 @@ export function SummarizeBriefing({ summary }: { summary: AiSummary }) {
               <p className="mt-3 text-sm text-muted">Nothing urgent flagged in this cycle.</p>
             ) : (
               <ul className="mt-4 space-y-3">
-                {attention.map((item, index) => {
-                  const level = Math.max(28, 92 - index * 14);
-                  return (
-                    <li key={`attention-${index}-${item.kind}-${item.name}`}>
-                      <div className="flex items-center justify-between gap-2">
-                        <p className="font-medium">
-                          {item.name}
-                          <span className="ml-2 rounded-full bg-hover px-2 py-0.5 text-xs font-semibold text-muted capitalize">
-                            {item.kind === "resource" ? "resource" : "area"}
-                          </span>
-                        </p>
-                        <span className="text-xs tabular-nums text-muted">{level}%</span>
-                      </div>
-                      <p className="mt-1 text-sm leading-6 text-muted">{item.reason}</p>
-                      <div className="mt-1 h-2 rounded-full bg-hover">
-                        <div className="h-2 rounded-full bg-accent" style={{ width: `${level}%` }} />
-                      </div>
-                    </li>
-                  );
-                })}
+                {attention.map((item, index) => (
+                  <li
+                    key={`attention-${index}-${item.kind}-${item.name}`}
+                    className="app-radius border border-border bg-card p-3"
+                  >
+                    <p className="font-medium">
+                      {item.name}
+                      <span className="ml-2 rounded-full bg-hover px-2 py-0.5 text-xs font-semibold text-muted capitalize">
+                        {item.kind === "resource" ? "resource" : "area"}
+                      </span>
+                    </p>
+                    <p className="mt-1 text-sm leading-6 text-muted">{item.reason}</p>
+                  </li>
+                ))}
               </ul>
             )}
           </div>

@@ -2,38 +2,71 @@
 
 /**
  * Client/period filters update local state immediately, then `router.replace`
- * loads the matching briefing. Do not call Gemini from here — only Generate does.
+ * loads the matching briefing. Generation is triggered from SummarizeView.
  */
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Sparkles } from "lucide-react";
 import { NONE_CLIENT } from "@/lib/analytics-format";
-import { pluralize } from "@/lib/format";
-import { Select } from "@/components/ui/select";
+import { Select, SelectPlaceholderOption } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/pending-button";
-import { toast } from "@/components/ui/toaster";
-import { generateSummaryAction } from "./generate-summary";
-import { SUMMARY_PERIODS, summaryPeriodLabel } from "@/lib/summary-period";
+import {
+  SUMMARY_PERIODS,
+  summaryPeriodLabel,
+  type SummaryPeriod,
+} from "@/lib/summary-period";
 import type { SummarizeScope } from "@/lib/summarize-scope";
+
+/** Sentinel for “All clients” so `value=""` can stay the Client placeholder. */
+const ALL_CLIENTS = "all";
+
+function clientSelectValue(clientParam?: string) {
+  if (clientParam == null || clientParam === "") return "";
+  if (clientParam === ALL_CLIENTS) return ALL_CLIENTS;
+  return clientParam;
+}
+
+function periodSelectValue(periodParam?: string): SummaryPeriod | "" {
+  if (!periodParam) return "";
+  return SUMMARY_PERIODS.includes(periodParam as SummaryPeriod)
+    ? (periodParam as SummaryPeriod)
+    : "";
+}
 
 export function SummarizeToolbar({
   data,
-  geminiReady,
+  clientParam,
+  periodParam,
   hasSummary,
+  generating,
+  onGenerate,
 }: {
   data: SummarizeScope;
-  geminiReady: boolean;
+  /** Raw `?client=` from the URL — undefined means show the Client placeholder. */
+  clientParam?: string;
+  /** Raw `?period=` from the URL — undefined means show the Period placeholder. */
+  periodParam?: string;
   hasSummary: boolean;
+  generating: boolean;
+  onGenerate: () => void;
 }) {
   const router = useRouter();
-  const [clientId, setClientId] = useState(data.selectedClientId);
-  const [period, setPeriod] = useState(data.selectedPeriod);
+  const [clientId, setClientId] = useState(() => clientSelectValue(clientParam));
+  const [period, setPeriod] = useState(() => periodSelectValue(periodParam));
   const [, startNav] = useTransition();
-  const [generating, startGenerate] = useTransition();
+
+  useEffect(() => {
+    setClientId(clientSelectValue(clientParam));
+    setPeriod(periodSelectValue(periodParam));
+  }, [clientParam, periodParam]);
 
   function navigate(nextClient: string, nextPeriod: string) {
     const params = new URLSearchParams();
-    if (nextClient) params.set("client", nextClient);
+    if (nextClient === ALL_CLIENTS) {
+      params.set("client", ALL_CLIENTS);
+    } else if (nextClient) {
+      params.set("client", nextClient);
+    }
     if (nextPeriod) params.set("period", nextPeriod);
     const query = params.toString();
     startNav(() => {
@@ -41,82 +74,68 @@ export function SummarizeToolbar({
     });
   }
 
-  function generate() {
-    startGenerate(async () => {
-      const result = await generateSummaryAction(clientId, period);
-      if (result.error) {
-        toast(result.error, { tone: "error" });
-        return;
-      }
-      router.refresh();
-    });
-  }
-
   return (
-    <div className="flex flex-col gap-3">
-      <div className="flex flex-wrap items-center gap-3">
-        <h1 className="shrink-0 text-3xl font-semibold tracking-tight">
-          Summarize
-        </h1>
-        <div className="flex min-w-0 flex-1 flex-wrap items-center justify-end gap-2">
-          <label className="w-full min-w-[12rem] sm:w-56">
-            <span className="sr-only">Filter by client</span>
-            <Select
-              value={clientId}
-              onChange={(event) => {
-                const value = event.target.value;
-                setClientId(value);
-                navigate(value, period);
-              }}
-              aria-label="Filter summary by client"
-              className="app-radius py-2"
-            >
-              <option value="">All responses</option>
-              {data.hasIndependentResponses ? (
-                <option value={NONE_CLIENT}>Independent forms</option>
-              ) : null}
-              {data.clients.map((client) => (
-                <option key={client.id} value={client.id}>
-                  {client.name}
-                </option>
-              ))}
-            </Select>
-          </label>
-          <label className="w-full min-w-[12rem] sm:w-52">
-            <span className="sr-only">Filter by period</span>
-            <Select
-              value={period}
-              onChange={(event) => {
-                const value = event.target.value;
-                setPeriod(value as SummarizeScope["selectedPeriod"]);
-                navigate(clientId, value);
-              }}
-              aria-label="Filter summary by period"
-              className="app-radius py-2"
-            >
-              {SUMMARY_PERIODS.map((item) => (
-                <option key={item} value={item}>
-                  {summaryPeriodLabel(item)}
-                </option>
-              ))}
-            </Select>
-          </label>
-          <button
-            type="button"
-            onClick={generate}
-            disabled={generating || data.responseCount === 0}
-            className="app-btn-primary shrink-0 px-4 py-2.5 text-sm disabled:opacity-60"
+    <div className="flex flex-col gap-4">
+      <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
+        AI-based summary
+      </h1>
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
+        <label className="w-full min-w-0">
+          <span className="sr-only">Choose Client</span>
+          <Select
+            value={clientId}
+            onChange={(event) => {
+              const value = event.target.value;
+              if (!value) return;
+              setClientId(value);
+              navigate(value, period);
+            }}
+            aria-label="Filter summary by client"
+            className="w-full"
           >
-            {generating ? <Spinner /> : <Sparkles className="h-4 w-4" />}
-            {generating ? "Generating…" : hasSummary ? "Regenerate" : "Generate"}
-          </button>
-        </div>
+            <SelectPlaceholderOption label="Choose Client" />
+            <option value={ALL_CLIENTS}>All</option>
+            {data.hasIndependentResponses ? (
+              <option value={NONE_CLIENT}>Independent forms</option>
+            ) : null}
+            {data.clients.map((client) => (
+              <option key={client.id} value={client.id}>
+                {client.name}
+              </option>
+            ))}
+          </Select>
+        </label>
+        <label className="w-full min-w-0">
+          <span className="sr-only">Choose Period</span>
+          <Select
+            value={period}
+            onChange={(event) => {
+              const value = event.target.value;
+              if (!value) return;
+              setPeriod(value as SummaryPeriod);
+              navigate(clientId, value);
+            }}
+            aria-label="Filter summary by period"
+            className="w-full"
+          >
+            <SelectPlaceholderOption label="Choose Period" />
+            {SUMMARY_PERIODS.map((item) => (
+              <option key={item} value={item}>
+                {summaryPeriodLabel(item)}
+              </option>
+            ))}
+          </Select>
+        </label>
+        <button
+          type="button"
+          onClick={onGenerate}
+          disabled={generating || data.responseCount === 0}
+          className="app-btn-primary w-full justify-center px-4 py-2.5 text-sm disabled:opacity-60 sm:col-span-2 lg:col-span-1 lg:w-auto"
+        >
+          {generating ? <Spinner /> : <Sparkles className="h-4 w-4" />}
+          {generating ? "Generating…" : hasSummary ? "Regenerate" : "Generate"}
+        </button>
       </div>
-      <p className="text-sm text-muted">
-        {data.selectedClientName} · {summaryPeriodLabel(data.selectedPeriod)} ·{" "}
-        {pluralize(data.responseCount, "response")}
-        {geminiReady ? " · Gemini" : " · Add GEMINI_API_KEY in .env to use Gemini"}
-      </p>
     </div>
   );
 }

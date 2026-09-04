@@ -60,7 +60,7 @@ export function SummarizeDesignPreview() {
           href="/dashboard/summarize"
           className="inline-flex items-center app-btn-secondary px-4 py-2 text-sm"
         >
-          Back to summarize
+          Back to AI-based summary
         </Link>
       </div>
 
@@ -364,7 +364,7 @@ function SentimentPanel() {
       <p className="mt-2 text-sm text-muted">
         Written feedback is parsed by AI to determine tone, confidence, and emotional trajectory.
       </p>
-      <div className="mt-5 grid grid-cols-3 gap-3 text-center text-sm">
+      <div className="mt-5 grid grid-cols-1 gap-3 text-center text-sm sm:grid-cols-3">
         <div className="app-radius border border-border bg-card p-3">
           <p className="text-xs uppercase tracking-wide text-muted">Positive</p>
           <p className="mt-1 text-xl font-semibold text-emerald-600">68%</p>

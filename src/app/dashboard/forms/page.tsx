@@ -4,7 +4,7 @@ import { auth } from "@/auth";
 import type { UserRole } from "@/generated/prisma/client";
 import { getDashboardOverview } from "@/lib/teams";
 import { getTemplatesForUser } from "@/lib/templates";
-import { DirectorySkeleton } from "@/components/ui/skeleton";
+import { DirectoryLoadingShell } from "@/components/directory/directory-loading-shell";
 import { YourFormsSection } from "../your-forms-section";
 import { createFormFromList, deleteFormFromList } from "./actions";
 
@@ -15,7 +15,15 @@ export default async function FormsPage() {
   if (!session?.user?.id || !session.user.role) redirect("/login");
 
   return (
-    <Suspense fallback={<DirectorySkeleton />}>
+    <Suspense
+      fallback={
+        <DirectoryLoadingShell
+          storageKey="optiphoenix.formsView"
+          cardVariant="form"
+          tableColumns={6}
+        />
+      }
+    >
       <FormsBody userId={session.user.id} role={session.user.role} />
     </Suspense>
   );

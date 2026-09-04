@@ -51,6 +51,8 @@ enum QuestionType {
   RATING
   RESOURCE_RATING
   YES_NO
+  DATE
+  BRANCHING_DROPDOWN
 }
 
 model User {
@@ -63,6 +65,8 @@ model User {
   avatarUrl            String?
   failedLoginAttempts  Int           @default(0)
   lockedUntil          DateTime?
+  /** Bumped on each login; JWT must match or the session is rejected. */
+  sessionVersion       Int           @default(0)
   resetRequestedAt     DateTime?
   signupTokenHash      String?
   signupTokenExpiresAt DateTime?
@@ -179,6 +183,11 @@ model Form {
   sourceTemplate   FormTemplate?     @relation(fields: [sourceTemplateId], references: [id], onDelete: SetNull)
   title            String
   description      String?           @db.Text
+  thankYouTitle    String?
+  thankYouMessage  String?           @db.Text
+  headerImageUrl   String?
+  thankYouImageUrl String?
+  thankYouBgColor  String?
   status           FormBuilderStatus @default(DRAFT)
   publicToken      String            @unique @default(cuid())
   publishedAt      DateTime?
@@ -186,6 +195,7 @@ model Form {
   updatedAt        DateTime          @updatedAt
 
   questions Question[]
+  sections  FormSection[]
   surveys   ClientSurvey[]
 
   @@index([teamId])
@@ -204,23 +214,58 @@ model FormTemplate {
   updatedAt   DateTime @updatedAt
 
   questions FormTemplateQuestion[]
+  sections  FormTemplateSection[]
   forms     Form[]
 
   @@index([createdById])
 }
 
-model FormTemplateQuestion {
-  id          String       @id @default(cuid())
-  templateId  String
-  template    FormTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
-  type        QuestionType
-  label       String
-  description String?      @db.Text
+model FormSection {
+  id          String     @id @default(cuid())
+  formId      String
+  form        Form       @relation(fields: [formId], references: [id], onDelete: Cascade)
+  title       String
+  description String?    @db.Text
   order       Int
-  required    Boolean      @default(false)
-  options     Json?
+  branchValue String?
+  logic       Json?
+  questions   Question[]
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  @@index([formId, order])
+}
+
+model FormTemplateSection {
+  id          String                 @id @default(cuid())
+  templateId  String
+  template    FormTemplate           @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  title       String
+  description String?                @db.Text
+  order       Int
+  branchValue String?
+  logic       Json?
+  questions   FormTemplateQuestion[]
 
   @@index([templateId, order])
+}
+
+model FormTemplateQuestion {
+  id          String               @id @default(cuid())
+  templateId  String
+  template    FormTemplate         @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  sectionId   String?
+  section     FormTemplateSection? @relation(fields: [sectionId], references: [id], onDelete: SetNull)
+  type        QuestionType
+  label       String
+  description String?              @db.Text
+  order       Int
+  required    Boolean              @default(false)
+  options     Json?
+  logic       Json?
+
+  @@index([templateId, order])
+  @@index([sectionId])
 }
 
 // One public fill session for a client-owned form. Unpublish does not delete this.
@@ -247,17 +292,21 @@ model Question {
   id          String       @id @default(cuid())
   formId      String
   form        Form         @relation(fields: [formId], references: [id], onDelete: Cascade)
+  sectionId   String?
+  section     FormSection? @relation(fields: [sectionId], references: [id], onDelete: SetNull)
   type        QuestionType
   label       String
   description String?      @db.Text
   order       Int
   required    Boolean      @default(false)
   options     Json?
+  logic       Json?
   answers     Answer[]
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
 
   @@index([formId, order])
+  @@index([sectionId])
 }
 
 model Response {

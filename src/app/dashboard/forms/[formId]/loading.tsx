@@ -1,5 +1,5 @@
-import { DirectorySkeleton } from "@/components/ui/skeleton";
+import { BuilderSkeleton } from "@/components/ui/skeleton";
 
 export default function FormBuilderLoading() {
-  return <DirectorySkeleton />;
+  return <BuilderSkeleton />;
 }
