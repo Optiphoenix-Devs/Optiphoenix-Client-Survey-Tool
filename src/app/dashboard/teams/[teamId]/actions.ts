@@ -42,7 +42,6 @@ export async function createClient(formData: FormData): Promise<ActionResult> {
     teamId,
     name: formData.get("name"),
     email: formData.get("email") ?? undefined,
-    company: formData.get("company") ?? undefined,
   });
 
   if (!parsed.success) {
@@ -57,7 +56,6 @@ export async function createClient(formData: FormData): Promise<ActionResult> {
       {
         name: parsed.data.name,
         email: parsed.data.email,
-        company: parsed.data.company,
       }
     );
   } catch (error) {
@@ -78,7 +76,6 @@ export async function updateClient(formData: FormData): Promise<ActionResult> {
     clientId: formData.get("clientId"),
     name: formData.get("name"),
     email: formData.get("email") ?? undefined,
-    company: formData.get("company") ?? undefined,
   });
 
   if (!parsed.success) {
@@ -94,7 +91,6 @@ export async function updateClient(formData: FormData): Promise<ActionResult> {
       {
         name: parsed.data.name,
         email: parsed.data.email,
-        company: parsed.data.company,
       }
     );
   } catch (error) {
@@ -128,7 +124,7 @@ export async function deleteClient(formData: FormData): Promise<ActionResult> {
     );
   } catch (error) {
     if (error instanceof Error) return { error: error.message };
-    return { error: "You cannot delete this client." };
+    return { error: "You cannot remove this client." };
   }
 
   revalidateWorkspace(parsed.data.teamId);

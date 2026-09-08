@@ -63,6 +63,7 @@ export function ResetPasswordForm({ token }: { token: string }) {
           autoComplete="new-password"
           placeholder="Create a strong password"
           showStrength
+          minLength={8}
         />
       </label>
       <ActionButton

@@ -26,6 +26,7 @@ import {
   ChevronDown,
   ChevronLeft,
   CircleDot,
+  Clock,
   Eye,
   ImagePlus,
   Globe,
@@ -40,11 +41,13 @@ import {
   MessageSquare,
   Pencil,
   Plus,
+  Save,
   Star,
   ToggleLeft,
   Trash2,
   Type,
   Users,
+  X,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
@@ -55,6 +58,7 @@ import type { ActionResult } from "@/lib/action-result";
 import {
   ADDABLE_FIELD_TYPES,
   SECTION_QUESTION_FIELD_TYPES,
+  buildChoiceOptions,
   fieldNeedsOptions,
   fieldTypeMeta,
   getChoiceList,
@@ -64,8 +68,11 @@ import {
 } from "@/lib/question-types";
 import {
   DEFAULT_THANK_YOU_BG,
+  DEFAULT_THANK_YOU_TEXT,
   THANK_YOU_BG_PRESETS,
+  THANK_YOU_TEXT_PRESETS,
   normalizeThankYouBg,
+  normalizeThankYouText,
 } from "@/lib/form-thank-you";
 import { SurveyFlow } from "@/app/survey/survey-flow";
 import { DrawerActions, SideDrawer } from "@/components/ui/side-drawer";
@@ -93,7 +100,7 @@ import {
 } from "./actions";
 import * as templateActions from "@/app/dashboard/templates/actions";
 import { useRouter } from "next/navigation";
-import { Select } from "@/components/ui/select";
+import { Select, ChooseFieldOption, CHOOSE_FIELD_PLACEHOLDER } from "@/components/ui/select";
 
 type BuilderAction = (formData: FormData) => Promise<ActionResult>;
 
@@ -168,7 +175,8 @@ type FormBuilderProps = {
   headerImageUrl?: string | null;
   thankYouImageUrl?: string | null;
   thankYouBgColor?: string | null;
-  status: "DRAFT" | "PUBLISHED";
+  thankYouTextColor?: string | null;
+  status: "DRAFT" | "PUBLISHED" | "CLOSED";
   hasResponse?: boolean;
   publicFormUrl: string;
   focusFieldId?: string;
@@ -176,10 +184,51 @@ type FormBuilderProps = {
   fields: BuilderField[];
   backHref?: string;
   variant?: "form" | "template";
+  /** Shared / view-only template — can preview & duplicate, not edit. */
+  readOnly?: boolean;
   templates?: Array<{ id: string; name: string; fieldCount: number }>;
   clients?: Array<{ id: string; name: string; teamId: string; teamName: string }>;
   sourceTemplateId?: string | null;
 };
+
+const EMPTY_SECTIONS: BuilderSection[] = [];
+const EMPTY_TEMPLATES: Array<{ id: string; name: string; fieldCount: number }> = [];
+const EMPTY_CLIENTS: Array<{
+  id: string;
+  name: string;
+  teamId: string;
+  teamName: string;
+}> = [];
+
+function sameFieldOrder(a: BuilderField[], b: BuilderField[]) {
+  if (a === b) return true;
+  if (a.length !== b.length) return false;
+  return a.every((field, index) => {
+    const other = b[index];
+    if (!other) return false;
+    return (
+      field.id === other.id &&
+      field.order === other.order &&
+      field.sectionId === other.sectionId &&
+      field.label === other.label &&
+      field.description === other.description &&
+      field.required === other.required &&
+      field.type === other.type &&
+      JSON.stringify(field.options ?? null) === JSON.stringify(other.options ?? null)
+    );
+  });
+}
+
+function sameSections(a: BuilderSection[], b: BuilderSection[]) {
+  if (a === b) return true;
+  if (a.length !== b.length) return false;
+  return a.every(
+    (section, index) =>
+      section.id === b[index]?.id &&
+      section.order === b[index]?.order &&
+      section.title === b[index]?.title
+  );
+}
 
 const FIELD_ICONS: Record<FieldTypeValue, LucideIcon> = {
   SHORT_TEXT: Type,
@@ -193,6 +242,7 @@ const FIELD_ICONS: Record<FieldTypeValue, LucideIcon> = {
   RESOURCE_RATING: Users,
   SUGGESTION: Lightbulb,
   DATE: Calendar,
+  TIME: Clock,
   YES_NO: ToggleLeft,
 };
 
@@ -239,6 +289,7 @@ function SortableFieldCard({
   onSectionCreated,
   onDuplicate,
   onRemove,
+  onFieldSaved,
 }: {
   field: BuilderField;
   selected: boolean;
@@ -251,6 +302,7 @@ function SortableFieldCard({
   onSectionCreated?: (sectionId: string, branchValue: string) => void;
   onDuplicate: (fieldId: string) => void;
   onRemove: (fieldId: string) => void;
+  onFieldSaved?: (fieldId: string, patch: Partial<BuilderField>) => void;
 }) {
   const router = useRouter();
   const { deleteField, duplicateField } = useBuilderActions();
@@ -434,6 +486,7 @@ function SortableFieldCard({
             formId={formId}
             linkedBranchValues={linkedBranchValues}
             onSectionCreated={onSectionCreated}
+            onFieldSaved={onFieldSaved}
           />
         </div>
       ) : null}
@@ -490,7 +543,10 @@ function SectionSettings({
           className="app-radius border border-border bg-surface px-3 py-2.5 text-sm outline-none focus:border-accent"
         />
       </label>
-      <PendingButton className="justify-center app-btn-primary px-3 py-2.5 text-sm">
+      <PendingButton
+        icon={<Save className="h-4 w-4" />}
+        className="justify-center app-btn-primary px-3 py-2.5 text-sm"
+      >
         Save section
       </PendingButton>
     </form>
@@ -510,6 +566,7 @@ function SectionCard({
   onToggle,
   onDuplicateField,
   onRemoveField,
+  onFieldSaved,
 }: {
   section: BuilderSection;
   fields: BuilderField[];
@@ -523,22 +580,21 @@ function SectionCard({
   onToggle: () => void;
   onDuplicateField: (fieldId: string) => void;
   onRemoveField: (fieldId: string) => void;
+  onFieldSaved?: (fieldId: string, patch: Partial<BuilderField>) => void;
 }) {
   const { deleteSection, addField } = useBuilderActions();
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } })
   );
   const [items, setItems] = useState(fields);
-  const [fieldTypeToAdd, setFieldTypeToAdd] = useState<string>(
-    SECTION_QUESTION_FIELD_TYPES[0]?.value ?? "SHORT_TEXT"
-  );
+  const [fieldTypeToAdd, setFieldTypeToAdd] = useState<string>(CHOOSE_FIELD_PLACEHOLDER);
   const [addingField, setAddingField] = useState(false);
   const ids = useMemo(() => items.map((item) => item.id), [items]);
   const router = useRouter();
   const { reorderFields } = useBuilderActions();
 
   useEffect(() => {
-    setItems(fields);
+    setItems((current) => (sameFieldOrder(current, fields) ? current : fields));
   }, [fields]);
 
   function onDragEnd(event: DragEndEvent) {
@@ -572,10 +628,17 @@ function SectionCard({
     formData.set("clientId", clientId);
     formData.set("formId", formId);
     formData.set("sectionId", section.id);
-    void notifyAction(deleteSection, formData, "Section removed.");
+    void (async () => {
+      const result = await notifyAction(deleteSection, formData, "Section removed.");
+      if (!result.error) router.refresh();
+    })();
   }
 
   async function addFieldToSection() {
+    if (!fieldTypeToAdd || fieldTypeToAdd === CHOOSE_FIELD_PLACEHOLDER) {
+      toast("Choose a field type first.", { tone: "error" });
+      return;
+    }
     setAddingField(true);
     const formData = new FormData();
     formData.set("teamId", teamId);
@@ -585,7 +648,11 @@ function SectionCard({
     formData.set("sectionId", section.id);
     const result = await notifyAction(addField, formData, "Field added.");
     setAddingField(false);
-    if (result.fieldId) onSelectField(result.fieldId);
+    if (result.fieldId) {
+      setFieldTypeToAdd(CHOOSE_FIELD_PLACEHOLDER);
+      onSelectField(result.fieldId);
+      router.refresh();
+    }
   }
 
   return (
@@ -667,18 +734,21 @@ function SectionCard({
                       allFields={globalFields}
                       onDuplicate={onDuplicateField}
                       onRemove={onRemoveField}
+                      onFieldSaved={onFieldSaved}
                     />
                   ))}
                 </div>
               </SortableContext>
             </DndContext>
           )}
-          <div className="grid grid-cols-1 gap-2 border-t border-border px-3 py-3 sm:grid-cols-2">
+          <div className="flex flex-col gap-2 border-t border-border px-3 py-3 sm:flex-row sm:items-center">
             <Select
               value={fieldTypeToAdd}
               onChange={(event) => setFieldTypeToAdd(event.target.value)}
-              className="app-radius w-full min-w-0 py-2.5 text-sm"
+              className="min-w-0 flex-1"
+              aria-label="Choose field"
             >
+              <ChooseFieldOption />
               {SECTION_QUESTION_FIELD_TYPES.map((type) => (
                 <option key={type.value} value={type.value}>
                   {type.label}
@@ -689,7 +759,7 @@ function SectionCard({
               type="button"
               pending={addingField}
               onClick={() => void addFieldToSection()}
-              className="w-full justify-center app-btn-primary px-3 py-2.5 text-sm"
+              className="h-10 shrink-0 justify-center app-btn-primary px-4 text-sm sm:min-w-[8.5rem]"
             >
               Add field
             </ActionButton>
@@ -707,6 +777,7 @@ function FieldSettings({
   formId,
   linkedBranchValues,
   onSectionCreated,
+  onFieldSaved,
 }: {
   field: BuilderField;
   teamId: string;
@@ -714,7 +785,9 @@ function FieldSettings({
   formId: string;
   linkedBranchValues?: ReadonlySet<string>;
   onSectionCreated?: (sectionId: string, branchValue: string) => void;
+  onFieldSaved?: (fieldId: string, patch: Partial<BuilderField>) => void;
 }) {
+  const router = useRouter();
   const { updateField, addSection } = useBuilderActions();
   const labelRef = useRef<HTMLInputElement>(null);
   const plugin = getFieldType(field.type);
@@ -741,43 +814,61 @@ function FieldSettings({
       ? field.type
       : null;
   const isBranchingField = field.type === "BRANCHING_DROPDOWN";
+  const previewField = { ...field, required: false, options };
 
   async function createSectionForOption(option: string) {
-    if (!addSection || !updateField) return;
+    if (!addSection || !updateField) {
+      toast("Section branching is not available here.", { tone: "error" });
+      return;
+    }
     const trimmed = option.trim();
     if (!trimmed) return;
     setCreatingOption(trimmed);
 
-    const saveData = new FormData();
-    saveData.set("teamId", teamId);
-    saveData.set("clientId", clientId);
-    saveData.set("formId", formId);
-    saveData.set("fieldId", field.id);
-    saveData.set("label", labelRef.current?.value?.trim() || field.label);
-    saveData.set("description", field.description ?? "");
-    saveData.set("required", field.required ? "true" : "false");
-    saveData.set("optionsText", options.join("\n"));
+    try {
+      const saveData = new FormData();
+      saveData.set("teamId", teamId);
+      saveData.set("clientId", clientId);
+      saveData.set("formId", formId);
+      saveData.set("fieldId", field.id);
+      saveData.set("label", labelRef.current?.value?.trim() || field.label);
+      saveData.set("description", field.description ?? "");
+      saveData.set("required", field.required ? "true" : "false");
+      saveData.set("optionsText", options.join("\n"));
 
-    const saved = await notifyAction(updateField, saveData);
-    if (saved.error) {
+      const saved = await notifyAction(updateField, saveData);
+      if (saved.error) return;
+
+      const sectionData = new FormData();
+      sectionData.set("teamId", teamId);
+      sectionData.set("clientId", clientId);
+      sectionData.set("formId", formId);
+      sectionData.set("branchValue", trimmed);
+      const created = await notifyAction(addSection, sectionData, "Section added.");
+      if (created.sectionId) onSectionCreated?.(created.sectionId, trimmed);
+    } finally {
       setCreatingOption(null);
-      return;
     }
-
-    const sectionData = new FormData();
-    sectionData.set("teamId", teamId);
-    sectionData.set("clientId", clientId);
-    sectionData.set("formId", formId);
-    sectionData.set("branchValue", trimmed);
-    const created = await notifyAction(addSection, sectionData, "Section added.");
-    setCreatingOption(null);
-    if (created.sectionId) onSectionCreated?.(created.sectionId, trimmed);
   }
 
   return (
     <form
       action={async (formData) => {
-        await notifyAction(updateField, formData, "Field saved.");
+        const result = await notifyAction(updateField, formData, "Field saved.");
+        if (result.error) return;
+        const nextLabel = String(formData.get("label") ?? "").trim();
+        const nextDescription = String(formData.get("description") ?? "").trim();
+        const nextRequired =
+          formData.get("required") === "on" || formData.get("required") === "true";
+        onFieldSaved?.(field.id, {
+          label: nextLabel || field.label,
+          description: nextDescription || null,
+          required: nextRequired,
+          options: fieldNeedsOptions(field.type)
+            ? buildChoiceOptions(options)
+            : field.options,
+        });
+        router.refresh();
       }}
       className="grid gap-4"
     >
@@ -808,7 +899,7 @@ function FieldSettings({
         />
       </label>
       {field.type === "RATING" ? (
-        <FieldView field={{ ...field, options }} mode="live" />
+        <FieldView field={previewField} mode="preview" />
       ) : null}
       {field.type === "RESOURCE_RATING" ? (
         <ResourceRatingEditor options={options} onChange={setOptions} />
@@ -817,17 +908,14 @@ function FieldSettings({
         <ChoiceOptionEditor type={choiceType} options={options} onChange={setOptions} />
       ) : null}
       {isBranchingField ? (
-        <div className="grid gap-2">
-          <ChoiceOptionEditor
-            type="DROPDOWN"
-            options={options}
-            onChange={setOptions}
-            linkedOptions={linkedBranchValues}
-            creatingOption={creatingOption}
-            onCreateSection={createSectionForOption}
-          />
-          <FieldView field={{ ...field, options }} mode="live" />
-        </div>
+        <ChoiceOptionEditor
+          type="DROPDOWN"
+          options={options}
+          onChange={setOptions}
+          linkedOptions={linkedBranchValues}
+          creatingOption={creatingOption}
+          onCreateSection={createSectionForOption}
+        />
       ) : null}
       {plugin?.supportsMaxLength ? (
         <label className="flex flex-col gap-1.5 text-sm font-medium">
@@ -847,14 +935,18 @@ function FieldSettings({
       field.type === "LONG_TEXT" ||
       field.type === "SUGGESTION" ||
       field.type === "DATE" ||
+      field.type === "TIME" ||
       field.type === "YES_NO" ? (
-        <FieldView field={field} mode="live" />
+        <FieldView field={previewField} mode="preview" />
       ) : null}
       <label className="flex items-center gap-2 text-sm font-medium">
         <input type="checkbox" name="required" defaultChecked={field.required} />
         Required
       </label>
-      <PendingButton className="justify-center app-btn-primary px-3 py-2.5 text-sm">
+      <PendingButton
+        icon={<Save className="h-4 w-4" />}
+        className="justify-center app-btn-primary px-3 py-2.5 text-sm"
+      >
         Save field
       </PendingButton>
     </form>
@@ -943,8 +1035,7 @@ function FormQuestionsCard({
       <input type="hidden" name="formId" value={formId} />
       <input type="hidden" name="thankYouTitle" value={thankYouTitle ?? ""} />
       <input type="hidden" name="thankYouMessage" value={thankYouMessage ?? ""} />
-      {!isTemplate ? (
-        <div className="relative border-b border-border bg-white">
+      <div className="relative border-b border-border bg-white">
           {imagePreview ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
@@ -992,7 +1083,6 @@ function FormQuestionsCard({
             onChange={(event) => pickHeaderImage(event.currentTarget.files?.[0])}
           />
         </div>
-      ) : null}
       <div className="px-5 py-5">
         <input
           name="title"
@@ -1030,6 +1120,7 @@ function FormResponseCard({
   thankYouMessage,
   thankYouImageUrl,
   thankYouBgColor,
+  thankYouTextColor,
 }: {
   teamId: string;
   clientId: string;
@@ -1040,9 +1131,9 @@ function FormResponseCard({
   thankYouMessage?: string | null;
   thankYouImageUrl?: string | null;
   thankYouBgColor?: string | null;
+  thankYouTextColor?: string | null;
 }) {
   const { updateForm } = useBuilderActions();
-  const formRef = useRef<HTMLFormElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [previewTitle, setPreviewTitle] = useState(thankYouTitle ?? "");
   const [previewMessage, setPreviewMessage] = useState(thankYouMessage ?? "");
@@ -1051,6 +1142,9 @@ function FormResponseCard({
   const [bgColor, setBgColor] = useState(
     normalizeThankYouBg(thankYouBgColor ?? DEFAULT_THANK_YOU_BG)
   );
+  const [textColor, setTextColor] = useState(
+    normalizeThankYouText(thankYouTextColor ?? DEFAULT_THANK_YOU_TEXT)
+  );
 
   useEffect(() => {
     setPreviewTitle(thankYouTitle ?? "");
@@ -1058,7 +1152,14 @@ function FormResponseCard({
     setImagePreview(thankYouImageUrl);
     setRemoveImage(false);
     setBgColor(normalizeThankYouBg(thankYouBgColor ?? DEFAULT_THANK_YOU_BG));
-  }, [thankYouTitle, thankYouMessage, thankYouImageUrl, thankYouBgColor]);
+    setTextColor(normalizeThankYouText(thankYouTextColor ?? DEFAULT_THANK_YOU_TEXT));
+  }, [
+    thankYouTitle,
+    thankYouMessage,
+    thankYouImageUrl,
+    thankYouBgColor,
+    thankYouTextColor,
+  ]);
 
   function pickThankYouImage(file: File | undefined) {
     if (!file) return;
@@ -1074,38 +1175,15 @@ function FormResponseCard({
     }
     setRemoveImage(false);
     setImagePreview(URL.createObjectURL(file));
-    queueMicrotask(() => formRef.current?.requestSubmit());
-  }
-
-  function submitIfChanged(form: HTMLFormElement) {
-    const data = new FormData(form);
-    const nextThankYouTitle = String(data.get("thankYouTitle") ?? "");
-    const nextThankYouMessage = String(data.get("thankYouMessage") ?? "");
-    const nextBg = normalizeThankYouBg(String(data.get("thankYouBgColor") ?? ""));
-    if (
-      nextThankYouTitle === (thankYouTitle ?? "") &&
-      nextThankYouMessage === (thankYouMessage ?? "") &&
-      nextBg === normalizeThankYouBg(thankYouBgColor ?? DEFAULT_THANK_YOU_BG) &&
-      !removeImage &&
-      !(data.get("thankYouImage") instanceof File && (data.get("thankYouImage") as File).size > 0)
-    ) {
-      return;
-    }
-    form.requestSubmit();
   }
 
   return (
     <div className="space-y-4">
       <form
-        ref={formRef}
         action={async (formData) => {
           if (removeImage) formData.set("removeThankYouImage", "1");
-          await notifyAction(updateForm, formData, "Saved.", { debounceSuccess: true });
+          await notifyAction(updateForm, formData, "Thank-you page saved.");
           setRemoveImage(false);
-        }}
-        onBlur={(event) => {
-          if (event.currentTarget.contains(event.relatedTarget as Node | null)) return;
-          submitIfChanged(event.currentTarget);
         }}
         className="overflow-hidden app-radius border border-border bg-white shadow-sm"
       >
@@ -1115,6 +1193,7 @@ function FormResponseCard({
         <input type="hidden" name="title" value={title} />
         <input type="hidden" name="description" value={description ?? ""} />
         <input type="hidden" name="thankYouBgColor" value={bgColor} />
+        <input type="hidden" name="thankYouTextColor" value={textColor} />
 
         <div className="relative border-b border-border bg-white">
           {imagePreview ? (
@@ -1147,7 +1226,6 @@ function FormResponseCard({
                   setImagePreview(null);
                   setRemoveImage(true);
                   if (fileInputRef.current) fileInputRef.current.value = "";
-                  queueMicrotask(() => formRef.current?.requestSubmit());
                 }}
                 className="rounded bg-white px-3 py-1.5 text-xs font-semibold shadow-sm"
               >
@@ -1178,10 +1256,7 @@ function FormResponseCard({
                   key={preset.value}
                   type="button"
                   title={preset.label}
-                  onClick={() => {
-                    setBgColor(preset.value);
-                    queueMicrotask(() => formRef.current?.requestSubmit());
-                  }}
+                  onClick={() => setBgColor(preset.value)}
                   className={cn(
                     "h-9 w-9 rounded-md border-2 transition",
                     bgColor === preset.value
@@ -1205,16 +1280,58 @@ function FormResponseCard({
                   value={bgColor}
                   onChange={(event) => {
                     setBgColor(normalizeThankYouBg(event.target.value));
-                    queueMicrotask(() => formRef.current?.requestSubmit());
                   }}
                   className="h-6 w-6 cursor-pointer rounded-md border-0 bg-transparent p-0"
-                  aria-label="Pick a color"
+                  aria-label="Pick a background color"
                 />
                 More
               </label>
             </div>
             <p className="mt-2 text-xs text-muted">
               Default is white. Use presets or More to choose any background.
+            </p>
+          </fieldset>
+          <fieldset className="mt-5">
+            <legend className="text-sm font-medium">Text color</legend>
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              {THANK_YOU_TEXT_PRESETS.map((preset) => (
+                <button
+                  key={preset.value}
+                  type="button"
+                  title={preset.label}
+                  onClick={() => setTextColor(preset.value)}
+                  className={cn(
+                    "h-9 w-9 rounded-md border-2 transition",
+                    textColor === preset.value
+                      ? "border-accent ring-2 ring-accent/20"
+                      : "border-border hover:border-accent/50"
+                  )}
+                  style={{ backgroundColor: preset.value }}
+                  aria-label={preset.label}
+                />
+              ))}
+              <label
+                className={cn(
+                  "flex h-9 cursor-pointer items-center gap-1.5 rounded-md border bg-white px-2 text-xs font-medium text-muted transition hover:border-accent/50",
+                  !THANK_YOU_TEXT_PRESETS.some((preset) => preset.value === textColor)
+                    ? "border-accent ring-2 ring-accent/20"
+                    : "border-border"
+                )}
+              >
+                <input
+                  type="color"
+                  value={textColor}
+                  onChange={(event) => {
+                    setTextColor(normalizeThankYouText(event.target.value));
+                  }}
+                  className="h-6 w-6 cursor-pointer rounded-md border-0 bg-transparent p-0"
+                  aria-label="Pick a text color"
+                />
+                More
+              </label>
+            </div>
+            <p className="mt-2 text-xs text-muted">
+              Applies to the thank-you title and message.
             </p>
           </fieldset>
           <label className="mt-5 flex flex-col gap-1.5 text-sm font-medium">
@@ -1240,14 +1357,20 @@ function FormResponseCard({
               className="w-full resize-none app-radius border border-border bg-white px-3 py-2.5 text-sm leading-6 outline-none focus:border-accent"
             />
           </label>
+          <PendingButton
+            icon={<Save className="h-4 w-4" />}
+            className="mt-5 justify-center app-btn-primary px-4 py-2.5 text-sm"
+          >
+            Save thank-you page
+          </PendingButton>
         </div>
       </form>
 
       <div
         className="app-radius border border-border/40 p-6"
-        style={{ backgroundColor: bgColor }}
+        style={{ backgroundColor: bgColor, color: textColor }}
       >
-        <p className="text-xs font-semibold uppercase tracking-wide text-muted">
+        <p className="text-xs font-semibold uppercase tracking-wide opacity-70">
           Preview
         </p>
         {imagePreview ? (
@@ -1261,7 +1384,7 @@ function FormResponseCard({
         <h3 className="mt-3 text-xl font-semibold">
           {previewTitle.trim() || "Thank you"}
         </h3>
-        <p className="mt-2 text-sm leading-6 text-muted">
+        <p className="mt-2 text-sm leading-6 opacity-80">
           {previewMessage.trim() ||
             "Your feedback was sent. This link cannot be used again."}
         </p>
@@ -1281,16 +1404,18 @@ export function FormBuilder({
   headerImageUrl = null,
   thankYouImageUrl = null,
   thankYouBgColor = null,
+  thankYouTextColor = null,
   status,
   hasResponse = false,
   publicFormUrl,
   focusFieldId,
-  sections = [],
+  sections = EMPTY_SECTIONS,
   fields,
   backHref = "/dashboard/forms",
   variant = "form",
-  templates = [],
-  clients = [],
+  readOnly = false,
+  templates = EMPTY_TEMPLATES,
+  clients = EMPTY_CLIENTS,
   sourceTemplateId = null,
 }: FormBuilderProps) {
   const router = useRouter();
@@ -1298,15 +1423,19 @@ export function FormBuilder({
   const actions: BuilderActions = isTemplate
     ? {
         addField: templateActions.addField,
+        addSection: templateActions.addSection,
         deleteField: templateActions.deleteField,
+        deleteSection: templateActions.deleteSection,
         reorderFields: templateActions.reorderFields,
         togglePublishForm: templateActions.togglePublishForm,
         updateField: templateActions.updateField,
+        updateSection: templateActions.updateSection,
         updateForm: templateActions.updateForm,
         saveAsTemplate: templateActions.saveAsTemplate,
+        duplicateForm: templateActions.duplicateTemplate,
       }
     : formActions;
-  const [preview, setPreview] = useState(false);
+  const [preview, setPreview] = useState(readOnly);
   const [builderTab, setBuilderTab] = useState<"questions" | "thankyou">("questions");
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [templateOpen, setTemplateOpen] = useState(false);
@@ -1323,14 +1452,17 @@ export function FormBuilder({
   const [integrateOpen, setIntegrateOpen] = useState(false);
   const [integrateSuccessOpen, setIntegrateSuccessOpen] = useState(false);
   const isPublished = status === "PUBLISHED";
+  const isClosed = status === "CLOSED" || hasResponse;
   const needsClient = !isTemplate && !clientId;
-  const canPublish = !needsClient && (isPublished || items.length > 0);
+  const canPublish = !needsClient && !isClosed && (isPublished || items.length > 0);
 
   // Sync builder cards after server actions add, save, or reorder fields.
   /* eslint-disable react-hooks/set-state-in-effect -- props to local drag state */
   useEffect(() => {
-    setItems(fields);
-    setSectionBlocks(sections);
+    setItems((current) => (sameFieldOrder(current, fields) ? current : fields));
+    setSectionBlocks((current) =>
+      sameSections(current, sections) ? current : sections
+    );
     if (focusFieldId) setSelectedId(focusFieldId);
   }, [fields, focusFieldId, sections]);
 
@@ -1375,6 +1507,12 @@ export function FormBuilder({
   function removeFieldFromList(fieldId: string) {
     setItems((current) => current.filter((item) => item.id !== fieldId));
     setSelectedId((current) => (current === fieldId ? null : current));
+  }
+
+  function patchFieldInList(fieldId: string, patch: Partial<BuilderField>) {
+    setItems((current) =>
+      current.map((item) => (item.id === fieldId ? { ...item, ...patch } : item))
+    );
   }
 
   function onDragEnd(event: DragEndEvent) {
@@ -1436,8 +1574,8 @@ export function FormBuilder({
                 "min-w-0 truncate px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide",
                 isTemplate
                   ? "bg-zinc-100 text-zinc-600"
-                  : hasResponse
-                    ? "bg-sky-100 text-sky-800"
+                  : isClosed
+                    ? "bg-red-800 text-white"
                     : isPublished
                       ? "bg-emerald-100 text-emerald-800"
                       : "bg-zinc-100 text-zinc-600"
@@ -1445,8 +1583,8 @@ export function FormBuilder({
             >
               {isTemplate
                 ? "Template"
-                : hasResponse
-                  ? "Submitted"
+                : isClosed
+                  ? "Closed"
                   : isPublished
                     ? "Published"
                     : "Draft"}
@@ -1467,6 +1605,35 @@ export function FormBuilder({
                 <Link2 className="h-4 w-4 shrink-0" />
                 <span className="hidden lg:inline text-sm font-medium">Integrate</span>
               </button>
+            </Tooltip>
+          ) : null}
+          {isTemplate && actions.duplicateForm ? (
+            <Tooltip label="Duplicate template" side="bottom">
+              <form
+                action={async (formData) => {
+                  const duplicateForm = actions.duplicateForm;
+                  if (!duplicateForm) return;
+                  formData.set("templateId", formId);
+                  const result = await notifyAction(
+                    duplicateForm,
+                    formData,
+                    "Template duplicated."
+                  );
+                  if (result.templateId) {
+                    router.push(`/dashboard/templates/${result.templateId}`);
+                  }
+                }}
+              >
+                <PendingButton
+                  aria-label="Duplicate template"
+                  className="inline-flex h-10 w-10 items-center justify-center gap-1.5 app-radius border border-border bg-surface transition hover:bg-background lg:w-auto lg:px-3"
+                >
+                  <Copy className="h-4 w-4 shrink-0" />
+                  <span className="hidden lg:inline text-sm font-medium">
+                    Duplicate template
+                  </span>
+                </PendingButton>
+              </form>
             </Tooltip>
           ) : null}
           {isTemplate ? null : actions.duplicateForm ? (
@@ -1516,8 +1683,9 @@ export function FormBuilder({
             <button
               type="button"
               onClick={() => setPreview((value) => !value)}
+              disabled={readOnly}
               aria-label={preview ? "Edit form" : "Preview form"}
-              className="inline-flex h-10 w-10 items-center justify-center gap-1.5 app-radius border border-border bg-surface transition hover:bg-background lg:w-auto lg:px-3"
+              className="inline-flex h-10 w-10 items-center justify-center gap-1.5 app-radius border border-border bg-surface transition hover:bg-background disabled:opacity-50 lg:w-auto lg:px-3"
             >
               {preview ? <Pencil className="h-4 w-4 shrink-0" /> : <Eye className="h-4 w-4 shrink-0" />}
               <span className="hidden lg:inline text-sm font-medium">
@@ -1544,7 +1712,23 @@ export function FormBuilder({
               name="action"
               value={isPublished ? "unpublish" : "publish"}
             />
-            {canPublish ? (
+            {isClosed ? (
+              <Tooltip
+                label="Closed after a response was submitted — cannot be reopened"
+                side="bottom"
+              >
+                <span>
+                  <PendingButton
+                    disabled
+                    aria-label="Closed"
+                    className="inline-flex h-10 w-10 items-center justify-center gap-1.5 app-radius border border-border bg-surface opacity-60 lg:w-auto lg:px-3"
+                  >
+                    <Globe className="h-4 w-4 shrink-0" />
+                    <span className="hidden lg:inline text-sm font-medium">Closed</span>
+                  </PendingButton>
+                </span>
+              </Tooltip>
+            ) : canPublish ? (
               <Tooltip label={isPublished ? "Unpublish" : "Publish"} side="bottom">
                 <PendingButton
                   aria-label={isPublished ? "Unpublish" : "Publish"}
@@ -1584,7 +1768,7 @@ export function FormBuilder({
             )}
           </form>
           )}
-          {!isTemplate && isPublished ? (
+          {!isTemplate && isPublished && !isClosed ? (
             <Tooltip label="Open form" side="bottom">
               <a
                 href={publicFormUrl}
@@ -1601,10 +1785,18 @@ export function FormBuilder({
           </div>
         </div>
       </header>
-      {hasResponse && !isTemplate ? (
+      {isClosed && !isTemplate ? (
         <p className="border-b border-border bg-sage/10 px-4 py-2 text-xs leading-5 text-muted sm:text-sm">
-          This public link already has a response and cannot be submitted again.
-          Save this form as a template, then create a new form from the library for next month.
+          This form is closed after a response was submitted and cannot be reopened.
+          Save it as a template, then create a new form from the library for next month.
+        </p>
+      ) : null}
+      {readOnly && isTemplate ? (
+        <p className="border-b border-border bg-sage/10 px-4 py-2 text-xs leading-5 text-muted sm:text-sm">
+          This shared template is view-only. Use{" "}
+          <span className="font-medium text-foreground">Duplicate template</span>{" "}
+          to create your own editable copy, then hide the shared card from your
+          Templates board if you want.
         </p>
       ) : null}
 
@@ -1643,6 +1835,7 @@ export function FormBuilder({
         </div>
       ) : (
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden lg:flex-row">
+          {readOnly ? null : (
           <div className="border-b border-border bg-card px-4 py-2 lg:hidden">
             <button
               type="button"
@@ -1654,6 +1847,8 @@ export function FormBuilder({
               Add fields
             </button>
           </div>
+          )}
+          {readOnly ? null : (
           <aside
             className={cn(
               "flex-col border-b border-border bg-card lg:h-full lg:max-h-none lg:w-64 lg:shrink-0 lg:overflow-visible lg:border-b-0 lg:border-r",
@@ -1678,6 +1873,7 @@ export function FormBuilder({
                       if (result.fieldId) {
                         setSelectedId(result.fieldId);
                         if (builderTab === "thankyou") setBuilderTab("questions");
+                        router.refresh();
                       }
                       setPaletteOpen(false);
                     }}
@@ -1707,11 +1903,11 @@ export function FormBuilder({
               </div>
             </div>
           </aside>
+          )}
 
           <main className="min-w-0 flex-1 overflow-auto bg-background px-4 py-6">
             <div className="mx-auto max-w-2xl">
-              {!isTemplate ? (
-                <div className="mb-4 flex gap-1 border-b border-border">
+              <div className="mb-4 flex gap-1 border-b border-border">
                   <button
                     type="button"
                     onClick={() => setBuilderTab("questions")}
@@ -1737,9 +1933,8 @@ export function FormBuilder({
                     Thank-you
                   </button>
                 </div>
-              ) : null}
 
-              {builderTab === "thankyou" && !isTemplate ? (
+              {builderTab === "thankyou" ? (
                 <FormResponseCard
                   teamId={teamId}
                   clientId={clientId}
@@ -1750,6 +1945,7 @@ export function FormBuilder({
                   thankYouMessage={thankYouMessage}
                   thankYouImageUrl={thankYouImageUrl}
                   thankYouBgColor={thankYouBgColor}
+                  thankYouTextColor={thankYouTextColor}
                 />
               ) : (
                 <>
@@ -1813,11 +2009,11 @@ export function FormBuilder({
                                 },
                               ];
                             });
-                            if (builderTab === "thankyou") setBuilderTab("questions");
                             router.refresh();
                           }}
                           onDuplicate={(fieldId) => setSelectedId(fieldId)}
                           onRemove={removeFieldFromList}
+                          onFieldSaved={patchFieldInList}
                         />
                       ))}
                     </div>
@@ -1848,6 +2044,7 @@ export function FormBuilder({
                       }
                       onDuplicateField={(fieldId) => setSelectedId(fieldId)}
                       onRemoveField={removeFieldFromList}
+                      onFieldSaved={patchFieldInList}
                     />
                   ))}
                 </div>
@@ -1923,9 +2120,13 @@ export function FormBuilder({
                 onClick={() => setIntegrateOpen(false)}
                 className="app-btn-secondary w-full justify-center px-4 py-2 text-sm sm:w-auto"
               >
+                <X className="h-4 w-4" />
                 Cancel
               </button>
-              <PendingButton className="w-full justify-center app-btn-primary px-4 py-2 text-sm sm:w-auto">
+              <PendingButton
+                icon={<Link2 className="h-4 w-4" />}
+                className="w-full justify-center app-btn-primary px-4 py-2 text-sm sm:w-auto"
+              >
                 Integrate client
               </PendingButton>
             </form>
@@ -1996,9 +2197,11 @@ export function FormBuilder({
               onClick={() => setTemplateOpen(false)}
               className="app-btn-secondary px-4 py-2 text-sm"
             >
+              <X className="h-4 w-4" />
               Cancel
             </button>
             <PendingButton
+              icon={<Bookmark className="h-4 w-4" />}
               className="justify-center app-btn-primary px-4 py-2 text-sm"
             >
               Save template

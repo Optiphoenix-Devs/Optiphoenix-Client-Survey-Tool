@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect } from "react";
+import { useActionState, useEffect, useState } from "react";
 import Link from "next/link";
 import { loginAction } from "./actions";
 import { PasswordInput } from "@/components/ui/password-input";
@@ -9,6 +9,7 @@ import { toast, toastOnce } from "@/components/ui/toaster";
 
 export function LoginForm({ notice }: { notice?: string }) {
   const [state, action, pending] = useActionState(loginAction, {});
+  const [passwordResetKey, setPasswordResetKey] = useState(0);
 
   useEffect(() => {
     if (!notice) return;
@@ -22,10 +23,10 @@ export function LoginForm({ notice }: { notice?: string }) {
   }, [notice]);
 
   useEffect(() => {
-    if (state.error) {
-      toast("Sign in failed", { description: state.error, tone: "error" });
-    }
-  }, [state.error]);
+    if (!state.error) return;
+    toast("Sign in failed", { description: state.error, tone: "error" });
+    setPasswordResetKey((key) => key + 1);
+  }, [state]);
 
   return (
     <>
@@ -51,7 +52,11 @@ export function LoginForm({ notice }: { notice?: string }) {
               Forgot password?
             </Link>
           </span>
-          <PasswordInput autoComplete="current-password" placeholder="Enter your password" />
+          <PasswordInput
+            autoComplete="current-password"
+            placeholder="Enter your password"
+            resetKey={passwordResetKey > 0 ? passwordResetKey : undefined}
+          />
         </label>
         <ActionButton
           pending={pending}

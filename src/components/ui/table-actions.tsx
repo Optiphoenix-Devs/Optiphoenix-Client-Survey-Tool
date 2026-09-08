@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Pencil, Plus, Trash2 } from "lucide-react";
+import { Pencil, Plus, Share2, Trash2 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { Tooltip } from "@/components/ui/tooltip";
 
@@ -98,6 +98,27 @@ export function TableUseButton({
   );
 }
 
+export function TableShareButton({
+  onClick,
+  label,
+}: {
+  onClick: () => void;
+  label: string;
+}) {
+  return (
+    <Tooltip label="Share" side="top">
+      <button
+        type="button"
+        onClick={onClick}
+        className={iconButtonClass}
+        aria-label={`Share ${label}`}
+      >
+        <Share2 className="h-4 w-4" />
+      </button>
+    </Tooltip>
+  );
+}
+
 export function TableDeleteButton({
   onClick,
   label,
@@ -106,12 +127,12 @@ export function TableDeleteButton({
   label: string;
 }) {
   return (
-    <Tooltip label="Delete" side="top">
+    <Tooltip label="Remove" side="top">
       <button
         type="button"
         onClick={onClick}
         className={dangerButtonClass}
-        aria-label={`Delete ${label}`}
+        aria-label={`Remove ${label}`}
       >
         <Trash2 className="h-4 w-4" />
       </button>

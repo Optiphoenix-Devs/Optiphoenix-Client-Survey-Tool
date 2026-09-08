@@ -17,6 +17,7 @@ export type FieldInputKind =
   | "rating"
   | "resource-rating"
   | "date"
+  | "time"
   | "yes-no";
 
 export type FieldTypeValue =
@@ -31,6 +32,7 @@ export type FieldTypeValue =
   | "RATING"
   | "RESOURCE_RATING"
   | "DATE"
+  | "TIME"
   | "YES_NO";
 
 export type FieldTypePlugin = {

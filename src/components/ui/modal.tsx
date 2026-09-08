@@ -67,14 +67,16 @@ export function Modal({
         aria-modal="true"
         aria-labelledby={labelledBy}
         className={cn(
-          "relative w-full max-w-md app-radius border border-border bg-card p-6 app-shadow-card transition-all duration-300 ease-out",
+          "relative flex w-full max-w-md max-h-[min(90vh,44rem)] flex-col overflow-hidden app-radius border border-border bg-card p-0 app-shadow-card transition-all duration-300 ease-out",
           visible
             ? "translate-y-0 scale-100 opacity-100"
             : "translate-y-3 scale-95 opacity-0",
           className
         )}
       >
-        {children}
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-6">
+          {children}
+        </div>
       </div>
     </div>,
     document.body

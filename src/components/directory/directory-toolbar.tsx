@@ -6,6 +6,7 @@ import { Select, SortByOption } from "@/components/ui/select";
 import { cn } from "@/lib/cn";
 import {
   DIRECTORY_SORT_OPTIONS,
+  DIRECTORY_SORT_PLACEHOLDER,
   type DirectorySort,
   type DirectorySortSelection,
 } from "@/lib/sort";
@@ -57,7 +58,7 @@ export function DirectoryToolbar({
               value={sort}
               onChange={(event) => {
                 const next = event.target.value;
-                if (!next) return;
+                if (!next || next === DIRECTORY_SORT_PLACEHOLDER) return;
                 onSortChange(next as DirectorySort);
               }}
               aria-label="Sort by"

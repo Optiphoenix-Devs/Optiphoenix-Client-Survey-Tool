@@ -11,6 +11,7 @@ import {
 } from "./plugins/rating-fields";
 import { commentField } from "./plugins/comment-field";
 import { dateField } from "./plugins/date-field";
+import { timeField } from "./plugins/time-field";
 import { yesNoField } from "./plugins/yes-no-field";
 import {
   longTextField,
@@ -30,6 +31,7 @@ export const FIELD_PLUGINS: FieldTypePlugin[] = [
   resourceRatingField,
   suggestionField,
   dateField,
+  timeField,
   yesNoField,
 ];
 
@@ -85,8 +87,11 @@ export const FIELD_TYPES = FIELD_PLUGINS.map((plugin) => ({
   category: plugin.category,
 }));
 
+/** Field types shown in the builder palette (COMMENT is legacy-only). */
 export const ADDABLE_FIELD_TYPES = FIELD_PLUGINS.filter(
-  (plugin) => plugin.category === "question" || plugin.category === "branching"
+  (plugin) =>
+    (plugin.category === "question" || plugin.category === "branching") &&
+    plugin.value !== "COMMENT"
 ).map((plugin) => ({
   value: plugin.value,
   label: plugin.label,

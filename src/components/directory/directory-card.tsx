@@ -1,5 +1,10 @@
+"use client";
+
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useTransition } from "react";
 import { cn } from "@/lib/cn";
+import { Spinner } from "@/components/ui/pending-button";
 
 export function DirectoryCard({
   className,
@@ -72,18 +77,42 @@ export function DirectoryCardButton({
   type = "button",
   ...props
 }: DirectoryCardButtonProps) {
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+
   const classes = cn(
     "directory-card-btn inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium transition",
     variant === "primary" && "directory-card-btn-primary",
     variant === "secondary" && "directory-card-btn-secondary",
     variant === "danger" && "directory-card-btn-danger",
+    isPending && "pointer-events-none opacity-80",
+    props.disabled && "cursor-not-allowed opacity-60",
     className
   );
 
   if (href) {
     return (
-      <Link href={href} className={classes} aria-label={props["aria-label"]}>
-        {children}
+      <Link
+        href={href}
+        className={classes}
+        aria-label={props["aria-label"]}
+        aria-busy={isPending}
+        onClick={(event) => {
+          event.preventDefault();
+          startTransition(() => {
+            router.push(href);
+          });
+        }}
+      >
+        {isPending ? <Spinner className="h-3.5 w-3.5" /> : null}
+        <span
+          className={cn(
+            "inline-flex items-center gap-1.5",
+            isPending && "[&>svg]:hidden"
+          )}
+        >
+          {children}
+        </span>
       </Link>
     );
   }

@@ -45,7 +45,12 @@ export function CreateAccountForm() {
         </label>
         <label className="flex flex-col gap-1.5 text-sm font-semibold">
           Password
-          <PasswordInput autoComplete="new-password" showStrength placeholder="Create a strong password" />
+          <PasswordInput
+            autoComplete="new-password"
+            showStrength
+            minLength={8}
+            placeholder="Create a strong password"
+          />
         </label>
         <ActionButton
           pending={pending}

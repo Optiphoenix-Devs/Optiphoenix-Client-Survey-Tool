@@ -105,7 +105,7 @@ export async function deleteTeam(formData: FormData): Promise<ActionResult> {
       parsed.data.teamId
     );
   } catch {
-    return { error: "You cannot delete this team." };
+    return { error: "You cannot remove this team." };
   }
 
   revalidateWorkspace();

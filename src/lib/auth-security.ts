@@ -6,6 +6,7 @@ export const MAX_LOGIN_ATTEMPTS = 3;
 export const LOCKOUT_MS = 3 * 60 * 60 * 1000;
 export const RESET_TOKEN_MS = 60 * 60 * 1000;
 export const SIGNUP_TOKEN_MS = 7 * 24 * 60 * 60 * 1000;
+export const TEAM_INVITE_TOKEN_MS = 7 * 24 * 60 * 60 * 1000;
 
 export function hashToken(token: string) {
   return createHash("sha256").update(token).digest("hex");

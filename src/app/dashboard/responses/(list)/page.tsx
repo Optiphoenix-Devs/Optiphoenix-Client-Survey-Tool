@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { getResponsesPage } from "@/lib/responses";
+import { getClientsForUser } from "@/lib/clients";
 import { ResponsesDirectory } from "../responses-directory";
 
 export default async function ResponsesPage({
@@ -12,12 +13,21 @@ export default async function ResponsesPage({
   if (!session?.user?.id || !session.user.role) redirect("/login");
 
   const { form: formId } = await searchParams;
-  const page = await getResponsesPage(session.user.id, session.user.role, {
-    page: 1,
-    formId,
-  });
+  const [page, clients] = await Promise.all([
+    getResponsesPage(session.user.id, session.user.role, {
+      page: 1,
+      formId,
+    }),
+    getClientsForUser(session.user.id, session.user.role),
+  ]);
   const formTitle =
     formId && page.rows[0] ? page.rows[0].formTitle : undefined;
+
+  const clientOptions = clients.map((c) => ({
+    id: c.id,
+    name: c.name,
+    email: c.email,
+  }));
 
   return (
     <main className="mx-auto flex w-full max-w-6xl flex-col gap-8 px-4 py-8 sm:px-8 sm:py-10">
@@ -25,7 +35,9 @@ export default async function ResponsesPage({
         initialPage={page}
         formId={formId}
         formTitle={formTitle}
+        clients={clientOptions}
       />
     </main>
   );
 }
+

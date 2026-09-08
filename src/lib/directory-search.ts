@@ -2,7 +2,18 @@ export function searchTokens(query: string): string[] {
   return query.trim().toLowerCase().split(/\s+/).filter(Boolean);
 }
 
-/** Every token must appear somewhere in the combined searchable fields. */
+/** Split searchable text into words (letters/digits), ignoring punctuation. */
+function searchWords(text: string): string[] {
+  return text
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter(Boolean);
+}
+
+/**
+ * Every query token must be a prefix of some word across the searchable fields.
+ * Avoids `"a"` matching inside `"team"` (so "Team a" only matches Team A, not Team B).
+ */
 export function matchesDirectorySearch(
   query: string,
   fields: Array<string | null | undefined>
@@ -10,12 +21,13 @@ export function matchesDirectorySearch(
   const tokens = searchTokens(query);
   if (tokens.length === 0) return true;
 
-  const haystack = fields
+  const words = fields
     .filter((field): field is string => Boolean(field?.trim()))
-    .join(" ")
-    .toLowerCase();
+    .flatMap((field) => searchWords(field));
 
-  return tokens.every((token) => haystack.includes(token));
+  return tokens.every((token) =>
+    words.some((word) => word.startsWith(token))
+  );
 }
 
 /** True when query appears in form title, client name, or team name (case-insensitive). */
@@ -23,10 +35,15 @@ export function matchesResponseCardSearch(
   query: string,
   fields: { formTitle: string; clientName: string; teamName: string }
 ) {
-  const phrase = query.trim().toLowerCase();
-  if (!phrase) return true;
-  return [fields.formTitle, fields.clientName, fields.teamName].some((field) =>
-    field.toLowerCase().includes(phrase)
+  const tokens = searchTokens(query);
+  if (tokens.length === 0) return true;
+
+  const words = [fields.formTitle, fields.clientName, fields.teamName].flatMap(
+    (field) => searchWords(field)
+  );
+
+  return tokens.every((token) =>
+    words.some((word) => word.startsWith(token))
   );
 }
 

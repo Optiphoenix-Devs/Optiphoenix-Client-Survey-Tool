@@ -12,6 +12,8 @@ import {
 } from "@/lib/auth-security";
 
 const SESSION_MAX_AGE_SEC = 60 * 60 * 24; // 24 hours
+/** How often to re-check sessionVersion in the DB (avoids a query on every auth()). */
+const SESSION_VERSION_CHECK_MS = 60_000;
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   ...authConfig,
@@ -46,6 +48,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           name: dbUser.name,
           picture: dbUser.avatarUrl,
           sessionVersion: dbUser.sessionVersion,
+          sessionCheckedAt: Date.now(),
           error: undefined,
         };
       }
@@ -53,6 +56,12 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       const userId = (token.id as string | undefined) ?? token.sub;
       if (!userId || typeof token.sessionVersion !== "number") {
         return { ...token, error: "InvalidSession" };
+      }
+
+      const checkedAt =
+        typeof token.sessionCheckedAt === "number" ? token.sessionCheckedAt : 0;
+      if (Date.now() - checkedAt < SESSION_VERSION_CHECK_MS) {
+        return token;
       }
 
       try {
@@ -81,6 +90,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           role: dbUser.role,
           name: dbUser.name,
           picture: dbUser.avatarUrl,
+          sessionCheckedAt: Date.now(),
           error: undefined,
         };
       } catch {

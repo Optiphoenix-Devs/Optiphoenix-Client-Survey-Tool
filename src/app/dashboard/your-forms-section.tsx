@@ -3,7 +3,7 @@
 import { useMemo, useState, useTransition } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { FileText, LayoutGrid, Plus, Search, Table2, Trash2 } from "lucide-react";
+import { FileText, LayoutGrid, Plus, Search, Table2, Trash2, X } from "lucide-react";
 import type { ActionResult } from "@/lib/action-result";
 import type { DashboardFormRow } from "@/lib/teams";
 import { cn } from "@/lib/cn";
@@ -17,6 +17,7 @@ import { TableHeadCenter, TableHeadLeft, TableCellCenter, TableCellLeft, Directo
 import { runServerAction } from "@/lib/run-server-action";
 import {
   DIRECTORY_SORT_OPTIONS,
+  DIRECTORY_SORT_PLACEHOLDER,
   DIRECTORY_SORT_SELECTION_VALUES,
   sortDirectoryRows,
   type DirectorySort,
@@ -32,7 +33,7 @@ import { Tooltip } from "@/components/ui/tooltip";
 import { useDirectoryView } from "@/lib/use-directory-view";
 import { usePersistedValue } from "@/lib/use-persisted-value";
 
-type FormsFilter = "all" | "published" | "drafts";
+type FormsFilter = "all" | "published" | "drafts" | "closed";
 
 type TemplateOption = {
   id: string;
@@ -41,16 +42,17 @@ type TemplateOption = {
 };
 
 const VIEW_STORAGE_KEY = "optiphoenix.formsView";
-const SORT_KEY = "optiphoenix.formsSort.v2";
+const SORT_KEY = "optiphoenix.formsSort.v3";
 
 const FILTERS: Array<{ id: FormsFilter; label: string }> = [
   { id: "all", label: "All" },
   { id: "published", label: "Published" },
   { id: "drafts", label: "Drafts" },
+  { id: "closed", label: "Closed" },
 ];
 
 function parseFilter(value: string | null): FormsFilter {
-  if (value === "published" || value === "drafts") return value;
+  if (value === "published" || value === "drafts" || value === "closed") return value;
   return "all";
 }
 
@@ -72,13 +74,24 @@ export function YourFormsSection({
   const searchParams = useSearchParams();
   const filter = parseFilter(searchParams.get("forms"));
   const [view, setView] = useDirectoryView(VIEW_STORAGE_KEY);
-  const [sort, setSort] = usePersistedValue(SORT_KEY, "", DIRECTORY_SORT_SELECTION_VALUES);
+  const [sort, setSort] = usePersistedValue(
+    SORT_KEY,
+    DIRECTORY_SORT_PLACEHOLDER,
+    DIRECTORY_SORT_SELECTION_VALUES
+  );
   const [query, setQuery] = useState("");
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [deleting, setDeleting] = useState<DashboardFormRow | null>(null);
   const [pending, startTransition] = useTransition();
   const canCreate = Boolean(createAction);
   const canDelete = Boolean(deleteAction);
+  const draftForms = useMemo(
+    () =>
+      forms
+        .filter((form) => form.status === "DRAFT")
+        .map((form) => ({ id: form.id, title: form.title })),
+    [forms]
+  );
 
   function setFilter(next: FormsFilter) {
     const params = new URLSearchParams(searchParams.toString());
@@ -114,6 +127,17 @@ export function YourFormsSection({
     event.preventDefault();
     if (!createAction) return;
     const formData = new FormData(event.currentTarget);
+    const picked = String(formData.get("pick") ?? "blank");
+    if (picked.startsWith("template:")) {
+      formData.set("source", "template");
+      formData.set("templateId", picked.slice("template:".length));
+    } else if (picked.startsWith("draft:")) {
+      formData.set("source", "draft");
+      formData.set("draftFormId", picked.slice("draft:".length));
+    } else {
+      formData.set("source", "blank");
+    }
+    formData.delete("pick");
     startTransition(async () => {
       await runServerAction({
         action: createAction,
@@ -136,7 +160,7 @@ export function YourFormsSection({
       await runServerAction({
         action: deleteAction,
         formData,
-        successMessage: "Draft form deleted.",
+        successMessage: "Draft form removed.",
         onSuccess: () => setDeleting(null),
         refresh: () => router.refresh(),
       });
@@ -176,7 +200,7 @@ export function YourFormsSection({
                   value={sort}
                   onChange={(event) => {
                     const next = event.target.value;
-                    if (!next) return;
+                    if (!next || next === DIRECTORY_SORT_PLACEHOLDER) return;
                     setSort(next as DirectorySort);
                     paged.setPage(1);
                   }}
@@ -280,7 +304,7 @@ export function YourFormsSection({
                 value={sort}
                 onChange={(event) => {
                   const next = event.target.value;
-                  if (!next) return;
+                  if (!next || next === DIRECTORY_SORT_PLACEHOLDER) return;
                   setSort(next as DirectorySort);
                   paged.setPage(1);
                 }}
@@ -472,7 +496,7 @@ export function YourFormsSection({
         <SideDrawer
           open={drawerOpen}
           title="New form"
-          description="Start blank or pick a template. Publish only after you integrate a client on the builder."
+          description="Start blank, from a template, or from an existing draft. Publish only after you integrate a client on the builder."
           onClose={closeDrawer}
         >
           <form onSubmit={submitCreate}>
@@ -490,19 +514,29 @@ export function YourFormsSection({
             </label>
             <label className="mt-4 flex flex-col gap-1.5 text-sm font-medium">
               Start from
-              <Select
-                name="templateId"
-                defaultValue=""
-              >
-                <option value="">Blank form</option>
-                {templates.map((template) => (
-                  <option key={template.id} value={template.id}>
-                    {template.name} · {template.fieldCount} fields
-                  </option>
-                ))}
+              <Select name="pick" defaultValue="blank">
+                <option value="blank">Blank form</option>
+                {templates.length > 0 ? (
+                  <optgroup label="Templates">
+                    {templates.map((template) => (
+                      <option key={template.id} value={`template:${template.id}`}>
+                        {template.name}
+                      </option>
+                    ))}
+                  </optgroup>
+                ) : null}
+                {draftForms.length > 0 ? (
+                  <optgroup label="Draft forms">
+                    {draftForms.map((draft) => (
+                      <option key={draft.id} value={`draft:${draft.id}`}>
+                        {draft.title}
+                      </option>
+                    ))}
+                  </optgroup>
+                ) : null}
               </Select>
             </label>
-            {templates.length === 0 ? (
+            {templates.length === 0 && draftForms.length === 0 ? (
               <p className="mt-2 text-xs text-muted">
                 After you build a form, save it as a template to reuse next month.
               </p>
@@ -513,10 +547,12 @@ export function YourFormsSection({
                 onClick={closeDrawer}
                 className="app-btn-secondary px-4 py-2 text-sm"
               >
+                <X className="h-4 w-4" />
                 Cancel
               </button>
               <ActionButton
                 pending={pending}
+                icon={<Plus className="h-4 w-4" />}
                 className="app-btn-primary px-4 py-2 text-sm"
               >
                 Create form
@@ -528,13 +564,13 @@ export function YourFormsSection({
 
       <ConfirmDialog
         open={Boolean(deleting)}
-        title="Delete draft form?"
+        title="Remove draft form?"
         description={
           deleting
-            ? `“${deleting.title}” will be permanently deleted.`
+            ? `“${deleting.title}” will be permanently removed.`
             : ""
         }
-        confirmLabel="Delete draft"
+        confirmLabel="Remove draft"
         pending={pending}
         onCancel={() => setDeleting(null)}
         onConfirm={confirmDelete}
@@ -548,7 +584,8 @@ function filterForms(forms: DashboardFormRow[], filter: FormsFilter, query: stri
     const statusOk =
       filter === "all" ||
       (filter === "published" && form.status === "PUBLISHED") ||
-      (filter === "drafts" && form.status === "DRAFT");
+      (filter === "drafts" && form.status === "DRAFT") ||
+      (filter === "closed" && form.status === "CLOSED");
     if (!statusOk) return false;
     return matchesDirectorySearch(query, [
       form.title,
@@ -587,7 +624,7 @@ function FormCard({
                 onDelete?.();
               }}
               className="inline-flex h-8 w-8 items-center justify-center text-muted hover:bg-hover hover:text-rose-600"
-              aria-label={`Delete draft ${form.title}`}
+              aria-label={`Remove draft ${form.title}`}
             >
               <Trash2 className="h-4 w-4" />
             </button>
@@ -607,16 +644,19 @@ function FormCard({
 
 function StatusBadge({ status }: { status: DashboardFormRow["status"] }) {
   const published = status === "PUBLISHED";
+  const closed = status === "CLOSED";
   return (
     <span
       className={cn(
         "px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide whitespace-nowrap",
-        published
-          ? "bg-emerald-100 text-emerald-800"
-          : "bg-zinc-100 text-zinc-600"
+        closed
+          ? "bg-red-800 text-white"
+          : published
+            ? "bg-emerald-100 text-emerald-800"
+            : "bg-zinc-100 text-zinc-600"
       )}
     >
-      {published ? "Published" : "Draft"}
+      {closed ? "Closed" : published ? "Published" : "Draft"}
     </span>
   );
 }

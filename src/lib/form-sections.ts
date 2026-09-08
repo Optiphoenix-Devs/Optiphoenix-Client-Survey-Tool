@@ -24,13 +24,15 @@ export type SectionQuestion = {
   order: number;
 };
 
-export type SurveyStep =
-  | { kind: "question"; question: SectionQuestion }
-  | {
-      kind: "section";
-      section: FormSectionRecord;
-      questions: SectionQuestion[];
-    };
+/** One survey screen — always a single question (section fields continue step-by-step). */
+export type SurveyStep = {
+  kind: "question";
+  question: SectionQuestion;
+  /** Present when this question belongs to a branched/visible section. */
+  section?: FormSectionRecord | null;
+  /** True for the first question shown from this section in the current path. */
+  sectionIntro?: boolean;
+};
 
 export function findBranchingQuestion(questions: SectionQuestion[]) {
   return questions.find(
@@ -74,10 +76,14 @@ export function buildSurveySteps(
     const sectionQuestions = questions
       .filter((question) => question.sectionId === section.id)
       .sort((a, b) => a.order - b.order);
-    steps.push({
-      kind: "section",
-      section,
-      questions: sectionQuestions,
+
+    sectionQuestions.forEach((question, index) => {
+      steps.push({
+        kind: "question",
+        question,
+        section,
+        sectionIntro: index === 0,
+      });
     });
   }
 

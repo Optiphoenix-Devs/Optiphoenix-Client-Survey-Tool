@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { LoaderCircle } from "lucide-react";
 import { useFormStatus } from "react-dom";
 import { cn } from "@/lib/cn";
@@ -10,11 +11,14 @@ export function Spinner({ className }: { className?: string }) {
 
 export function ActionButton({
   pending = false,
+  icon,
   children,
   className,
   ...props
 }: React.ButtonHTMLAttributes<HTMLButtonElement> & {
   pending?: boolean;
+  /** Replaced by a spinner while pending. */
+  icon?: ReactNode;
 }) {
   return (
     <button
@@ -26,21 +30,24 @@ export function ActionButton({
         className
       )}
     >
-      {pending ? <Spinner /> : null}
+      {pending ? <Spinner /> : icon}
       {children}
     </button>
   );
 }
 
 export function PendingButton({
+  icon,
   children,
   className,
   ...props
-}: React.ButtonHTMLAttributes<HTMLButtonElement>) {
+}: React.ButtonHTMLAttributes<HTMLButtonElement> & {
+  icon?: ReactNode;
+}) {
   const { pending } = useFormStatus();
 
   return (
-    <ActionButton pending={pending} className={className} {...props}>
+    <ActionButton pending={pending} icon={icon} className={className} {...props}>
       {children}
     </ActionButton>
   );

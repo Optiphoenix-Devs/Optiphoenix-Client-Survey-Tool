@@ -6,8 +6,6 @@
  * (Apple Mail, iOS, some Outlook). Gmail often keeps the light layout.
  */
 
-import { getAppBaseUrl } from "@/lib/app-url";
-
 type EmailShellInput = {
   preheader: string;
   title: string;
@@ -25,8 +23,8 @@ function escapeHtml(value: string) {
     .replace(/"/g, "&quot;");
 }
 
-function brandHeader(baseUrl: string) {
-  const logoUrl = `${baseUrl}/optiphoenix-logo-email.svg`;
+function brandHeader() {
+  // Inline CID attachment — Gmail blocks SVG and can't load localhost image URLs.
   return `
     <tr>
       <td style="padding:28px 32px 12px 32px;">
@@ -34,7 +32,7 @@ function brandHeader(baseUrl: string) {
           <tr>
             <td style="vertical-align:middle;padding-right:12px;">
               <img
-                src="${logoUrl}"
+                src="cid:optiphoenix-logo"
                 width="160"
                 height="26"
                 alt="OptiPhoenix"
@@ -49,7 +47,6 @@ function brandHeader(baseUrl: string) {
 }
 
 function renderEmailShell(input: EmailShellInput) {
-  const baseUrl = getAppBaseUrl();
   const cta = input.cta
     ? `
       <tr>
@@ -103,7 +100,7 @@ function renderEmailShell(input: EmailShellInput) {
     <tr>
       <td align="center">
         <table role="presentation" class="card" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:560px;background:#ffffff;border:1px solid #d8d4c8;border-radius:16px;overflow:hidden;">
-          ${brandHeader(baseUrl)}
+          ${brandHeader()}
           <tr>
             <td style="padding:8px 32px 0 32px;">
               <h1 class="title" style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:22px;line-height:1.3;font-weight:700;color:#14261c;">
@@ -198,6 +195,71 @@ export function accountApprovedEmail(input: {
   };
 }
 
+export function teamInviteEmail(input: {
+  teamName: string;
+  invitedByName?: string | null;
+  accessLabel: string;
+  joinUrl: string;
+}) {
+  const inviter = input.invitedByName?.trim() || "An admin";
+  const html = renderEmailShell({
+    preheader: `You're invited to join ${input.teamName}`,
+    title: "Team invitation",
+    greeting: "Hi there,",
+    bodyHtml: `
+      <p style="margin:0 0 12px 0;">${escapeHtml(inviter)} invited you to join <strong>${escapeHtml(input.teamName)}</strong> on OptiPhoenix.</p>
+      <p style="margin:0 0 12px 0;">Access level: <strong>${escapeHtml(input.accessLabel)}</strong>.</p>
+      <p style="margin:0 0 12px 0;">Create your password and join the team to get started.</p>
+    `,
+    cta: { label: "Create password & join team", href: input.joinUrl },
+    footerNote: "This invite link expires in 7 days.",
+  });
+
+  const text =
+    `Hi there,\n\n` +
+    `${inviter} invited you to join ${input.teamName} on OptiPhoenix.\n` +
+    `Access level: ${input.accessLabel}.\n` +
+    `Create your password and join here: ${input.joinUrl}\n` +
+    `(This invite expires in 7 days.)\n`;
+
+  return {
+    subject: `You're invited to join ${input.teamName}`,
+    text,
+    html,
+  };
+}
+
+export function templateSharedEmail(input: {
+  recipientName?: string | null;
+  templateName: string;
+  sharedByName?: string | null;
+  templatesUrl: string;
+}) {
+  const name = input.recipientName?.trim() || "there";
+  const sharer = input.sharedByName?.trim() || "Someone";
+  const html = renderEmailShell({
+    preheader: `${sharer} shared a template with you`,
+    title: "Template shared",
+    greeting: `Hi ${name},`,
+    bodyHtml: `
+      <p style="margin:0 0 12px 0;">${escapeHtml(sharer)} shared the template <strong>${escapeHtml(input.templateName)}</strong> with you on OptiPhoenix.</p>
+      <p style="margin:0 0 12px 0;">You can open Templates to view and use it for new forms.</p>
+    `,
+    cta: { label: "Open templates", href: input.templatesUrl },
+  });
+
+  const text =
+    `Hi ${name},\n\n` +
+    `${sharer} shared the template "${input.templateName}" with you on OptiPhoenix.\n` +
+    `Open templates: ${input.templatesUrl}\n`;
+
+  return {
+    subject: `Template shared: ${input.templateName}`,
+    text,
+    html,
+  };
+}
+
 export function feedbackSubmittedEmail(input: {
   recipientName?: string | null;
   formTitle: string;
@@ -235,6 +297,153 @@ export function feedbackSubmittedEmail(input: {
 
   return {
     subject: `New client feedback submitted: ${input.formTitle}`,
+    text,
+    html,
+  };
+}
+
+export function teamAccessUpdatedEmail(input: {
+  recipientName?: string | null;
+  teamName: string;
+  accessLabel: string;
+  adminName?: string | null;
+  dashboardUrl: string;
+}) {
+  const name = input.recipientName?.trim() || "there";
+  const admin = input.adminName?.trim() || "An administrator";
+  const html = renderEmailShell({
+    preheader: `Your access to ${input.teamName} has been updated`,
+    title: "Team access updated",
+    greeting: `Hi ${name},`,
+    bodyHtml: `
+      <p style="margin:0 0 12px 0;">${escapeHtml(admin)} updated your access to <strong>${escapeHtml(input.teamName)}</strong> on OptiPhoenix.</p>
+      <p style="margin:0 0 12px 0;">Your new access level is: <strong>${escapeHtml(input.accessLabel)}</strong>.</p>
+    `,
+    cta: { label: "Go to Dashboard", href: input.dashboardUrl },
+  });
+
+  const text =
+    `Hi ${name},\n\n` +
+    `${admin} updated your access to ${input.teamName} on OptiPhoenix.\n` +
+    `Your new access level is: ${input.accessLabel}.\n` +
+    `Dashboard: ${input.dashboardUrl}\n`;
+
+  return {
+    subject: `Your access to ${input.teamName} has been updated`,
+    text,
+    html,
+  };
+}
+
+export function teamAccessRevokedEmail(input: {
+  recipientName?: string | null;
+  teamName: string;
+  adminName?: string | null;
+}) {
+  const name = input.recipientName?.trim() || "there";
+  const admin = input.adminName?.trim() || "An administrator";
+  const html = renderEmailShell({
+    preheader: `Your access to ${input.teamName} has been revoked`,
+    title: "Team access revoked",
+    greeting: `Hi ${name},`,
+    bodyHtml: `
+      <p style="margin:0 0 12px 0;">${escapeHtml(admin)} has revoked your access to <strong>${escapeHtml(input.teamName)}</strong> on OptiPhoenix.</p>
+      <p style="margin:0 0 12px 0;">You will no longer be able to view or manage data for this team.</p>
+    `,
+  });
+
+  const text =
+    `Hi ${name},\n\n` +
+    `${admin} has revoked your access to ${input.teamName} on OptiPhoenix.\n` +
+    `You will no longer be able to view or manage data for this team.\n`;
+
+  return {
+    subject: `Your access to ${input.teamName} has been revoked`,
+    text,
+    html,
+  };
+}
+
+export function teamAccessRestoredEmail(input: {
+  recipientName?: string | null;
+  teamName: string;
+  adminName?: string | null;
+  dashboardUrl: string;
+}) {
+  const name = input.recipientName?.trim() || "there";
+  const admin = input.adminName?.trim() || "An administrator";
+  const html = renderEmailShell({
+    preheader: `Your access to ${input.teamName} has been restored`,
+    title: "Team access restored",
+    greeting: `Hi ${name},`,
+    bodyHtml: `
+      <p style="margin:0 0 12px 0;">${escapeHtml(admin)} has restored your access to <strong>${escapeHtml(input.teamName)}</strong> on OptiPhoenix.</p>
+      <p style="margin:0 0 12px 0;">You can sign in and continue working with this team.</p>
+    `,
+    cta: { label: "Go to Dashboard", href: input.dashboardUrl },
+  });
+
+  const text =
+    `Hi ${name},\n\n` +
+    `${admin} has restored your access to ${input.teamName} on OptiPhoenix.\n` +
+    `Dashboard: ${input.dashboardUrl}\n`;
+
+  return {
+    subject: `Your access to ${input.teamName} has been restored`,
+    text,
+    html,
+  };
+}
+
+export function accountDeactivatedEmail(input: {
+  name?: string | null;
+}) {
+  const name = input.name?.trim() || "there";
+  const html = renderEmailShell({
+    preheader: "Your OptiPhoenix account has been deactivated",
+    title: "Account deactivated",
+    greeting: `Hi ${name},`,
+    bodyHtml: `
+      <p style="margin:0 0 12px 0;">Your OptiPhoenix account has been deactivated by an administrator.</p>
+      <p style="margin:0 0 12px 0;">If you believe this is a mistake, please contact your team administrator.</p>
+    `,
+  });
+
+  const text =
+    `Hi ${name},\n\n` +
+    `Your OptiPhoenix account has been deactivated by an administrator.\n` +
+    `If you believe this is a mistake, please contact your team administrator.\n`;
+
+  return {
+    subject: "Your OptiPhoenix account has been deactivated",
+    text,
+    html,
+  };
+}
+
+export function accountReactivatedEmail(input: {
+  name?: string | null;
+  loginUrl: string;
+}) {
+  const name = input.name?.trim() || "there";
+  const html = renderEmailShell({
+    preheader: "Your OptiPhoenix account has been reactivated",
+    title: "Account reactivated",
+    greeting: `Hi ${name},`,
+    bodyHtml: `
+      <p style="margin:0 0 12px 0;">Your OptiPhoenix account has been reactivated by an administrator.</p>
+      <p style="margin:0 0 12px 0;">You can now log in and resume using OptiPhoenix.</p>
+    `,
+    cta: { label: "Log in to OptiPhoenix", href: input.loginUrl },
+  });
+
+  const text =
+    `Hi ${name},\n\n` +
+    `Your OptiPhoenix account has been reactivated by an administrator.\n` +
+    `Log in here: ${input.loginUrl}\n`;
+
+  return {
+    subject: "Your OptiPhoenix account has been reactivated",
     text,
     html,
   };

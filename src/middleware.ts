@@ -8,6 +8,14 @@ import {
 
 const { auth } = NextAuth(authConfig);
 
+function withPathname(request: Request, pathname: string) {
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.set("x-pathname", pathname);
+  return NextResponse.next({
+    request: { headers: requestHeaders },
+  });
+}
+
 export default auth((request) => {
   const isLoggedIn = Boolean(request.auth);
   const { pathname } = request.nextUrl;
@@ -32,19 +40,21 @@ export default auth((request) => {
   // Login / create-account pages redirect themselves when the session is valid.
 
   const viewCookieKey = directoryViewCookieKeyForPath(pathname);
-  const viewFromParam = viewParamToDirectoryView(request.nextUrl.searchParams.get("view"));
+  const viewFromParam = viewParamToDirectoryView(
+    request.nextUrl.searchParams.get("view")
+  );
+
+  const response = withPathname(request, pathname);
 
   if (viewCookieKey && viewFromParam) {
-    const response = NextResponse.next();
     response.cookies.set(viewCookieKey, viewFromParam, {
       path: "/",
       maxAge: 60 * 60 * 24 * 365,
       sameSite: "lax",
     });
-    return response;
   }
 
-  return NextResponse.next();
+  return response;
 });
 
 export const config = {

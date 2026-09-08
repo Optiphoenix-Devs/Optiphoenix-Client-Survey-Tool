@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Check, ChevronDown, Star } from "lucide-react";
 import { cn } from "@/lib/cn";
 import {
@@ -33,7 +33,7 @@ function ChoiceControl({
   return (
     <span
       className={cn(
-        "grid h-5 w-5 shrink-0 place-items-center border-2 transition duration-200",
+        "pointer-events-none grid h-5 w-5 shrink-0 place-items-center border-2 transition duration-200",
         type === "radio" ? "rounded-full" : "rounded-md",
         checked
           ? "border-accent bg-accent"
@@ -178,10 +178,12 @@ function OtherTextInput({
   name,
   disabled,
   visible,
+  className,
 }: {
   name: string;
   disabled?: boolean;
   visible: boolean;
+  className?: string;
 }) {
   if (!visible) return null;
   return (
@@ -189,10 +191,15 @@ function OtherTextInput({
       name={name}
       disabled={disabled}
       placeholder="Please specify"
-      className="mt-2 w-full app-radius border border-border bg-background px-3 py-2.5 text-sm outline-none transition duration-200 focus:border-accent disabled:text-muted"
+      className={cn(
+        "mt-2 w-full app-radius border border-border bg-background px-3 py-2.5 text-sm outline-none transition duration-200 focus:border-accent disabled:text-muted",
+        className
+      )}
     />
   );
 }
+
+const EMPTY_SELECTION: string[] = [];
 
 function ChoiceList({
   type,
@@ -202,6 +209,7 @@ function ChoiceList({
   required,
   large = false,
   allowOther = false,
+  defaultValue,
 }: {
   type: "radio" | "checkbox";
   name: string;
@@ -210,21 +218,40 @@ function ChoiceList({
   required?: boolean;
   large?: boolean;
   allowOther?: boolean;
+  defaultValue?: string;
 }) {
-  const [selected, setSelected] = useState<string[]>(() => []);
+  const initialSelected = useMemo(() => {
+    if (!defaultValue) return EMPTY_SELECTION;
+    if (type === "checkbox") {
+      try {
+        const parsed = JSON.parse(defaultValue);
+        if (Array.isArray(parsed)) return parsed.map(String);
+      } catch {
+        /* plain string */
+      }
+    }
+    return [defaultValue];
+  }, [defaultValue, type]);
+
+  const [selected, setSelected] = useState<string[]>(initialSelected);
   const otherSelected = selected.includes("__other__");
 
-  function toggle(option: string) {
+  useEffect(() => {
+    setSelected(initialSelected);
+  }, [initialSelected]);
+
+  function selectOption(option: string, checked: boolean) {
     if (disabled) return;
     if (type === "radio") {
       setSelected([option]);
       return;
     }
-    setSelected((current) =>
-      current.includes(option)
-        ? current.filter((item) => item !== option)
-        : [...current, option]
-    );
+    setSelected((current) => {
+      if (checked) {
+        return current.includes(option) ? current : [...current, option];
+      }
+      return current.filter((item) => item !== option);
+    });
   }
 
   return (
@@ -249,7 +276,7 @@ function ChoiceList({
               required={type === "radio" && required && !disabled && !allowOther}
               className="sr-only"
               checked={checked}
-              onChange={() => toggle(option)}
+              onChange={(event) => selectOption(option, event.target.checked)}
             />
             <ChoiceControl type={type} checked={checked} disabled={disabled} />
             <span className="min-w-0 flex-1 break-words">{option}</span>
@@ -270,12 +297,20 @@ function ChoiceList({
               name={name}
               value="__other__"
               disabled={disabled}
-              required={type === "radio" && required && !disabled && !otherSelected}
+              required={
+                type === "radio" && required && !disabled && !otherSelected
+              }
               className="sr-only"
               checked={otherSelected}
-              onChange={() => toggle("__other__")}
+              onChange={(event) =>
+                selectOption("__other__", event.target.checked)
+              }
             />
-            <ChoiceControl type={type} checked={otherSelected} disabled={disabled} />
+            <ChoiceControl
+              type={type}
+              checked={otherSelected}
+              disabled={disabled}
+            />
             Other
           </label>
           <OtherTextInput
@@ -295,14 +330,18 @@ function DropdownField({
   disabled,
   required,
   allowOther,
+  fillClass = "bg-background",
+  defaultValue = "",
 }: {
   name: string;
   options: string[];
   disabled?: boolean;
   required?: boolean;
   allowOther?: boolean;
+  fillClass?: string;
+  defaultValue?: string;
 }) {
-  const [value, setValue] = useState("");
+  const [value, setValue] = useState(defaultValue);
 
   return (
     <div className="relative mt-2">
@@ -312,7 +351,10 @@ function DropdownField({
         required={required && !disabled && value !== "__other__"}
         value={value}
         onChange={(event) => setValue(event.target.value)}
-        className="w-full appearance-none bg-none app-radius border border-border bg-background py-2.5 pl-3 pr-10 text-sm outline-none transition duration-200 focus:border-accent disabled:text-muted"
+        className={cn(
+          "w-full appearance-none bg-none app-radius border border-border py-2.5 pl-3 pr-10 text-sm outline-none transition duration-200 focus:border-accent disabled:text-muted",
+          fillClass
+        )}
       >
         <option value="" disabled>
           Choose an option
@@ -329,6 +371,7 @@ function DropdownField({
         name={`${name}__other`}
         disabled={disabled}
         visible={value === "__other__"}
+        className={fillClass}
       />
     </div>
   );
@@ -425,10 +468,12 @@ export function FieldView({
   field,
   mode,
   presentation = "default",
+  defaultAnswer,
 }: {
   field: ViewField;
   mode: "preview" | "live";
   presentation?: "default" | "survey";
+  defaultAnswer?: string;
 }) {
   const disabled = mode === "preview";
   const isSurvey = presentation === "survey";
@@ -437,16 +482,18 @@ export function FieldView({
   const allowOther = getAllowOther(field.options);
   const maxLength = getMaxLength(field.options);
   const name = `q_${field.id}`;
+  const fieldFill = isSurvey ? "bg-surface" : "bg-background";
   const inputClass = cn(
-    "mt-2 w-full app-radius border border-border bg-background px-3 text-sm outline-none transition duration-200 focus:border-accent disabled:text-muted",
-    isSurvey ? "py-3" : "py-2.5"
+    "mt-2 w-full app-radius border border-border px-3 py-2.5 text-sm outline-none transition duration-200 focus:border-accent disabled:text-muted",
+    fieldFill
   );
-  const starSize = isSurvey ? "lg" : "md";
+  const starSize = "md";
 
   if (field.type === "SECTION") {
     return null;
   }
 
+  const control = (() => {
   if (field.type === "RATING" || plugin?.inputKind === "rating") {
     return (
       <div className="mt-2">
@@ -484,8 +531,9 @@ export function FieldView({
         options={options}
         disabled={disabled}
         required={field.required}
-        large={isSurvey}
+        large={false}
         allowOther={allowOther}
+        defaultValue={defaultAnswer}
       />
     );
   }
@@ -497,8 +545,9 @@ export function FieldView({
         name={`${name}[]`}
         options={options}
         disabled={disabled}
-        large={isSurvey}
+        large={false}
         allowOther={allowOther}
+        defaultValue={defaultAnswer}
       />
     );
   }
@@ -511,11 +560,27 @@ export function FieldView({
         disabled={disabled}
         required={field.required}
         allowOther={allowOther}
+        fillClass={fieldFill}
+        defaultValue={defaultAnswer}
       />
     );
   }
 
   if (field.type === "BRANCHING_DROPDOWN" || plugin?.inputKind === "branching-dropdown") {
+    if (isSurvey) {
+      return (
+        <ChoiceList
+          type="radio"
+          name={name}
+          options={options}
+          disabled={disabled}
+          required={field.required}
+          large
+          allowOther={false}
+          defaultValue={defaultAnswer}
+        />
+      );
+    }
     return (
       <DropdownField
         name={name}
@@ -523,6 +588,8 @@ export function FieldView({
         disabled={disabled}
         required={field.required}
         allowOther={false}
+        fillClass={fieldFill}
+        defaultValue={defaultAnswer}
       />
     );
   }
@@ -533,7 +600,7 @@ export function FieldView({
         name={name}
         disabled={disabled}
         required={field.required && !disabled}
-        rows={isSurvey ? 5 : 3}
+        rows={isSurvey ? 4 : 3}
         maxLength={maxLength}
         placeholder="Long answer text"
         className={inputClass}
@@ -547,7 +614,7 @@ export function FieldView({
         name={name}
         disabled={disabled}
         required={field.required && !disabled}
-        rows={isSurvey ? 5 : 3}
+        rows={isSurvey ? 4 : 3}
         maxLength={maxLength}
         placeholder="Paragraph text answer"
         className={inputClass}
@@ -581,13 +648,28 @@ export function FieldView({
     );
   }
 
+  if (field.type === "TIME" || plugin?.inputKind === "time") {
+    return (
+      <div className="mt-2 max-w-xs">
+        <input
+          type="time"
+          name={name}
+          disabled={disabled}
+          required={field.required && !disabled}
+          className={cn(inputClass, "mt-0")}
+        />
+        <p className="mt-1.5 text-xs text-muted">Time zone: GMT</p>
+      </div>
+    );
+  }
+
   if (field.type === "YES_NO" || plugin?.inputKind === "yes-no") {
     return (
       <YesNoToggle
         name={name}
         disabled={disabled}
         required={field.required}
-        large={isSurvey}
+        large={false}
       />
     );
   }
@@ -606,6 +688,18 @@ export function FieldView({
       className={inputClass}
     />
   );
+  })();
+
+  if (mode === "preview") {
+    return (
+      <div className="grid gap-1.5">
+        <p className="text-sm font-medium">Answer</p>
+        {control}
+      </div>
+    );
+  }
+
+  return control;
 }
 
 export function FormSubmitButton({ disabled }: { disabled?: boolean }) {

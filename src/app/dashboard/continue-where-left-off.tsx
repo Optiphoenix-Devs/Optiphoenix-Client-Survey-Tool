@@ -11,7 +11,7 @@ export type ContinueItem =
       subtitle: string;
       href: string;
       updatedAt: string;
-      status: "DRAFT" | "PUBLISHED";
+      status: "DRAFT" | "PUBLISHED" | "CLOSED";
     }
   | {
       kind: "client";
@@ -53,6 +53,7 @@ export function buildContinueItems(forms: DashboardFormRow[]): ContinueItem[] {
   for (const form of forms) {
     if (items.length >= MAX_ITEMS) break;
     if (usedFormIds.has(form.id)) continue;
+    if (form.status === "CLOSED") continue;
     items.push(toFormItem(form));
     usedFormIds.add(form.id);
   }
@@ -109,7 +110,9 @@ export function ContinueWhereLeftOff({ items }: { items: ContinueItem[] }) {
                         ? "grid h-10 w-10 place-items-center app-radius bg-sky-100 text-sky-800 ring-1 ring-sky-600/20 dark:bg-sky-950/60 dark:text-sky-200 dark:ring-sky-500/30"
                         : item.status === "DRAFT"
                           ? "grid h-10 w-10 place-items-center app-radius bg-amber-100 text-amber-900 ring-1 ring-amber-600/20 dark:bg-amber-950/60 dark:text-amber-200 dark:ring-amber-500/30"
-                          : "grid h-10 w-10 place-items-center app-radius bg-emerald-100 text-emerald-800 ring-1 ring-emerald-600/20 dark:bg-emerald-950/60 dark:text-emerald-200 dark:ring-emerald-500/30"
+                          : item.status === "CLOSED"
+                            ? "grid h-10 w-10 place-items-center app-radius bg-red-800 text-white ring-1 ring-red-900/30 dark:bg-red-900 dark:text-red-50 dark:ring-red-700/40"
+                            : "grid h-10 w-10 place-items-center app-radius bg-emerald-100 text-emerald-800 ring-1 ring-emerald-600/20 dark:bg-emerald-950/60 dark:text-emerald-200 dark:ring-emerald-500/30"
                     }
                   >
                     {item.kind === "client" ? (
@@ -135,7 +138,9 @@ export function ContinueWhereLeftOff({ items }: { items: ContinueItem[] }) {
                     ? "Open client"
                     : item.status === "DRAFT"
                       ? "Continue editing"
-                      : "Open form"}
+                      : item.status === "CLOSED"
+                        ? "View responses"
+                        : "Open form"}
                   <ArrowRight className="h-3.5 w-3.5 transition group-hover:translate-x-0.5" />
                 </span>
               </Link>

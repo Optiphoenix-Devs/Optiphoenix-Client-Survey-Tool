@@ -34,28 +34,36 @@ import {
 } from "@/lib/insights-table-sort";
 import { cn } from "@/lib/cn";
 import { formatMonthYear, pluralize } from "@/lib/format";
-import { Select, SortByOption } from "@/components/ui/select";
+import { DIRECTORY_SORT_PLACEHOLDER } from "@/lib/sort";
+import { Select, SortByOption, ChooseClientOption, CHOOSE_CLIENT_PLACEHOLDER } from "@/components/ui/select";
 import { InsightsSkeleton } from "@/components/ui/skeleton";
 import { fetchAnalyticsAction } from "./actions";
+
+type InsightsSortSelection = InsightsTableSortOption | typeof DIRECTORY_SORT_PLACEHOLDER;
 
 export function InsightsDashboard({
   scope,
   initialData,
+  initialPeriod = "monthly",
 }: {
   scope: AnalyticsScope;
-  initialData: AnalyticsSnapshot;
+  initialData: AnalyticsSnapshot | null;
+  initialPeriod?: AnalyticsSnapshot["selectedPeriod"];
 }) {
-  const [data, setData] = useState(initialData);
-  const [clientId, setClientId] = useState(initialData.selectedClientId);
-  const [tablePeriod, setTablePeriod] = useState(initialData.selectedPeriod);
+  const [data, setData] = useState<AnalyticsSnapshot | null>(initialData);
+  const [clientId, setClientId] = useState(() => {
+    if (!initialData) return CHOOSE_CLIENT_PLACEHOLDER;
+    return initialData.selectedClientId || "all";
+  });
+  const [tablePeriod, setTablePeriod] = useState<AnalyticsSnapshot["selectedPeriod"]>(
+    initialData?.selectedPeriod ?? initialPeriod
+  );
   const [resourceSearch, setResourceSearch] = useState("");
   const [questionSearch, setQuestionSearch] = useState("");
-  const [resourceSortSelection, setResourceSortSelection] = useState<
-    InsightsTableSortOption | ""
-  >("");
-  const [questionSortSelection, setQuestionSortSelection] = useState<
-    InsightsTableSortOption | ""
-  >("");
+  const [resourceSortSelection, setResourceSortSelection] =
+    useState<InsightsSortSelection>(DIRECTORY_SORT_PLACEHOLDER);
+  const [questionSortSelection, setQuestionSortSelection] =
+    useState<InsightsSortSelection>(DIRECTORY_SORT_PLACEHOLDER);
   const [resourceRowSort, setResourceRowSort] =
     useState<InsightsRowSort>("score-desc");
   const [questionRowSort, setQuestionRowSort] =
@@ -63,25 +71,27 @@ export function InsightsDashboard({
   const [loading, startLoad] = useTransition();
 
   function loadAnalytics(nextClient: string, nextPeriod: string) {
+    if (!nextClient || nextClient === CHOOSE_CLIENT_PLACEHOLDER) return;
     startLoad(async () => {
       const result = await fetchAnalyticsAction(nextClient, nextPeriod);
       if ("error" in result) return;
       setData(result);
-      setClientId(result.selectedClientId);
+      setClientId(result.selectedClientId || "all");
       setTablePeriod(result.selectedPeriod);
     });
   }
 
   function setClient(value: string) {
+    if (!value || value === CHOOSE_CLIENT_PLACEHOLDER) return;
     setClientId(value);
     loadAnalytics(value, tablePeriod);
   }
 
   function applyTableSort(
-    value: InsightsTableSortOption | "",
+    value: InsightsSortSelection,
     target: "resource" | "question"
   ) {
-    if (!value) return;
+    if (!value || value === DIRECTORY_SORT_PLACEHOLDER) return;
     if (target === "resource") setResourceSortSelection(value);
     else setQuestionSortSelection(value);
 
@@ -98,12 +108,14 @@ export function InsightsDashboard({
   }
 
   const visibleResources = useMemo(
-    () => sortResourceRows(data.resources, resourceRowSort, resourceSearch),
-    [data.resources, resourceRowSort, resourceSearch]
+    () =>
+      data ? sortResourceRows(data.resources, resourceRowSort, resourceSearch) : [],
+    [data, resourceRowSort, resourceSearch]
   );
   const visibleQuestions = useMemo(
-    () => sortQuestionRows(data.questions, questionRowSort, questionSearch),
-    [data.questions, questionRowSort, questionSearch]
+    () =>
+      data ? sortQuestionRows(data.questions, questionRowSort, questionSearch) : [],
+    [data, questionRowSort, questionSearch]
   );
 
   if (loading) {
@@ -127,7 +139,8 @@ export function InsightsDashboard({
             aria-label="Filter by client"
             className="w-full"
           >
-            <option value="">All</option>
+            <ChooseClientOption />
+            <option value="all">All</option>
             {scope.hasIndependentResponses ? (
               <option value={NONE_CLIENT}>Independent forms</option>
             ) : null}
@@ -140,11 +153,17 @@ export function InsightsDashboard({
         </label>
       </div>
 
-      {data.responseCount === 0 ? (
+      {!data ? (
+        <p className="app-radius border border-dashed border-border bg-card px-4 py-12 text-center text-sm text-muted">
+          Choose a client to view insights.
+        </p>
+      ) : data.responseCount === 0 ? (
         <p className="app-radius border border-dashed border-border bg-card px-4 py-12 text-center text-sm text-muted">
           {data.selectedClientId
             ? `No submitted responses for ${data.selectedClientName} in this period yet.`
-            : "No submitted responses yet. Publish a form and collect the first one."}
+            : data.selectedClientName === "All"
+              ? "No submitted responses for this period yet."
+              : "No submitted responses yet. Publish a form and collect the first one."}
         </p>
       ) : (
         <>
@@ -267,7 +286,7 @@ function InsightsTableToolbar({
 }: {
   search: string;
   onSearchChange: (value: string) => void;
-  sortSelection: InsightsTableSortOption | "";
+  sortSelection: InsightsSortSelection;
   onSortChange: (value: InsightsTableSortOption) => void;
   searchPlaceholder: string;
 }) {
@@ -289,7 +308,7 @@ function InsightsTableToolbar({
           value={sortSelection}
           onChange={(event) => {
             const next = event.target.value;
-            if (!next) return;
+            if (!next || next === DIRECTORY_SORT_PLACEHOLDER) return;
             onSortChange(next as InsightsTableSortOption);
           }}
           aria-label="Sort table"
@@ -420,7 +439,7 @@ function QuestionRatingsCard({
   total: number;
   search: string;
   onSearchChange: (value: string) => void;
-  sortSelection: InsightsTableSortOption | "";
+  sortSelection: InsightsSortSelection;
   onSortChange: (value: InsightsTableSortOption) => void;
 }) {
   return (
@@ -475,7 +494,7 @@ function ResourceCard({
   total: number;
   search: string;
   onSearchChange: (value: string) => void;
-  sortSelection: InsightsTableSortOption | "";
+  sortSelection: InsightsSortSelection;
   onSortChange: (value: InsightsTableSortOption) => void;
 }) {
   return (

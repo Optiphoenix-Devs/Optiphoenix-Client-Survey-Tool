@@ -18,6 +18,7 @@ enum AccountStatus {
   PENDING
   APPROVED
   REJECTED
+  DEACTIVATED
 }
 
 enum InviteStatus {
@@ -26,10 +27,18 @@ enum InviteStatus {
   REVOKED
 }
 
-// Form builder: still editing vs live template
+// What a team member can do on that team
+enum TeamAccessLevel {
+  VIEW
+  SHARE
+  FULL
+}
+
+// Form builder: draft → published → closed after a response
 enum FormBuilderStatus {
   DRAFT
   PUBLISHED
+  CLOSED
 }
 
 // One form sent to one client
@@ -52,6 +61,7 @@ enum QuestionType {
   RESOURCE_RATING
   YES_NO
   DATE
+  TIME
   BRANCHING_DROPDOWN
 }
 
@@ -79,6 +89,9 @@ model User {
   createdForms         Form[]              @relation("FormCreator")
   createdClients       Client[]            @relation("ClientCreator")
   createdTemplates     FormTemplate[]      @relation("TemplateCreator")
+  receivedTemplateShares FormTemplateShare[] @relation("TemplateShareRecipient")
+  sentTemplateShares   FormTemplateShare[] @relation("TemplateShareSender")
+  hiddenTemplates      FormTemplateHide[]
   passwordResetTokens  PasswordResetToken[]
 
   @@index([signupTokenHash])
@@ -112,28 +125,37 @@ model Team {
 
 // Accepted membership: this user can see this team's data
 model TeamMembership {
-  id        String   @id @default(cuid())
-  teamId    String
-  team      Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  createdAt DateTime @default(now())
+  id          String          @id @default(cuid())
+  teamId      String
+  team        Team            @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessLevel TeamAccessLevel @default(FULL)
+  /** When set, the team stays visible (locked) but the user cannot open it. */
+  revokedAt   DateTime?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
 
   @@unique([teamId, userId])
   @@index([userId])
 }
 
-// Admin or Team Lead invites someone into a team
+// Admin invites someone into a team (email link → set password → join)
 model TeamInvite {
-  id          String       @id @default(cuid())
+  id          String          @id @default(cuid())
   teamId      String
-  team        Team         @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  team        Team            @relation(fields: [teamId], references: [id], onDelete: Cascade)
   email       String
+  role        UserRole        @default(TEAM_LEAD)
+  accessLevel TeamAccessLevel @default(FULL)
   invitedById String
-  invitedBy   User         @relation("InviteSender", fields: [invitedById], references: [id])
-  status      InviteStatus @default(PENDING)
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
+  invitedBy   User            @relation("InviteSender", fields: [invitedById], references: [id])
+  tokenHash   String          @unique
+  status      InviteStatus    @default(PENDING)
+  expiresAt   DateTime
+  acceptedAt  DateTime?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
 
   @@index([teamId, email])
   @@index([email])
@@ -188,6 +210,7 @@ model Form {
   headerImageUrl   String?
   thankYouImageUrl String?
   thankYouBgColor  String?
+  thankYouTextColor String?
   status           FormBuilderStatus @default(DRAFT)
   publicToken      String            @unique @default(cuid())
   publishedAt      DateTime?
@@ -205,19 +228,58 @@ model Form {
 }
 
 model FormTemplate {
-  id          String   @id @default(cuid())
-  name        String
-  description String?  @db.Text
-  createdById String
-  createdBy   User     @relation("TemplateCreator", fields: [createdById], references: [id])
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id                String   @id @default(cuid())
+  name              String
+  description       String?  @db.Text
+  thankYouTitle     String?
+  thankYouMessage   String?  @db.Text
+  headerImageUrl    String?
+  thankYouImageUrl  String?
+  thankYouBgColor   String?
+  thankYouTextColor String?
+  createdById       String
+  createdBy         User     @relation("TemplateCreator", fields: [createdById], references: [id])
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
   questions FormTemplateQuestion[]
   sections  FormTemplateSection[]
   forms     Form[]
+  shares    FormTemplateShare[]
+  hides     FormTemplateHide[]
 
   @@index([createdById])
+}
+
+/** Creator or admin shared this template with a user (by email). */
+model FormTemplateShare {
+  id         String   @id @default(cuid())
+  templateId String
+  template   FormTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  email      String
+  userId     String?
+  user       User?    @relation("TemplateShareRecipient", fields: [userId], references: [id], onDelete: Cascade)
+  sharedById String
+  sharedBy   User     @relation("TemplateShareSender", fields: [sharedById], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+
+  @@unique([templateId, email])
+  @@index([email])
+  @@index([userId])
+  @@index([templateId])
+}
+
+/** User hid a template they did not create (shared / admin-visible). */
+model FormTemplateHide {
+  id         String   @id @default(cuid())
+  templateId String
+  template   FormTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+
+  @@unique([templateId, userId])
+  @@index([userId])
 }
 
 model FormSection {

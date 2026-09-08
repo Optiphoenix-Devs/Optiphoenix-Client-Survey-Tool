@@ -3,7 +3,7 @@
 import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Building2, FileText, Pencil, Plus, Trash2 } from "lucide-react";
+import { Building2, FileText, Pencil, Plus, Save, Trash2, X } from "lucide-react";
 import type { ActionResult } from "@/lib/action-result";
 import type { ClientDirectoryRow } from "@/lib/clients";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -35,6 +35,7 @@ import { columnLabel } from "@/lib/format";
 import { matchesDirectorySearch } from "@/lib/directory-search";
 import { runServerAction } from "@/lib/run-server-action";
 import {
+  DIRECTORY_SORT_PLACEHOLDER,
   DIRECTORY_SORT_SELECTION_VALUES,
   sortDirectoryRows,
   type DirectorySort,
@@ -46,22 +47,26 @@ type TeamOption = { id: string; name: string };
 
 type ClientsDirectoryProps = {
   clients: ClientDirectoryRow[];
+  /** Teams the user can create clients in (Write/Full only). */
   teams: TeamOption[];
   lockedTeamId?: string;
   title?: string;
+  /** When false, hide create/edit/delete (View access). Defaults from teams.length. */
+  canCreate?: boolean;
   createAction: (formData: FormData) => Promise<ActionResult>;
   updateAction: (formData: FormData) => Promise<ActionResult>;
   deleteAction: (formData: FormData) => Promise<ActionResult>;
 };
 
 const VIEW_KEY = "optiphoenix.clientsView";
-const SORT_KEY = "optiphoenix.clientsSort.v2";
+const SORT_KEY = "optiphoenix.clientsSort.v3";
 
 export function ClientsDirectory({
   clients,
   teams,
   lockedTeamId,
   title = "Clients",
+  canCreate: canCreateProp,
   createAction,
   updateAction,
   deleteAction,
@@ -69,7 +74,11 @@ export function ClientsDirectory({
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [view, setView] = useDirectoryView(VIEW_KEY);
-  const [sort, setSort] = usePersistedValue(SORT_KEY, "", DIRECTORY_SORT_SELECTION_VALUES);
+  const [sort, setSort] = usePersistedValue(
+    SORT_KEY,
+    DIRECTORY_SORT_PLACEHOLDER,
+    DIRECTORY_SORT_SELECTION_VALUES
+  );
   const [drawer, setDrawer] = useState<"create" | ClientDirectoryRow | null>(null);
   const [deleting, setDeleting] = useState<ClientDirectoryRow | null>(null);
   const [pending, startTransition] = useTransition();
@@ -79,7 +88,6 @@ export function ClientsDirectory({
       ? clients.filter((client) =>
           matchesDirectorySearch(query, [
             client.name,
-            client.company,
             client.email,
             client.teamName,
           ])
@@ -116,7 +124,7 @@ export function ClientsDirectory({
   }
 
   const editing = drawer && drawer !== "create" ? drawer : null;
-  const canCreate = teams.length > 0;
+  const canCreate = canCreateProp ?? teams.length > 0;
   const formTotal = visible.reduce((sum, client) => sum + client.formCount, 0);
 
   return (
@@ -137,31 +145,40 @@ export function ClientsDirectory({
               paged.setPage(1);
             }}
           />
-          <button
-            type="button"
-            disabled={!canCreate}
-            onClick={() => {
-              setDrawer("create");
-            }}
-            className="app-btn-primary w-full justify-center px-4 py-2.5 text-sm disabled:opacity-50 lg:w-auto lg:shrink-0"
-          >
-            <Plus className="h-4 w-4" />
-            New client
-          </button>
+          {canCreate ? (
+            <button
+              type="button"
+              onClick={() => {
+                setDrawer("create");
+              }}
+              className="app-btn-primary w-full justify-center px-4 py-2.5 text-sm lg:w-auto lg:shrink-0"
+            >
+              <Plus className="h-4 w-4" />
+              New client
+            </button>
+          ) : null}
         </div>
       </div>
 
-      {!canCreate ? (
+      {clients.length === 0 && !canCreate ? (
         <p className="mt-6 app-radius border border-dashed border-border bg-card px-4 py-8 text-center text-sm text-muted">
-          Create a team first, then add clients to it.{" "}
-          <Link href="/dashboard/teams" className="font-medium text-accent hover:text-accent-hover">
-            Go to Teams
-          </Link>
+          {lockedTeamId
+            ? "You have view-only access to this team. Ask an admin for Write or Full access to add clients."
+            : (
+              <>
+                Create a team first, then add clients to it.{" "}
+                <Link href="/dashboard/teams" className="font-medium text-accent hover:text-accent-hover">
+                  Go to Teams
+                </Link>
+              </>
+            )}
         </p>
       ) : visible.length === 0 ? (
         <p className="mt-6 app-radius border border-dashed border-border bg-card px-4 py-8 text-center text-sm text-muted">
           {clients.length === 0
-            ? "No clients yet. Add the first one."
+            ? canCreate
+              ? "No clients yet. Add the first one."
+              : "No clients yet."
             : "No clients match this search."}
         </p>
       ) : view === "grid" ? (
@@ -178,12 +195,7 @@ export function ClientsDirectory({
                   <dl className="mt-5 space-y-2">
                     <DirectoryCardLine label="Team" value={client.teamName} title={client.teamName} />
                     <DirectoryCardLine
-                      label="Organization Name"
-                      value={client.company || "—"}
-                      title={client.company || undefined}
-                    />
-                    <DirectoryCardLine
-                      label="Organization Email"
+                      label="Email"
                       value={client.email || "—"}
                       title={client.email || undefined}
                     />
@@ -195,24 +207,28 @@ export function ClientsDirectory({
                     <FileText className="h-3.5 w-3.5" />
                     Forms
                   </DirectoryCardButton>
-                  <DirectoryCardButton
-                    variant="secondary"
-                    onClick={() => {
-                      setDrawer(client);
-                    }}
-                  >
-                    <Pencil className="h-3.5 w-3.5" />
-                    Edit
-                  </DirectoryCardButton>
-                  <DirectoryCardButton
-                    variant="danger"
-                    onClick={() => {
-                      setDeleting(client);
-                    }}
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                    Delete
-                  </DirectoryCardButton>
+                  {client.canManage ? (
+                    <>
+                      <DirectoryCardButton
+                        variant="secondary"
+                        onClick={() => {
+                          setDrawer(client);
+                        }}
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                        Edit
+                      </DirectoryCardButton>
+                      <DirectoryCardButton
+                        variant="danger"
+                        onClick={() => {
+                          setDeleting(client);
+                        }}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                        Remove
+                      </DirectoryCardButton>
+                    </>
+                  ) : null}
                 </DirectoryCardFooter>
               </DirectoryCard>
               </Stagger>
@@ -224,16 +240,13 @@ export function ClientsDirectory({
           <table className="directory-table w-full min-w-[48rem] text-sm">
             <thead>
               <tr>
-                <TableHeadLeft className="w-[16%]">
+                <TableHeadLeft className="w-[20%]">
                   {columnLabel(visible.length, "Team", "Teams")}
                 </TableHeadLeft>
-                <TableHeadLeft className="w-[18%]">
+                <TableHeadLeft className="w-[24%]">
                   {columnLabel(visible.length, "Client", "Clients")}
                 </TableHeadLeft>
-                <TableHeadCenter className="w-[16%]">
-                  {columnLabel(visible.length, "Organization", "Organizations")}
-                </TableHeadCenter>
-                <TableHeadCenter className="w-[22%]">
+                <TableHeadCenter className="w-[28%]">
                   {columnLabel(visible.length, "Email", "Emails")}
                 </TableHeadCenter>
                 <TableHeadCenter className="w-[10%]">
@@ -251,22 +264,25 @@ export function ClientsDirectory({
                 >
                   <TableCellLeft className="text-muted">{client.teamName}</TableCellLeft>
                   <TableCellLeft className="font-medium">{client.name}</TableCellLeft>
-                  <TableCellCenter className="text-muted">{client.company || "—"}</TableCellCenter>
                   <TableCellCenter className="text-muted">{client.email || "—"}</TableCellCenter>
                   <TableCellCenter className="tabular-nums">{client.formCount}</TableCellCenter>
                   <TableActionsCell>
-                    <TableEditButton
-                      label={client.name}
-                      onClick={() => {
-                        setDrawer(client);
-                      }}
-                    />
-                    <TableDeleteButton
-                      label={client.name}
-                      onClick={() => {
-                        setDeleting(client);
-                      }}
-                    />
+                    {client.canManage ? (
+                      <>
+                        <TableEditButton
+                          label={client.name}
+                          onClick={() => {
+                            setDrawer(client);
+                          }}
+                        />
+                        <TableDeleteButton
+                          label={client.name}
+                          onClick={() => {
+                            setDeleting(client);
+                          }}
+                        />
+                      </>
+                    ) : null}
                   </TableActionsCell>
                 </DirectoryTableRow>
               ))}
@@ -351,21 +367,13 @@ export function ClientsDirectory({
               className="app-radius border border-border bg-surface px-3 py-2.5 text-sm outline-none focus:border-accent"
             />
           </label>
-          <label className="mt-4 flex flex-col gap-1.5 text-sm font-medium">
-            Organization (optional)
-            <input
-              name="company"
-              maxLength={120}
-              defaultValue={editing?.company ?? ""}
-              className="app-radius border border-border bg-surface px-3 py-2.5 text-sm outline-none focus:border-accent"
-            />
-          </label>
           <DrawerActions>
             <button
               type="button"
               onClick={closeDrawer}
               className="app-btn-secondary px-4 py-2 text-sm"
             >
+              <X className="h-4 w-4" />
               Cancel
             </button>
             <button
@@ -373,7 +381,13 @@ export function ClientsDirectory({
               disabled={pending}
               className="app-btn-primary px-4 py-2 text-sm disabled:opacity-60"
             >
-              {pending ? <Spinner /> : null}
+              {pending ? (
+                <Spinner />
+              ) : editing ? (
+                <Save className="h-4 w-4" />
+              ) : (
+                <Plus className="h-4 w-4" />
+              )}
               {editing ? "Save" : "Create client"}
             </button>
           </DrawerActions>
@@ -382,13 +396,8 @@ export function ClientsDirectory({
 
       <ConfirmDialog
         open={Boolean(deleting)}
-        title="Are you absolutely sure?"
-        description={
-          deleting
-            ? `This will permanently delete client “${deleting.name}”. Their forms and survey links for this team will be removed. This cannot be undone.`
-            : "This will permanently delete this client."
-        }
-        confirmLabel="Delete client"
+        title={deleting ? `Remove “${deleting.name}”?` : "Remove client"}
+        description="This action will remove all the data associated with it too, Are you sure?"
         pending={pending}
         onCancel={() => {
           setDeleting(null);
@@ -398,7 +407,7 @@ export function ClientsDirectory({
           const formData = new FormData();
           formData.set("teamId", deleting.teamId);
           formData.set("clientId", deleting.id);
-          run(deleteAction, formData, "Client deleted", () => {
+          run(deleteAction, formData, "Client removed", () => {
             setDeleting(null);
           });
         }}

@@ -2,6 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { getClientWorkspace, getUnassignedDraftForms } from "@/lib/forms";
 import { getTemplatesForUser } from "@/lib/templates";
+import { userCanManageTeam } from "@/lib/teams";
 import { ClientWorkspace } from "./client-workspace";
 
 export default async function ClientPage({
@@ -13,10 +14,11 @@ export default async function ClientPage({
   if (!session?.user?.id || !session.user.role) redirect("/login");
 
   const { teamId, clientId } = await params;
-  const [client, templates, drafts] = await Promise.all([
+  const [client, templates, drafts, canManage] = await Promise.all([
     getClientWorkspace(session.user.id, session.user.role, teamId, clientId),
     getTemplatesForUser(session.user.id, session.user.role),
     getUnassignedDraftForms(session.user.id, session.user.role),
+    userCanManageTeam(session.user.id, session.user.role, teamId),
   ]);
 
   if (!client) notFound();
@@ -28,7 +30,7 @@ export default async function ClientPage({
       teamName={client.team.name}
       name={client.name}
       email={client.email}
-      company={client.company}
+      canManage={canManage}
       forms={client.forms.map((form) => ({
         id: form.id,
         title: form.title,

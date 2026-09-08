@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useSyncExternalStore } from "react";
+import { createContext, useCallback, useContext, useLayoutEffect, useState, useSyncExternalStore } from "react";
 
 /** Device-local theme only (`localStorage` key `optiphoenix.theme`). Never persisted to the database. */
 type Theme = "light" | "dark";
@@ -14,7 +14,6 @@ const ThemeContext = createContext<{
 });
 
 const listeners = new Set<() => void>();
-let themeHydrated = false;
 let cachedTheme: Theme = "light";
 
 function emit() {
@@ -43,29 +42,27 @@ function applyTheme(theme: Theme) {
   document.documentElement.classList.toggle("dark", theme === "dark");
 }
 
-function getThemeSnapshot(): Theme {
-  if (!themeHydrated) return "light";
-  return cachedTheme;
-}
-
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  useEffect(() => {
-    if (themeHydrated) return;
-    themeHydrated = true;
+  // Apply before paint — no inline <script> (React 19 forbids those in components).
+  // Keep the first client snapshot equal to the server ("light") until this runs,
+  // otherwise soft navigations reuse a hydrated module cache and mismatch SSR HTML.
+  const [ready, setReady] = useState(false);
+
+  useLayoutEffect(() => {
     cachedTheme = readStoredTheme();
     applyTheme(cachedTheme);
+    setReady(true);
     emit();
   }, []);
 
   const theme = useSyncExternalStore<Theme>(
     subscribe,
-    getThemeSnapshot,
+    () => (ready ? cachedTheme : "light"),
     (): Theme => "light"
   );
 
   const toggleTheme = useCallback(() => {
     const next: Theme = readStoredTheme() === "dark" ? "light" : "dark";
-    themeHydrated = true;
     cachedTheme = next;
     try {
       window.localStorage.setItem("optiphoenix.theme", next);

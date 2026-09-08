@@ -33,6 +33,7 @@ import {
 } from "@/components/directory/directory-card";
 import { runServerAction } from "@/lib/run-server-action";
 import {
+  DIRECTORY_SORT_PLACEHOLDER,
   DIRECTORY_SORT_SELECTION_VALUES,
   sortDirectoryRows,
   type DirectorySort,
@@ -43,25 +44,26 @@ import { createForm, deleteForm } from "./actions";
 import { Select } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/pending-button";
 
-type FormsFilter = "all" | "published" | "drafts";
+type FormsFilter = "all" | "published" | "drafts" | "closed";
 
 type ClientFormRow = {
   id: string;
   title: string;
   description: string | null;
-  status: "DRAFT" | "PUBLISHED";
+  status: "DRAFT" | "PUBLISHED" | "CLOSED";
   fieldCount: number;
   responseCount: number;
   updatedAt: string;
 };
 
 const VIEW_KEY = "optiphoenix.clientFormsView";
-const SORT_KEY = "optiphoenix.clientFormsSort.v2";
+const SORT_KEY = "optiphoenix.clientFormsSort.v3";
 
 const FILTERS: Array<{ id: FormsFilter; label: string }> = [
   { id: "all", label: "All" },
   { id: "published", label: "Published" },
   { id: "drafts", label: "Drafts" },
+  { id: "closed", label: "Closed" },
 ];
 
 export function ClientWorkspace({
@@ -70,20 +72,20 @@ export function ClientWorkspace({
   teamName,
   name,
   email,
-  company,
   forms,
   templates = [],
   draftForms = [],
+  canManage = true,
 }: {
   teamId: string;
   clientId: string;
   teamName: string;
   name: string;
   email: string | null;
-  company: string | null;
   forms: ClientFormRow[];
   templates?: Array<{ id: string; name: string; fieldCount: number }>;
   draftForms?: Array<{ id: string; title: string; fieldCount: number }>;
+  canManage?: boolean;
 }) {
   const router = useRouter();
   const [deleting, setDeleting] = useState<ClientFormRow | null>(null);
@@ -91,7 +93,11 @@ export function ClientWorkspace({
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<FormsFilter>("all");
   const [view, setView] = useDirectoryView(VIEW_KEY);
-  const [sort, setSort] = usePersistedValue(SORT_KEY, "", DIRECTORY_SORT_SELECTION_VALUES);
+  const [sort, setSort] = usePersistedValue(
+    SORT_KEY,
+    DIRECTORY_SORT_PLACEHOLDER,
+    DIRECTORY_SORT_SELECTION_VALUES
+  );
   const publishedCount = forms.filter((form) => form.status === "PUBLISHED").length;
   const initials = name
     .split(" ")
@@ -105,7 +111,8 @@ export function ClientWorkspace({
       const statusOk =
         filter === "all" ||
         (filter === "published" && form.status === "PUBLISHED") ||
-        (filter === "drafts" && form.status === "DRAFT");
+        (filter === "drafts" && form.status === "DRAFT") ||
+        (filter === "closed" && form.status === "CLOSED");
       if (!statusOk) return false;
       return matchesDirectorySearch(query, [form.title, form.description]);
     });
@@ -130,7 +137,7 @@ export function ClientWorkspace({
       await runServerAction({
         action: deleteForm,
         formData,
-        successMessage: "Form deleted.",
+        successMessage: "Form removed.",
         onSuccess: () => setDeleting(null),
         refresh: () => router.refresh(),
       });
@@ -167,7 +174,6 @@ export function ClientWorkspace({
                   <Mail className="h-3.5 w-3.5" />
                   {email || "No email"}
                 </span>
-                <span>{company || "No organization"}</span>
               </p>
             </div>
           </div>
@@ -203,6 +209,7 @@ export function ClientWorkspace({
         </div>
       </header>
 
+      {canManage ? (
       <section className="card-enter app-radius border border-border bg-card app-shadow-card p-6">
         <h2 className="text-lg font-semibold tracking-tight">Add a feedback form</h2>
         <p className="mt-1 text-sm text-muted">
@@ -258,7 +265,7 @@ export function ClientWorkspace({
                 </optgroup>
               ) : null}
               {draftForms.length > 0 ? (
-                <optgroup label="Forms">
+                <optgroup label="Draft forms">
                   {draftForms.map((draft) => (
                     <option key={draft.id} value={`draft:${draft.id}`}>
                       {draft.title}
@@ -277,6 +284,7 @@ export function ClientWorkspace({
           </ActionButton>
         </form>
       </section>
+      ) : null}
 
       <section>
         <div className="flex flex-col gap-4">
@@ -324,8 +332,11 @@ export function ClientWorkspace({
         ) : view === "grid" ? (
           <ul className="mt-6 grid items-stretch gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {paged.slice.map((form, index) => {
+              const closed = form.status === "CLOSED";
               const published = form.status === "PUBLISHED";
-              const href = `/dashboard/forms/${form.id}`;
+              const href = closed
+                ? `/dashboard/responses?form=${form.id}`
+                : `/dashboard/forms/${form.id}`;
               return (
                 <li key={form.id} className="h-full">
                   <Stagger index={index}>
@@ -337,12 +348,14 @@ export function ClientWorkspace({
                         <span
                           className={cn(
                             "px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide",
-                            published
-                              ? "bg-emerald-100 text-emerald-800"
-                              : "bg-zinc-100 text-zinc-600"
+                            closed
+                              ? "bg-red-800 text-white"
+                              : published
+                                ? "bg-emerald-100 text-emerald-800"
+                                : "bg-zinc-100 text-zinc-600"
                           )}
                         >
-                          {published ? "Published" : "Draft"}
+                          {closed ? "Closed" : published ? "Published" : "Draft"}
                         </span>
                       </div>
                       <DirectoryCardTitle className="mt-4 min-h-[3rem]" title={form.title}>
@@ -356,16 +369,33 @@ export function ClientWorkspace({
                         {formatMonthYear(form.updatedAt)}
                       </p>
                       <DirectoryCardFooter className="mt-auto border-t-0 pt-5">
-                        <DirectoryCardButton href={href} variant="primary">
-                          Build
-                        </DirectoryCardButton>
-                        <DirectoryCardButton
-                          variant="danger"
-                          onClick={() => setDeleting(form)}
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                          Delete
-                        </DirectoryCardButton>
+                        {closed ? (
+                          <DirectoryCardButton
+                            variant="primary"
+                            disabled
+                            title="Closed after a response — cannot reopen the builder"
+                          >
+                            Build
+                          </DirectoryCardButton>
+                        ) : (
+                          <DirectoryCardButton href={href} variant="primary">
+                            Build
+                          </DirectoryCardButton>
+                        )}
+                        {closed ? null : canManage ? (
+                          <DirectoryCardButton
+                            variant="danger"
+                            onClick={() => setDeleting(form)}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                            Remove
+                          </DirectoryCardButton>
+                        ) : null}
+                        {closed ? (
+                          <DirectoryCardButton href={href} variant="secondary">
+                            Responses
+                          </DirectoryCardButton>
+                        ) : null}
                       </DirectoryCardFooter>
                     </DirectoryCard>
                   </Stagger>
@@ -394,13 +424,20 @@ export function ClientWorkspace({
               </thead>
               <tbody>
                 {paged.slice.map((form) => {
+                  const closed = form.status === "CLOSED";
                   const published = form.status === "PUBLISHED";
-                  const href = `/dashboard/forms/${form.id}`;
+                  const href = closed
+                    ? `/dashboard/responses?form=${form.id}`
+                    : `/dashboard/forms/${form.id}`;
                   return (
                     <DirectoryTableRow
                       key={form.id}
                       href={href}
-                      ariaLabel={`Open ${form.title}`}
+                      ariaLabel={
+                        closed
+                          ? `View responses for ${form.title}`
+                          : `Open ${form.title}`
+                      }
                     >
                       <TableCellLeft>
                         <span className="block truncate font-medium">{form.title}</span>
@@ -414,12 +451,14 @@ export function ClientWorkspace({
                         <span
                           className={cn(
                             "inline-flex whitespace-nowrap px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide",
-                            published
-                              ? "bg-emerald-100 text-emerald-800"
-                              : "bg-zinc-100 text-zinc-600"
+                            closed
+                              ? "bg-red-800 text-white"
+                              : published
+                                ? "bg-emerald-100 text-emerald-800"
+                                : "bg-zinc-100 text-zinc-600"
                           )}
                         >
-                          {published ? "Published" : "Draft"}
+                          {closed ? "Closed" : published ? "Published" : "Draft"}
                         </span>
                       </TableCellCenter>
                       <TableCellCenter className="tabular-nums">
@@ -438,16 +477,28 @@ export function ClientWorkspace({
                         {formatMonthYear(form.updatedAt)}
                       </TableCellCenter>
                       <TableActionsCell className="w-[18%]">
-                        <Link
-                          href={href}
-                          className="inline-flex h-8 items-center rounded-full px-3 text-xs font-medium text-accent transition hover:bg-hover"
-                        >
-                          Build
-                        </Link>
-                        <TableDeleteButton
-                          label={form.title}
-                          onClick={() => setDeleting(form)}
-                        />
+                        {closed ? (
+                          <span
+                            className="inline-flex h-8 cursor-not-allowed items-center rounded-full px-3 text-xs font-medium text-muted opacity-60"
+                            title="Closed after a response — cannot reopen the builder"
+                          >
+                            Build
+                          </span>
+                        ) : (
+                          <Link
+                            href={href}
+                            className="inline-flex h-8 items-center rounded-full px-3 text-xs font-medium text-accent transition hover:bg-hover"
+                            onClick={(event) => event.stopPropagation()}
+                          >
+                            Build
+                          </Link>
+                        )}
+                        {closed ? null : canManage ? (
+                          <TableDeleteButton
+                            label={form.title}
+                            onClick={() => setDeleting(form)}
+                          />
+                        ) : null}
                       </TableActionsCell>
                     </DirectoryTableRow>
                   );
@@ -471,13 +522,12 @@ export function ClientWorkspace({
 
       <ConfirmDialog
         open={Boolean(deleting)}
-        title="Are you absolutely sure?"
+        title={deleting ? `Remove “${deleting.title}”?` : "Remove form"}
         description={
           deleting
-            ? `This will permanently delete “${deleting.title}” and its fields. This cannot be undone.`
-            : "This will permanently delete this form."
+            ? `This will permanently remove “${deleting.title}” and its fields. This cannot be undone.`
+            : "This will permanently remove this form."
         }
-        confirmLabel="Delete form"
         pending={pending}
         onCancel={() => setDeleting(null)}
         onConfirm={confirmDelete}

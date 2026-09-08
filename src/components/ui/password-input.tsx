@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { Tooltip } from "@/components/ui/tooltip";
@@ -12,15 +12,27 @@ export function PasswordInput({
   placeholder = "At least 8 characters",
   className,
   showStrength = false,
+  minLength,
+  resetKey,
 }: {
   name?: string;
   autoComplete?: string;
   placeholder?: string;
   className?: string;
   showStrength?: boolean;
+  /** Enforce length only when setting a password (create/reset). Omit on login. */
+  minLength?: number;
+  /** Change this value to clear the controlled password (e.g. after failed login). */
+  resetKey?: string | number | null;
 }) {
   const [visible, setVisible] = useState(false);
   const [value, setValue] = useState("");
+
+  useEffect(() => {
+    if (resetKey === undefined || resetKey === null) return;
+    setValue("");
+    setVisible(false);
+  }, [resetKey]);
 
   return (
     <div>
@@ -29,7 +41,7 @@ export function PasswordInput({
           type={visible ? "text" : "password"}
           name={name}
           required
-          minLength={8}
+          minLength={minLength}
           autoComplete={autoComplete}
           placeholder={placeholder}
           value={value}

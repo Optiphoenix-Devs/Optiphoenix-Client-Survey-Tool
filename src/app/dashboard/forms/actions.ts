@@ -4,7 +4,13 @@ import { revalidatePath, revalidateTag } from "next/cache";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { createFormSchema } from "@/lib/validations";
-import { createFormForUser, deleteClientForm, requireFormAccess } from "@/lib/forms";
+import {
+  createFormForUser,
+  deleteClientForm,
+  duplicateFormForUser,
+  requireFormAccess,
+} from "@/lib/forms";
+import { prisma } from "@/lib/prisma";
 import type { ActionResult } from "@/lib/action-result";
 
 export async function createFormFromList(
@@ -15,9 +21,44 @@ export async function createFormFromList(
     redirect("/login");
   }
 
+  const source = String(formData.get("source") ?? "blank");
+  const templateId = String(formData.get("templateId") ?? "") || undefined;
+  const draftFormId = String(formData.get("draftFormId") ?? "") || undefined;
+  const title = String(formData.get("title") ?? "").trim();
+
+  if (source === "draft" && draftFormId) {
+    if (title.length < 2) {
+      return { error: "Enter a form title." };
+    }
+    try {
+      const copy = await duplicateFormForUser(
+        session.user.id,
+        session.user.role,
+        draftFormId
+      );
+      await prisma.form.update({
+        where: { id: copy.id },
+        data: {
+          title,
+          teamId: null,
+          clientId: null,
+          status: "DRAFT",
+        },
+      });
+      revalidateTag("dashboard-shell", "max");
+      revalidatePath("/dashboard/forms");
+      revalidatePath("/dashboard");
+      return { formId: copy.id };
+    } catch (error) {
+      return {
+        error: error instanceof Error ? error.message : "Could not create this form.",
+      };
+    }
+  }
+
   const parsed = createFormSchema.safeParse({
-    title: formData.get("title"),
-    templateId: String(formData.get("templateId") ?? "") || undefined,
+    title,
+    templateId: source === "template" ? templateId : undefined,
     teamId: String(formData.get("teamId") ?? "") || undefined,
     clientId: String(formData.get("clientId") ?? "") || undefined,
   });
@@ -58,7 +99,7 @@ export async function deleteFormFromList(
       formId
     );
     if (form.status !== "DRAFT") {
-      return { error: "Only draft forms can be deleted. Unpublish first." };
+      return { error: "Only draft forms can be removed. Unpublish first." };
     }
     await deleteClientForm(
       session.user.id,
@@ -69,7 +110,7 @@ export async function deleteFormFromList(
     );
   } catch (error) {
     return {
-      error: error instanceof Error ? error.message : "Delete failed.",
+      error: error instanceof Error ? error.message : "Remove failed.",
     };
   }
 

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
+import { Trash2, X } from "lucide-react";
 import { Spinner } from "@/components/ui/pending-button";
 import { cn } from "@/lib/cn";
 
@@ -21,7 +22,7 @@ export function ConfirmDialog({
   open,
   title = "Are you absolutely sure?",
   description,
-  confirmLabel = "Continue",
+  confirmLabel = "Remove",
   pending,
   onCancel,
   onConfirm,
@@ -87,17 +88,18 @@ export function ConfirmDialog({
           <button
             type="button"
             onClick={onCancel}
-            className="app-btn-secondary w-full justify-center px-4 py-2.5 text-sm sm:w-auto"
+            className="app-btn-secondary w-full justify-center gap-2 px-4 py-2.5 text-sm sm:w-auto"
           >
+            <X className="h-4 w-4" />
             Cancel
           </button>
           <button
             type="button"
             onClick={onConfirm}
             disabled={pending}
-            className="app-btn-primary w-full justify-center px-4 py-2.5 text-sm disabled:opacity-60 sm:w-auto"
+            className="inline-flex w-full items-center justify-center gap-2 app-radius bg-rose-700 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-rose-800 disabled:opacity-60 sm:w-auto"
           >
-            {pending ? <Spinner /> : null}
+            {pending ? <Spinner /> : <Trash2 className="h-4 w-4" />}
             {confirmLabel}
           </button>
         </div>

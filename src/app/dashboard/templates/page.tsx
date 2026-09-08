@@ -5,7 +5,7 @@ import type { UserRole } from "@/generated/prisma/client";
 import { getTemplatesForUser } from "@/lib/templates";
 import { DirectoryLoadingShell } from "@/components/directory/directory-loading-shell";
 import { TemplatesDirectory } from "./templates-directory";
-import { deleteTemplate, useTemplate, createTemplate } from "./actions";
+import { deleteTemplate, useTemplate, createTemplate, shareTemplate, hideTemplate, unhideTemplate } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -45,6 +45,9 @@ async function TemplatesBody({
         createFormFromTemplateAction={useTemplate}
         deleteAction={deleteTemplate}
         createAction={createTemplate}
+        shareAction={shareTemplate}
+        hideAction={hideTemplate}
+        unhideAction={unhideTemplate}
       />
     </main>
   );

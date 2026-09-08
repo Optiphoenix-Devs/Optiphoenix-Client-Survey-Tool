@@ -138,7 +138,7 @@ export function Toaster() {
   if (toasts.length === 0) return null;
 
   return (
-    <div className="pointer-events-none fixed top-[max(1rem,env(safe-area-inset-top))] right-4 z-[90] flex w-[min(calc(100vw-2rem),22rem)] flex-col gap-2.5 lg:top-4">
+    <div className="pointer-events-none fixed top-[max(1rem,env(safe-area-inset-top))] right-4 z-[90] flex w-[min(calc(100vw-2rem),22rem)] flex-col gap-2 lg:top-4">
       {toasts.map((item) => {
         const tone = TONE[item.tone];
         return (
@@ -147,16 +147,19 @@ export function Toaster() {
             role="status"
             aria-live="polite"
             className={cn(
-              "pointer-events-auto flex items-start gap-3 app-radius border px-4 py-3.5 shadow-[0_18px_40px_rgba(15,23,42,0.28)] backdrop-blur-sm",
+              "pointer-events-auto flex items-center gap-2.5 app-radius border px-3 py-2 shadow-[0_12px_28px_rgba(15,23,42,0.22)] backdrop-blur-sm",
               tone.shell,
               item.leaving ? "toast-leave" : "toast-enter"
             )}
           >
-            <tone.Icon className={cn("mt-0.5 h-5 w-5 shrink-0", tone.iconClass)} strokeWidth={2} />
+            <tone.Icon
+              className={cn("h-4 w-4 shrink-0", tone.iconClass)}
+              strokeWidth={2}
+            />
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-semibold leading-5">{item.title}</p>
+              <p className="text-sm font-semibold leading-snug">{item.title}</p>
               {item.description ? (
-                <p className={cn("mt-0.5 text-sm leading-5", tone.descriptionClass)}>
+                <p className={cn("mt-0.5 text-xs leading-snug", tone.descriptionClass)}>
                   {item.description}
                 </p>
               ) : null}
@@ -165,12 +168,12 @@ export function Toaster() {
               type="button"
               onClick={() => dismissToast(item.id)}
               className={cn(
-                "inline-flex min-h-9 min-w-9 items-center justify-center rounded-md transition",
+                "inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition",
                 tone.closeClass
               )}
               aria-label="Close notification"
             >
-              <X className="h-4 w-4" />
+              <X className="h-3.5 w-3.5" />
             </button>
           </div>
         );

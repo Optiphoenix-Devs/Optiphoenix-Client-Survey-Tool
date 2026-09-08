@@ -8,7 +8,8 @@ export const passwordSchema = z
 
 export const loginSchema = z.object({
   email: z.email("Enter a valid email"),
-  password: z.string().min(8, "Password must be at least 8 characters"),
+  // Login must accept any non-empty password so wrong attempts reach auth (no min length gate).
+  password: z.string().min(1, "Enter your password"),
 });
 
 export const registerSchema = z.object({
@@ -24,6 +25,12 @@ export const forgotPasswordSchema = z.object({
 export const resetPasswordSchema = z.object({
   token: z.string().min(16),
   password: passwordSchema,
+});
+
+export const acceptInviteSchema = z.object({
+  token: z.string().min(16),
+  name: z.string().trim().min(2, "Enter your name").max(80),
+  password: z.string().optional(),
 });
 
 export const updateProfileSchema = z.object({
@@ -69,12 +76,6 @@ export const createClientSchema = z.object({
   teamId: z.string().min(1),
   name: clientNameSchema,
   email: z.email("Enter a valid email"),
-  company: z
-    .string()
-    .trim()
-    .max(120, "Organization name is too long")
-    .optional()
-    .transform((value) => (value && value.length > 0 ? value : undefined)),
 });
 
 export const updateClientSchema = z.object({
@@ -82,12 +83,6 @@ export const updateClientSchema = z.object({
   clientId: z.string().min(1),
   name: clientNameSchema,
   email: z.email("Enter a valid email"),
-  company: z
-    .string()
-    .trim()
-    .max(120, "Organization name is too long")
-    .optional()
-    .transform((value) => (value && value.length > 0 ? value : undefined)),
 });
 
 export const deleteClientSchema = z.object({
@@ -107,6 +102,7 @@ const fieldTypeSchema = z.enum([
   "RATING",
   "RESOURCE_RATING",
   "DATE",
+  "TIME",
   "YES_NO",
 ]);
 
@@ -126,6 +122,7 @@ export const updateFormSchema = z.object({
   thankYouTitle: z.string().max(120).optional(),
   thankYouMessage: z.string().max(1000).optional(),
   thankYouBgColor: z.string().max(32).optional(),
+  thankYouTextColor: z.string().max(32).optional(),
 });
 
 export const deleteFormSchema = z.object({

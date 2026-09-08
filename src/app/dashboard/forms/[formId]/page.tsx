@@ -21,6 +21,9 @@ export default async function FormBuilderPage({
     getClientsForUser(session.user.id, session.user.role),
   ]);
   if (!form) notFound();
+  if (form.status === "CLOSED") {
+    redirect(`/dashboard/responses?form=${form.id}`);
+  }
 
   return (
     <div className="flex h-full min-h-0 flex-1 flex-col">
@@ -35,6 +38,7 @@ export default async function FormBuilderPage({
         headerImageUrl={form.headerImageUrl}
         thankYouImageUrl={form.thankYouImageUrl}
         thankYouBgColor={form.thankYouBgColor}
+        thankYouTextColor={form.thankYouTextColor}
         status={form.status}
         hasResponse={formHasSubmission(form.surveys)}
         publicFormUrl={`${getAppBaseUrl()}/survey/${form.publicToken}`}

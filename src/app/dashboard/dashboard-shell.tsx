@@ -151,6 +151,17 @@ export function DashboardShell({
       icon: LayoutDashboard,
       active: pathname === "/dashboard",
     },
+    ...(isAdmin
+      ? [
+          {
+            href: "/dashboard/users",
+            label: "Users",
+            icon: UserRound,
+            count: userCount,
+            active: pathname.startsWith("/dashboard/users"),
+          },
+        ]
+      : []),
     {
       href: "/dashboard/teams",
       label: "Teams",
@@ -198,17 +209,6 @@ export function DashboardShell({
       icon: Sparkles,
       active: pathname.startsWith("/dashboard/summarize"),
     },
-    ...(isAdmin
-      ? [
-          {
-            href: "/dashboard/users",
-            label: "Users",
-            icon: UserRound,
-            count: userCount,
-            active: pathname.startsWith("/dashboard/users"),
-          },
-        ]
-      : []),
   ];
 
   if (isBuilder) {

@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import type { ActionResult } from "@/lib/action-result";
 import { saveFormImageUpload } from "@/lib/form-image-upload";
-import { normalizeThankYouBg } from "@/lib/form-thank-you";
+import { normalizeThankYouBg, normalizeThankYouText } from "@/lib/form-thank-you";
 import {
   addFieldSchema,
   addSectionSchema,
@@ -155,6 +155,7 @@ export async function updateForm(formData: FormData): Promise<ActionResult> {
     thankYouTitle: formData.get("thankYouTitle") ?? "",
     thankYouMessage: formData.get("thankYouMessage") ?? "",
     thankYouBgColor: formData.get("thankYouBgColor") ?? "",
+    thankYouTextColor: formData.get("thankYouTextColor") ?? "",
   });
 
   if (!parsed.success) {
@@ -189,6 +190,10 @@ export async function updateForm(formData: FormData): Promise<ActionResult> {
     formData.get("thankYouBgColor") != null
       ? normalizeThankYouBg(String(formData.get("thankYouBgColor") ?? ""))
       : undefined;
+  const thankYouTextColor =
+    formData.get("thankYouTextColor") != null
+      ? normalizeThankYouText(String(formData.get("thankYouTextColor") ?? ""))
+      : undefined;
 
   try {
     await updateClientForm(
@@ -203,7 +208,8 @@ export async function updateForm(formData: FormData): Promise<ActionResult> {
       parsed.data.thankYouMessage,
       headerImageUrl,
       thankYouImageUrl,
-      thankYouBgColor
+      thankYouBgColor,
+      thankYouTextColor
     );
   } catch (error) {
     return { error: error instanceof Error ? error.message : "Save failed." };
@@ -237,7 +243,7 @@ export async function deleteForm(formData: FormData): Promise<ActionResult> {
       parsed.data.formId
     );
   } catch (error) {
-    return { error: error instanceof Error ? error.message : "Delete failed." };
+    return { error: error instanceof Error ? error.message : "Remove failed." };
   }
 
   revalidatePath(clientPath(teamId, clientId));
@@ -494,7 +500,7 @@ export async function deleteField(formData: FormData): Promise<ActionResult> {
       parsed.data.fieldId
     );
   } catch (error) {
-    return { error: error instanceof Error ? error.message : "Delete failed." };
+    return { error: error instanceof Error ? error.message : "Remove failed." };
   }
 
   revalidateBuilder(teamId, clientId, formId);

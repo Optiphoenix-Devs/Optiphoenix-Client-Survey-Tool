@@ -1,7 +1,7 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { unstable_cache } from "next/cache";
-import { auth, signOut } from "@/auth";
+import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { getSidebarCounts } from "@/lib/teams";
 import { logout } from "./actions";
@@ -46,23 +46,23 @@ export default async function DashboardLayout({
   const session = await auth();
   if (!session?.user?.id || !session.user.role) {
     const jar = await cookies();
-    const replacedElsewhere = hasAuthSessionCookie(jar);
-    // Clear stale cookie only when one exists; avoid racing a fresh login.
-    if (replacedElsewhere) {
-      await signOut({ redirect: false });
-      redirect("/login?notice=signed-out-elsewhere");
+    // signOut must run in a Route Handler — layouts cannot modify cookies.
+    if (hasAuthSessionCookie(jar)) {
+      redirect("/api/auth/clear-session?notice=signed-out-elsewhere");
     }
     redirect("/login");
   }
 
+  // Always load real badge counts — even on builder routes (sidebar is hidden
+  // there). Returning zeros on the builder poisoned the shared layout cache so
+  // soft-navigating back to Forms/Teams showed 0 badges.
   const { counts, user, userCount } = await getShellData(
     session.user.id,
     session.user.role
   );
 
   if (!user) {
-    await signOut({ redirect: false });
-    redirect("/login");
+    redirect("/api/auth/clear-session");
   }
 
   return (

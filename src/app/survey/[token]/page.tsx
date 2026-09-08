@@ -1,8 +1,8 @@
 import { notFound } from "next/navigation";
 import { getPublishedFormByToken, formHasSubmission } from "@/lib/forms";
-import { normalizeThankYouBg, DEFAULT_THANK_YOU_BG } from "@/lib/form-thank-you";
+import { normalizeThankYouBg, normalizeThankYouText, DEFAULT_THANK_YOU_BG, DEFAULT_THANK_YOU_TEXT } from "@/lib/form-thank-you";
 import { SurveyHeader } from "../survey-header";
-import { SurveyFlow } from "../survey-flow";
+import { SurveyFlowClient } from "../survey-flow-client";
 import { submitSurvey } from "./actions";
 
 export default async function PublicSurveyPage({
@@ -39,15 +39,18 @@ export default async function PublicSurveyPage({
     logic: section.logic,
   }));
   const thankYouBg = normalizeThankYouBg(form.thankYouBgColor ?? DEFAULT_THANK_YOU_BG);
+  const thankYouText = normalizeThankYouText(
+    form.thankYouTextColor ?? DEFAULT_THANK_YOU_TEXT
+  );
 
   return (
-    <div className="flex min-h-dvh flex-col">
+    <div className="app-grid flex min-h-dvh flex-col">
       <SurveyHeader />
-      <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col px-4 py-8 sm:py-10">
+      <main className="app-grid-body mx-auto flex w-full max-w-2xl flex-1 flex-col px-4 py-5 sm:py-6">
         {sent ? (
           <section
             className="page-enter overflow-hidden app-radius border border-border/40 p-0"
-            style={{ backgroundColor: thankYouBg }}
+            style={{ backgroundColor: thankYouBg, color: thankYouText }}
           >
             {form.thankYouImageUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
@@ -61,7 +64,7 @@ export default async function PublicSurveyPage({
             <h1 className="text-2xl font-semibold tracking-tight">
               {form.thankYouTitle?.trim() || "Thank you"}
             </h1>
-            <p className="mt-2 text-sm leading-6 text-muted">
+            <p className="mt-2 text-sm leading-6 opacity-80">
               {form.thankYouMessage?.trim() ||
                 "Your feedback was sent. This link cannot be used again."}
             </p>
@@ -90,7 +93,7 @@ export default async function PublicSurveyPage({
             <p className="mt-2 text-sm text-muted">This form has no questions yet.</p>
           </section>
         ) : (
-          <SurveyFlow
+          <SurveyFlowClient
             token={token}
             title={form.title}
             description={form.description}

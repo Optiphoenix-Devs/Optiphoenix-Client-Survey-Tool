@@ -46,22 +46,6 @@ export function ChoiceOptionEditor({
             : "Dropdown options"
           : "Options"}
       </p>
-      {type === "DROPDOWN" ? (
-        <div className="relative">
-          <select
-            disabled
-            className="w-full appearance-none bg-none app-radius border border-border bg-background py-2 pl-3 pr-10 text-sm text-muted"
-          >
-            <option>Choose an option</option>
-            {options.map((option, index) => (
-              <option key={`${option}-${index}`}>
-                {option || `Option ${index + 1}`}
-              </option>
-            ))}
-          </select>
-          <ChevronDown className="pointer-events-none absolute top-1/2 right-3.5 h-4 w-4 -translate-y-1/2 text-muted" />
-        </div>
-      ) : null}
       {options.map((option, index) => {
         const trimmed = option.trim();
         const alreadyLinked = Boolean(trimmed && linkedOptions?.has(trimmed));
@@ -149,6 +133,25 @@ export function ChoiceOptionEditor({
         <Plus className="h-4 w-4" />
         Add option
       </button>
+      {type === "DROPDOWN" ? (
+        <div className="mt-1 grid gap-1.5 border-t border-border pt-3">
+          <p className="text-sm font-medium">Answer</p>
+          <div className="relative">
+            <select
+              disabled
+              className="w-full appearance-none bg-none app-radius border border-border bg-background py-2.5 pl-3 pr-10 text-sm text-muted"
+            >
+              <option>Choose an option</option>
+              {options.map((option, index) => (
+                <option key={`${option}-${index}`}>
+                  {option || `Option ${index + 1}`}
+                </option>
+              ))}
+            </select>
+            <ChevronDown className="pointer-events-none absolute top-1/2 right-3.5 h-4 w-4 -translate-y-1/2 text-muted" />
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

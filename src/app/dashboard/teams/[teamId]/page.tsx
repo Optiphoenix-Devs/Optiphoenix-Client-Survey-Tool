@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { getTeamWithClients } from "@/lib/clients";
+import { userCanManageTeam } from "@/lib/teams";
 import { createClient, deleteClient, updateClient } from "./actions";
 import { ClientsDirectory } from "../../clients/clients-directory";
 
@@ -17,11 +18,10 @@ export default async function TeamClientsPage({
   }
 
   const { teamId } = await params;
-  const team = await getTeamWithClients(
-    session.user.id,
-    session.user.role,
-    teamId
-  );
+  const [team, canManage] = await Promise.all([
+    getTeamWithClients(session.user.id, session.user.role, teamId),
+    userCanManageTeam(session.user.id, session.user.role, teamId),
+  ]);
 
   if (!team) {
     notFound();
@@ -37,19 +37,20 @@ export default async function TeamClientsPage({
         {team.name}
       </p>
       <ClientsDirectory
-        title={`Clients: ${team.name}`}
+        title={`Client: ${team.name}`}
         lockedTeamId={team.id}
-        teams={[{ id: team.id, name: team.name }]}
+        canCreate={canManage}
+        teams={canManage ? [{ id: team.id, name: team.name }] : []}
         clients={team.clients.map((client) => ({
           id: client.id,
           name: client.name,
           email: client.email,
-          company: client.company,
           teamId: team.id,
           teamName: team.name,
           formCount: client._count.forms,
           href: `/dashboard/teams/${team.id}/clients/${client.id}`,
           updatedAt: client.updatedAt.toISOString(),
+          canManage,
         }))}
         createAction={createClient}
         updateAction={updateClient}

@@ -45,6 +45,12 @@ export async function loginAction(
     return { error: "This account was not approved. Contact an admin." };
   }
 
+  if (user.status === "DEACTIVATED") {
+    return {
+      error: "Your account has been deactivated. Please contact an admin.",
+    };
+  }
+
   if (isLocked(user.lockedUntil)) {
     return {
       error:

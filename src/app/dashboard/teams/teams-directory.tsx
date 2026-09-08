@@ -3,12 +3,13 @@
 import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Building2, Pencil, Plus, Trash2, Users } from "lucide-react";
+import { Building2, Lock, Pencil, Plus, Save, Trash2, Users, X } from "lucide-react";
 import type { ActionResult } from "@/lib/action-result";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { DrawerActions, SideDrawer } from "@/components/ui/side-drawer";
 import { Pagination, usePaged } from "@/components/ui/pagination";
 import { Spinner } from "@/components/ui/pending-button";
+import { Tooltip } from "@/components/ui/tooltip";
 import {
   TableActionsCell,
   TableActionsHeader,
@@ -17,6 +18,7 @@ import {
 } from "@/components/ui/table-actions";
 import { runServerAction } from "@/lib/run-server-action";
 import {
+  DIRECTORY_SORT_PLACEHOLDER,
   DIRECTORY_SORT_SELECTION_VALUES,
   sortDirectoryRows,
   type DirectorySort,
@@ -36,6 +38,8 @@ import {
 } from "@/components/directory/directory-card";
 import { TableHeadCenter, TableHeadLeft, TableCellCenter, TableCellLeft, DirectoryTableRow } from "@/components/directory/directory-table";
 import { Stagger } from "@/components/ui/skeleton";
+import { cn } from "@/lib/cn";
+import { toast } from "@/components/ui/toaster";
 
 type TeamDirectoryRow = {
   id: string;
@@ -45,6 +49,9 @@ type TeamDirectoryRow = {
   formCount: number;
   href: string;
   updatedAt: string;
+  createdByName: string;
+  isLocked?: boolean;
+  accessLevel?: "VIEW" | "SHARE" | "FULL";
 };
 
 type TeamsDirectoryProps = {
@@ -55,7 +62,7 @@ type TeamsDirectoryProps = {
 };
 
 const VIEW_KEY = "optiphoenix.teamsView";
-const SORT_KEY = "optiphoenix.teamsSort.v2";
+const SORT_KEY = "optiphoenix.teamsSort.v3";
 
 export function TeamsDirectory({
   teams,
@@ -66,14 +73,20 @@ export function TeamsDirectory({
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [view, setView] = useDirectoryView(VIEW_KEY);
-  const [sort, setSort] = usePersistedValue(SORT_KEY, "", DIRECTORY_SORT_SELECTION_VALUES);
+  const [sort, setSort] = usePersistedValue(
+    SORT_KEY,
+    DIRECTORY_SORT_PLACEHOLDER,
+    DIRECTORY_SORT_SELECTION_VALUES
+  );
   const [drawer, setDrawer] = useState<"create" | TeamDirectoryRow | null>(null);
   const [deleting, setDeleting] = useState<TeamDirectoryRow | null>(null);
   const [pending, startTransition] = useTransition();
 
   const visible = useMemo(() => {
     const filtered = query.trim()
-      ? teams.filter((team) => matchesDirectorySearch(query, [team.name]))
+      ? teams.filter((team) =>
+          matchesDirectorySearch(query, [team.name, team.createdByName])
+        )
       : teams;
     return sortDirectoryRows(
       filtered,
@@ -152,9 +165,17 @@ export function TeamsDirectory({
           {paged.slice.map((team, index) => (
             <li key={team.id} className="h-full">
               <Stagger index={index}>
-              <DirectoryCard>
+              <DirectoryCard className={cn(team.isLocked && "opacity-80")}>
                 <DirectoryCardIcon>
-                  <Users className="h-5 w-5" />
+                  {team.isLocked ? (
+                    <Tooltip label="You are not a member of this team" side="top">
+                      <span className="inline-flex">
+                        <Lock className="h-5 w-5" />
+                      </span>
+                    </Tooltip>
+                  ) : (
+                    <Users className="h-5 w-5" />
+                  )}
                 </DirectoryCardIcon>
                 <div className="mt-4 min-w-0 flex-1">
                   <DirectoryCardTitle title={team.name}>{team.name}</DirectoryCardTitle>
@@ -163,29 +184,57 @@ export function TeamsDirectory({
                     <CountCardLine count={team.formCount} singular="Form" />
                   </dl>
                 </div>
-                <DirectoryCardFooter>
-                  <DirectoryCardButton href={team.href} variant="primary">
-                    <Building2 className="h-3.5 w-3.5" />
-                    Clients
-                  </DirectoryCardButton>
-                  <DirectoryCardButton
-                    variant="secondary"
-                    onClick={() => {
-                      setDrawer(team);
-                    }}
-                  >
-                    <Pencil className="h-3.5 w-3.5" />
-                    Edit
-                  </DirectoryCardButton>
-                  <DirectoryCardButton
-                    variant="danger"
-                    onClick={() => {
-                      setDeleting(team);
-                    }}
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                    Delete
-                  </DirectoryCardButton>
+                <p className="mt-auto pt-4 truncate text-xs text-muted">
+                  Created by: {team.createdByName}
+                </p>
+                <DirectoryCardFooter className="mt-3">
+                  {team.isLocked ? (
+                    <Tooltip label="You are not a member of this team" side="top">
+                      <span className="inline-flex">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            toast("You are not a member of this team", {
+                              tone: "info",
+                            })
+                          }
+                          className="inline-flex h-9 items-center gap-1.5 border border-border bg-hover px-3 text-xs font-medium text-muted"
+                        >
+                          <Lock className="h-3.5 w-3.5" />
+                          Locked
+                        </button>
+                      </span>
+                    </Tooltip>
+                  ) : (
+                    <>
+                      <DirectoryCardButton href={team.href} variant="primary">
+                        <Building2 className="h-3.5 w-3.5" />
+                        Clients
+                      </DirectoryCardButton>
+                      {team.accessLevel === "FULL" || !team.accessLevel ? (
+                        <DirectoryCardButton
+                          variant="secondary"
+                          onClick={() => {
+                            setDrawer(team);
+                          }}
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                          Edit
+                        </DirectoryCardButton>
+                      ) : null}
+                      {team.accessLevel === "FULL" || !team.accessLevel ? (
+                        <DirectoryCardButton
+                          variant="danger"
+                          onClick={() => {
+                            setDeleting(team);
+                          }}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                          Remove
+                        </DirectoryCardButton>
+                      ) : null}
+                    </>
+                  )}
                 </DirectoryCardFooter>
               </DirectoryCard>
               </Stagger>
@@ -197,44 +246,98 @@ export function TeamsDirectory({
           <table className="directory-table w-full min-w-[44rem] text-sm">
             <thead>
               <tr>
-                <TableHeadLeft className="w-[32%]">
+                <TableHeadLeft className="w-[28%]">
                   {columnLabel(visible.length, "Team", "Teams")}
                 </TableHeadLeft>
-                <TableHeadCenter className="w-[14%]">
+                <TableHeadCenter className="w-[12%]">
                   {columnLabel(memberTotal, "Member", "Members")}
                 </TableHeadCenter>
-                <TableHeadCenter className="w-[14%]">
+                <TableHeadCenter className="w-[12%]">
                   {columnLabel(clientTotal, "Client", "Clients")}
                 </TableHeadCenter>
-                <TableHeadCenter className="w-[14%]">
+                <TableHeadCenter className="w-[12%]">
                   {columnLabel(formTotal, "Form", "Forms")}
                 </TableHeadCenter>
-                <TableActionsHeader className="w-[26%]" />
+                <TableHeadCenter className="w-[16%]">Created by</TableHeadCenter>
+                <TableActionsHeader className="w-[20%]" />
               </tr>
             </thead>
             <tbody>
-              {paged.slice.map((team) => (
-                <DirectoryTableRow key={team.id} href={team.href} ariaLabel={`Open ${team.name}`}>
-                  <TableCellLeft className="font-medium">{team.name}</TableCellLeft>
-                  <TableCellCenter className="tabular-nums">{team.memberCount}</TableCellCenter>
-                  <TableCellCenter className="tabular-nums">{team.clientCount}</TableCellCenter>
-                  <TableCellCenter className="tabular-nums">{team.formCount}</TableCellCenter>
-                  <TableActionsCell>
-                    <TableEditButton
-                      label={team.name}
-                      onClick={() => {
-                        setDrawer(team);
-                      }}
-                    />
-                    <TableDeleteButton
-                      label={team.name}
-                      onClick={() => {
-                        setDeleting(team);
-                      }}
-                    />
-                  </TableActionsCell>
-                </DirectoryTableRow>
-              ))}
+              {paged.slice.map((team) =>
+                team.isLocked ? (
+                  <tr
+                    key={team.id}
+                    className="border-b border-border last:border-0"
+                  >
+                    <TableCellLeft className="font-medium">
+                      <span className="inline-flex items-center gap-2 text-muted">
+                        <Tooltip
+                          label="You are not a member of this team"
+                          side="top"
+                        >
+                          <span className="inline-flex">
+                            <Lock className="h-3.5 w-3.5" />
+                          </span>
+                        </Tooltip>
+                        {team.name}
+                      </span>
+                    </TableCellLeft>
+                    <TableCellCenter className="tabular-nums text-muted">
+                      {team.memberCount}
+                    </TableCellCenter>
+                    <TableCellCenter className="tabular-nums text-muted">
+                      {team.clientCount}
+                    </TableCellCenter>
+                    <TableCellCenter className="tabular-nums text-muted">
+                      {team.formCount}
+                    </TableCellCenter>
+                    <TableCellCenter className="text-muted">
+                      {team.createdByName}
+                    </TableCellCenter>
+                    <TableActionsCell>
+                      <span className="text-xs text-muted">No access</span>
+                    </TableActionsCell>
+                  </tr>
+                ) : (
+                  <DirectoryTableRow
+                    key={team.id}
+                    href={team.href}
+                    ariaLabel={`Open ${team.name}`}
+                  >
+                    <TableCellLeft className="font-medium">{team.name}</TableCellLeft>
+                    <TableCellCenter className="tabular-nums">
+                      {team.memberCount}
+                    </TableCellCenter>
+                    <TableCellCenter className="tabular-nums">
+                      {team.clientCount}
+                    </TableCellCenter>
+                    <TableCellCenter className="tabular-nums">
+                      {team.formCount}
+                    </TableCellCenter>
+                    <TableCellCenter className="text-muted">
+                      {team.createdByName}
+                    </TableCellCenter>
+                    <TableActionsCell>
+                      {team.accessLevel === "FULL" || !team.accessLevel ? (
+                        <TableEditButton
+                          label={team.name}
+                          onClick={() => {
+                            setDrawer(team);
+                          }}
+                        />
+                      ) : null}
+                      {team.accessLevel === "FULL" || !team.accessLevel ? (
+                        <TableDeleteButton
+                          label={team.name}
+                          onClick={() => {
+                            setDeleting(team);
+                          }}
+                        />
+                      ) : null}
+                    </TableActionsCell>
+                  </DirectoryTableRow>
+                )
+              )}
             </tbody>
           </table>
         </div>
@@ -294,6 +397,7 @@ export function TeamsDirectory({
               onClick={closeDrawer}
               className="app-btn-secondary px-4 py-2 text-sm"
             >
+              <X className="h-4 w-4" />
               Cancel
             </button>
             <button
@@ -301,7 +405,13 @@ export function TeamsDirectory({
               disabled={pending}
               className="app-btn-primary px-4 py-2 text-sm disabled:opacity-60"
             >
-              {pending ? <Spinner /> : null}
+              {pending ? (
+                <Spinner />
+              ) : editing ? (
+                <Save className="h-4 w-4" />
+              ) : (
+                <Plus className="h-4 w-4" />
+              )}
               {editing ? "Save" : "Create team"}
             </button>
           </DrawerActions>
@@ -310,8 +420,8 @@ export function TeamsDirectory({
 
       <ConfirmDialog
         open={Boolean(deleting)}
-        title={deleting ? `Delete “${deleting.name}”?` : "Delete team"}
-        description="This also removes its clients, forms, and related data (if any). Are you sure?"
+        title={deleting ? `Remove “${deleting.name}”?` : "Remove team"}
+        description="This action will remove all the data associated with it too, Are you sure?"
         pending={pending}
         onCancel={() => {
           setDeleting(null);
@@ -320,7 +430,7 @@ export function TeamsDirectory({
           if (!deleting) return;
           const formData = new FormData();
           formData.set("teamId", deleting.id);
-          run(deleteAction, formData, "Team deleted", () => {
+          run(deleteAction, formData, "Team removed", () => {
             setDeleting(null);
           });
         }}

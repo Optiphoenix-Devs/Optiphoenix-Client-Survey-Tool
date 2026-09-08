@@ -1,4 +1,5 @@
 export const DEFAULT_THANK_YOU_BG = "#ffffff";
+export const DEFAULT_THANK_YOU_TEXT = "#14261c";
 
 export const THANK_YOU_BG_PRESETS = [
   { value: "#ffffff", label: "White" },
@@ -10,6 +11,16 @@ export const THANK_YOU_BG_PRESETS = [
   { value: "#fff7ed", label: "Peach" },
 ] as const;
 
+export const THANK_YOU_TEXT_PRESETS = [
+  { value: "#14261c", label: "Ink" },
+  { value: "#1f2937", label: "Charcoal" },
+  { value: "#334155", label: "Slate" },
+  { value: "#14532d", label: "Forest" },
+  { value: "#1e3a5f", label: "Navy" },
+  { value: "#7f1d1d", label: "Burgundy" },
+  { value: "#ffffff", label: "White" },
+] as const;
+
 function expandHex(color: string) {
   if (/^#[0-9a-fA-F]{6}$/.test(color)) return color.toLowerCase();
   if (/^#[0-9a-fA-F]{3}$/.test(color)) {
@@ -19,13 +30,29 @@ function expandHex(color: string) {
   return null;
 }
 
-export function normalizeThankYouBg(color: string | null | undefined) {
+function normalizeThankYouColor(
+  color: string | null | undefined,
+  presets: ReadonlyArray<{ value: string }>,
+  fallback: string
+) {
   const trimmed = color?.trim();
-  if (!trimmed) return DEFAULT_THANK_YOU_BG;
+  if (!trimmed) return fallback;
   const expanded = expandHex(trimmed);
   if (expanded) return expanded;
-  const preset = THANK_YOU_BG_PRESETS.find(
+  const preset = presets.find(
     (item) => item.value.toLowerCase() === trimmed.toLowerCase()
   );
-  return preset?.value ?? DEFAULT_THANK_YOU_BG;
+  return preset?.value ?? fallback;
+}
+
+export function normalizeThankYouBg(color: string | null | undefined) {
+  return normalizeThankYouColor(color, THANK_YOU_BG_PRESETS, DEFAULT_THANK_YOU_BG);
+}
+
+export function normalizeThankYouText(color: string | null | undefined) {
+  return normalizeThankYouColor(
+    color,
+    THANK_YOU_TEXT_PRESETS,
+    DEFAULT_THANK_YOU_TEXT
+  );
 }

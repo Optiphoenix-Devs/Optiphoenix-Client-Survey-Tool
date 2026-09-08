@@ -1,0 +1,2 @@
+ALTER TABLE `Form` ADD COLUMN `thankYouTextColor` VARCHAR(32) NULL;
+ALTER TABLE `FormTemplate` ADD COLUMN `thankYouTextColor` VARCHAR(32) NULL;

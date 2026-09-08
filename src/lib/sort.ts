@@ -7,13 +7,15 @@ export const DIRECTORY_SORTS = [
 
 export type DirectorySort = (typeof DIRECTORY_SORTS)[number];
 
-/** Empty string = in-select “Sort by” placeholder (disabled option). */
-export type DirectorySortSelection = DirectorySort | "";
+/** In-select “Sort by” placeholder (disabled option). Non-empty so browsers show the label. */
+export const DIRECTORY_SORT_PLACEHOLDER = "sort-by" as const;
+
+export type DirectorySortSelection = DirectorySort | typeof DIRECTORY_SORT_PLACEHOLDER;
 
 export const DIRECTORY_SORT_DEFAULT: DirectorySort = "newest";
 
 export const DIRECTORY_SORT_SELECTION_VALUES = [
-  "",
+  DIRECTORY_SORT_PLACEHOLDER,
   ...DIRECTORY_SORTS,
 ] as const;
 

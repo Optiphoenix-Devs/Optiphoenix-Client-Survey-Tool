@@ -321,5 +321,103 @@ export function formatAnswerValue(type: string, value: string) {
     }
   }
 
+  if (type === "TIME") {
+    const match = trimmed.match(/^(\d{2}:\d{2})(?:\s*GMT)?$/i);
+    if (match) return `${match[1]} GMT`;
+  }
+
   return trimmed;
 }
+
+export type ResponseExportRow = {
+  srNo: number;
+  teamName: string;
+  clientName: string;
+  clientEmail: string;
+  formTitle: string;
+  questionAnswer: string;
+  submittedOn: string;
+};
+
+export async function getResponsesForExport(
+  userId: string,
+  role: UserRole,
+  options?: { clientId?: string; formId?: string }
+): Promise<ResponseExportRow[]> {
+  const teams = await getTeamsForUser(userId, role);
+  const teamIds = teams.map((team) => team.id);
+  const formAccess = formsAccessibleWhere(userId, role, teamIds);
+
+  const clientFilter =
+    options?.clientId && options.clientId !== "all"
+      ? {
+          OR: [
+            { clientId: options.clientId },
+            { form: { clientId: options.clientId } },
+          ],
+        }
+      : {};
+
+  const formFilter = options?.formId
+    ? { AND: [formAccess, { id: options.formId }] }
+    : formAccess;
+
+  const responseRecords = await prisma.response.findMany({
+    where: {
+      clientSurvey: {
+        AND: [{ form: formFilter }, clientFilter],
+      },
+    },
+    orderBy: { submittedAt: "desc" },
+    include: {
+      answers: {
+        include: { question: { select: { id: true, label: true, order: true, type: true } } },
+        orderBy: { question: { order: "asc" } },
+      },
+      clientSurvey: {
+        include: {
+          client: { select: { id: true, name: true, email: true } },
+          form: {
+            include: {
+              client: { select: { id: true, name: true, email: true } },
+              team: { select: { id: true, name: true } },
+            },
+          },
+        },
+      },
+    },
+  });
+
+  return responseRecords.map((row, idx) => {
+    const form = row.clientSurvey.form;
+    const client = row.clientSurvey.client ?? form.client;
+
+    const qaFormatted = row.answers
+      .map((ans, qIdx) => {
+        const qNum = qIdx + 1;
+        const label = ans.question.label.trim();
+        const displayVal = formatAnswerValue(ans.question.type, ans.value);
+        return `Q${qNum}: ${label}\nA${qNum}: ${displayVal}`;
+      })
+      .join("\n\n");
+
+    return {
+      srNo: idx + 1,
+      teamName: form.team?.name ?? "—",
+      clientName: client?.name ?? "—",
+      clientEmail: client?.email ?? "—",
+      formTitle: form.title,
+      questionAnswer: qaFormatted || "No answers",
+      submittedOn: new Date(row.submittedAt).toLocaleString("en-US", {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      }),
+    };
+  });
+}
+
+
+

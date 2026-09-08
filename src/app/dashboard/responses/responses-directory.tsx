@@ -2,13 +2,15 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
-import { Eye, Inbox } from "lucide-react";
+import { Download, Eye, Inbox, Plus, X } from "lucide-react";
 import type { ResponseListRow, ResponsesPageResult } from "@/lib/responses";
 import { RESPONSE_PAGE_SIZE } from "@/lib/page-size";
 import { DirectoryToolbar } from "@/components/directory/directory-toolbar";
 import { Pagination } from "@/components/ui/pagination";
 import { Spinner } from "@/components/ui/pending-button";
 import { Stagger } from "@/components/ui/skeleton";
+import { Modal } from "@/components/ui/modal";
+import { Select } from "@/components/ui/select";
 import { formatMonthYear, columnLabel } from "@/lib/format";
 import {
   TableHeadCenter,
@@ -26,6 +28,7 @@ import {
 } from "@/components/directory/directory-card";
 import { DirectoryCardLine } from "@/components/directory/directory-card-meta";
 import {
+  DIRECTORY_SORT_PLACEHOLDER,
   DIRECTORY_SORT_SELECTION_VALUES,
   resolveDirectorySort,
   type DirectorySort,
@@ -33,13 +36,21 @@ import {
 import { useDirectoryView } from "@/lib/use-directory-view";
 import { usePersistedValue } from "@/lib/use-persisted-value";
 import { scrollToPageTop } from "@/lib/scroll-to-page-top";
-import { fetchResponsesPageAction } from "./actions";
+import { fetchResponsesPageAction, exportResponsesAction } from "./actions";
+import { exportAsCsv, exportAsXlsx, exportAsPdf, type ExportFormat } from "@/lib/export-responses";
 import { matchesResponseCardSearch } from "@/lib/directory-search";
+import { cn } from "@/lib/cn";
 
 const VIEW_KEY = "optiphoenix.responsesView";
-const SORT_KEY = "optiphoenix.responsesSort.v2";
+const SORT_KEY = "optiphoenix.responsesSort.v3";
 
 type CacheEntry = { rows: ResponseListRow[]; total: number };
+
+export type ClientOption = {
+  id: string;
+  name: string;
+  email: string | null;
+};
 
 function cacheKey(
   page: number,
@@ -54,10 +65,12 @@ export function ResponsesDirectory({
   initialPage,
   formId,
   formTitle,
+  clients = [],
 }: {
   initialPage: ResponsesPageResult;
   formId?: string;
   formTitle?: string;
+  clients?: ClientOption[];
 }) {
   const [query, setQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
@@ -67,17 +80,52 @@ export function ResponsesDirectory({
   const [view, setView] = useDirectoryView(VIEW_KEY);
   const [sort, setSort] = usePersistedValue(
     SORT_KEY,
-    "",
+    DIRECTORY_SORT_PLACEHOLDER,
     DIRECTORY_SORT_SELECTION_VALUES
   );
   const effectiveSort = resolveDirectorySort(sort);
   const cacheRef = useRef(new Map<string, CacheEntry>());
   const [loading, startLoad] = useTransition();
+  const [exportModalOpen, setExportModalOpen] = useState(false);
+  const [selectedClientId, setSelectedClientId] = useState("all");
+  const [exportFormat, setExportFormat] = useState<ExportFormat>("csv");
+  const [isExporting, setIsExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
+  const [exportSuccess, setExportSuccess] = useState(false);
+
   const filtersRef = useRef({
     debouncedQuery: "",
-    sort: "" as (typeof DIRECTORY_SORT_SELECTION_VALUES)[number],
+    sort: DIRECTORY_SORT_PLACEHOLDER as (typeof DIRECTORY_SORT_SELECTION_VALUES)[number],
     formId,
   });
+
+  async function handleExport() {
+    setIsExporting(true);
+    setExportError(null);
+    setExportSuccess(false);
+    try {
+      const result = await exportResponsesAction({
+        clientId: selectedClientId,
+        formId,
+      });
+      if ("error" in result) {
+        setExportError(result.error);
+      } else {
+        if (exportFormat === "csv") {
+          exportAsCsv(result);
+        } else if (exportFormat === "xlsx") {
+          exportAsXlsx(result);
+        } else if (exportFormat === "pdf") {
+          exportAsPdf(result);
+        }
+        setExportSuccess(true);
+      }
+    } catch {
+      setExportError("Failed to export responses.");
+    } finally {
+      setIsExporting(false);
+    }
+  }
 
   useEffect(() => {
     cacheRef.current.set(cacheKey(1, "", "newest", formId), {
@@ -204,7 +252,18 @@ export function ResponsesDirectory({
               setPage(1);
             }}
           />
+          <div className="flex justify-end pt-1">
+            <button
+              type="button"
+              onClick={() => setExportModalOpen(true)}
+              className="app-btn-secondary h-10 px-4 text-sm font-medium"
+            >
+              <Plus className="h-4 w-4" />
+              <span>Export</span>
+            </button>
+          </div>
         </div>
+
 
         {total === 0 && !loading ? (
           <p className="mt-6 app-radius border border-dashed border-border bg-card px-4 py-8 text-center text-sm text-muted">
@@ -316,6 +375,151 @@ export function ResponsesDirectory({
             pageSize={RESPONSE_PAGE_SIZE}
           />
         ) : null}
+
+      <Modal
+        open={exportModalOpen}
+        onClose={() => {
+          if (!isExporting) setExportModalOpen(false);
+        }}
+        labelledBy="export-modal-title"
+      >
+        <div className="space-y-5">
+          <div className="flex items-center justify-between border-b border-border pb-3">
+            <div className="flex items-center gap-2.5">
+              <div className="flex h-8 w-8 items-center justify-center app-radius border border-border bg-surface text-foreground">
+                <Download className="h-4 w-4" />
+              </div>
+              <h2 id="export-modal-title" className="text-lg font-semibold tracking-tight">
+                Export Responses
+              </h2>
+            </div>
+            <button
+              type="button"
+              onClick={() => setExportModalOpen(false)}
+              className="grid h-8 w-8 place-items-center app-radius text-muted transition hover:bg-hover hover:text-foreground"
+              aria-label="Close export modal"
+              disabled={isExporting}
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+
+          <p className="text-sm text-muted">
+            Select a client to filter the response spreadsheet export, or choose all clients to export full submission data.
+          </p>
+
+          {exportError ? (
+            <p className="app-radius border border-destructive/20 bg-destructive/10 px-3 py-2 text-xs font-medium text-destructive">
+              {exportError}
+            </p>
+          ) : null}
+
+          {exportSuccess ? (
+            <p className="app-radius border border-sage/40 bg-sage/10 px-3 py-2 text-xs font-medium text-sage">
+              Export downloaded successfully!
+            </p>
+          ) : null}
+
+          <div className="space-y-2">
+            <label htmlFor="export-client-select" className="text-sm font-medium text-foreground">
+              Select Client
+            </label>
+            <Select
+              id="export-client-select"
+              value={selectedClientId}
+              onChange={(e) => setSelectedClientId(e.target.value)}
+              className="w-full min-w-0"
+              disabled={isExporting}
+            >
+              <option value="all">All Clients</option>
+              {clients.map((client) => (
+                <option key={client.id} value={client.id}>
+                  {client.name}
+                </option>
+              ))}
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-foreground">Export Format</label>
+            <div className="grid grid-cols-3 gap-2">
+              <button
+                type="button"
+                onClick={() => setExportFormat("csv")}
+                disabled={isExporting}
+                className={cn(
+                  "flex flex-col items-center justify-center p-3 app-radius border text-xs transition cursor-pointer",
+                  exportFormat === "csv"
+                    ? "border-brand bg-brand/10 font-semibold text-brand"
+                    : "border-border bg-surface text-muted hover:text-foreground"
+                )}
+              >
+                <span className="text-xs font-bold uppercase tracking-wider">CSV</span>
+                <span className="mt-0.5 text-[10px] opacity-75">Comma Separated</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setExportFormat("xlsx")}
+                disabled={isExporting}
+                className={cn(
+                  "flex flex-col items-center justify-center p-3 app-radius border text-xs transition cursor-pointer",
+                  exportFormat === "xlsx"
+                    ? "border-brand bg-brand/10 font-semibold text-brand"
+                    : "border-border bg-surface text-muted hover:text-foreground"
+                )}
+              >
+                <span className="text-xs font-bold uppercase tracking-wider">XLSX</span>
+                <span className="mt-0.5 text-[10px] opacity-75">Excel Sheet</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setExportFormat("pdf")}
+                disabled={isExporting}
+                className={cn(
+                  "flex flex-col items-center justify-center p-3 app-radius border text-xs transition cursor-pointer",
+                  exportFormat === "pdf"
+                    ? "border-brand bg-brand/10 font-semibold text-brand"
+                    : "border-border bg-surface text-muted hover:text-foreground"
+                )}
+              >
+                <span className="text-xs font-bold uppercase tracking-wider">PDF</span>
+                <span className="mt-0.5 text-[10px] opacity-75">Printable Report</span>
+              </button>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-end gap-3 border-t border-border pt-4 mt-6">
+            <button
+              type="button"
+              onClick={() => setExportModalOpen(false)}
+              className="app-btn-secondary h-10 px-4 text-sm font-medium"
+              disabled={isExporting}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={handleExport}
+              className="app-btn-primary h-10 px-4 text-sm font-medium"
+              disabled={isExporting}
+            >
+              {isExporting ? (
+                <>
+                  <Spinner className="h-4 w-4" />
+                  <span>Exporting...</span>
+                </>
+              ) : (
+                <>
+                  <Download className="h-4 w-4 text-on-brand" />
+                  <span>Export</span>
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      </Modal>
     </section>
   );
 }
+
+

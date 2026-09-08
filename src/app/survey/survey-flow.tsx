@@ -8,6 +8,7 @@ import { PendingButton } from "@/components/ui/pending-button";
 import { cn } from "@/lib/cn";
 import {
   buildSurveySteps,
+  findBranchingQuestion,
   type FormSectionRecord,
   type SectionQuestion,
   type SurveyStep,
@@ -20,17 +21,6 @@ type SurveyQuestion = ViewField & {
   sectionId?: string | null;
   order: number;
 };
-
-function validateQuestionInContainer(
-  container: HTMLElement,
-  question: SurveyQuestion
-) {
-  const scoped = container.querySelector(
-    `[data-question-id="${question.id}"]`
-  ) as HTMLElement | null;
-  if (!scoped) return true;
-  return validateQuestionStep(scoped, question);
-}
 
 function validateQuestionStep(container: HTMLElement, question: SurveyQuestion) {
   const controls = container.querySelectorAll("input, select, textarea");
@@ -69,13 +59,7 @@ function validateQuestionStep(container: HTMLElement, question: SurveyQuestion) 
 }
 
 function validateStep(container: HTMLElement, step: SurveyStep) {
-  if (step.kind === "question") {
-    return validateQuestionStep(container, step.question);
-  }
-  for (const question of step.questions) {
-    if (!validateQuestionInContainer(container, question)) return false;
-  }
-  return true;
+  return validateQuestionStep(container, step.question);
 }
 
 function persistStepAnswers(
@@ -84,22 +68,11 @@ function persistStepAnswers(
   merge: (answers: Record<string, string>) => void
 ) {
   const next: Record<string, string> = {};
-  if (step.kind === "question") {
-    const scoped = container.querySelector(
-      `[data-question-id="${step.question.id}"]`
-    ) as HTMLElement | null;
-    if (scoped) {
-      next[step.question.id] = collectStepAnswer(scoped, step.question);
-    }
-  } else {
-    for (const question of step.questions) {
-      const scoped = container.querySelector(
-        `[data-question-id="${question.id}"]`
-      ) as HTMLElement | null;
-      if (scoped) {
-        next[question.id] = collectStepAnswer(scoped, question);
-      }
-    }
+  const scoped = container.querySelector(
+    `[data-question-id="${step.question.id}"]`
+  ) as HTMLElement | null;
+  if (scoped) {
+    next[step.question.id] = collectStepAnswer(scoped, step.question);
   }
   merge(next);
 }
@@ -151,10 +124,26 @@ export function SurveyFlow({
 
   const totalSteps = steps.length;
   const onWelcome = step === 0;
+  const branchingQuestion = useMemo(
+    () => findBranchingQuestion(questionRecords),
+    [questionRecords]
+  );
+  const branchingAwaitingChoice = Boolean(
+    branchingQuestion &&
+      !(answers[branchingQuestion.id] ?? "").trim() &&
+      sections.some((section) => Boolean(section.branchValue))
+  );
+  // Avoid implying a fixed length — branching can add steps after an answer.
   const progress =
-    totalSteps === 0 ? 0 : Math.round((step / (totalSteps + 1)) * 100);
+    totalSteps === 0
+      ? 0
+      : Math.min(
+          95,
+          Math.round((step / (totalSteps + (branchingAwaitingChoice ? 2 : 1))) * 100)
+        );
   const currentStep = step > 0 ? steps[step - 1] : null;
-  const isLastStep = step === totalSteps && totalSteps > 0;
+  const isLastStep =
+    step === totalSteps && totalSteps > 0 && !branchingAwaitingChoice;
 
   useEffect(() => {
     if (step > 0 && step > totalSteps) {
@@ -275,16 +264,8 @@ export function SurveyFlow({
       ) : null}
 
       {!onWelcome ? (
-        <div className="mb-8">
-          <div className="flex items-center justify-between gap-3 text-xs font-medium text-muted">
-            <span>
-              {currentStep?.kind === "section"
-                ? "Section"
-                : `Step ${Math.min(step, totalSteps)} of ${totalSteps}`}
-            </span>
-            <span>{progress}%</span>
-          </div>
-          <div className="mt-2 h-1.5 overflow-hidden app-radius bg-hover">
+        <div className="mb-4">
+          <div className="h-1.5 overflow-hidden app-radius bg-hover">
             <div
               className="h-full bg-accent transition-[width] duration-300 ease-out"
               style={{ width: `${progress}%` }}
@@ -294,36 +275,32 @@ export function SurveyFlow({
       ) : null}
 
       {onWelcome ? (
-        <section className="page-enter flex flex-1 flex-col justify-center overflow-hidden app-radius border border-border bg-white p-0 sm:p-0">
+        <section className="page-enter overflow-hidden app-radius border border-border bg-white">
           {headerImageUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
               src={headerImageUrl}
               alt=""
-              className="mb-0 h-40 w-full object-cover sm:h-48"
+              className="h-36 w-full object-cover sm:h-40"
             />
           ) : null}
-          <div className="flex flex-1 flex-col justify-center p-6 sm:p-10">
-          <p className="text-xs font-semibold uppercase tracking-wide text-accent">
-            Client feedback
-          </p>
-          <h1 className="mt-3 text-2xl font-semibold tracking-tight sm:text-3xl">{title}</h1>
-          {description ? (
-            <p className="mt-3 max-w-lg text-sm leading-7 text-muted">{description}</p>
-          ) : null}
-          <p className="mt-4 text-sm text-muted">
-            {totalSteps === 1
-              ? "1 step · about 1 minute"
-              : `${totalSteps} steps · about ${Math.max(2, Math.ceil(totalSteps * 0.75))} minutes`}
-          </p>
-          <button
-            type="button"
-            onClick={goNext}
-            className="mt-8 inline-flex w-full items-center justify-center gap-2 app-btn-primary px-5 py-3 text-sm sm:w-auto"
-          >
-            Start
-            <ArrowRight className="h-4 w-4" />
-          </button>
+          <div className="px-5 py-5 sm:px-6 sm:py-6">
+            <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
+              {title}
+            </h1>
+            {description ? (
+              <p className="mt-2 max-w-lg text-sm leading-6 text-muted">
+                {description}
+              </p>
+            ) : null}
+            <button
+              type="button"
+              onClick={goNext}
+              className="mt-5 inline-flex w-full items-center justify-center gap-2 app-btn-primary px-5 py-2.5 text-sm sm:w-auto"
+            >
+              Start
+              <ArrowRight className="h-4 w-4" />
+            </button>
           </div>
         </section>
       ) : (
@@ -331,144 +308,110 @@ export function SurveyFlow({
           ref={formRef}
           action={previewMode ? undefined : submitAction}
           onSubmit={handleSubmit}
-          className="flex flex-1 flex-col"
+          className="flex min-h-0 flex-col"
         >
           {!previewMode ? <input type="hidden" name="token" value={token} /> : null}
 
-          <div className="relative flex-1">
-            {steps.map((surveyStep, index) => {
-              const surveyStepNumber = index + 1;
-              const active = step === surveyStepNumber;
+          <div className="flex max-h-[min(72vh,42rem)] flex-col overflow-hidden app-radius border border-border bg-white">
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 sm:p-5">
+              {steps.map((surveyStep, index) => {
+                const surveyStepNumber = index + 1;
+                const active = step === surveyStepNumber;
+                const question = surveyStep.question;
 
-              return (
-                <div
-                  key={
-                    surveyStep.kind === "section"
-                      ? surveyStep.section.id
-                      : surveyStep.question.id
-                  }
-                  data-survey-step={surveyStepNumber}
-                  className={cn(
-                    active
-                      ? "page-enter app-radius border border-border bg-white p-6 sm:p-8"
-                      : "hidden",
-                    surveyStep.kind === "section" && active && "border-dashed"
-                  )}
-                  aria-hidden={!active}
-                >
-                  {surveyStep.kind === "section" ? (
-                    <>
-                      <p className="text-xs font-semibold uppercase tracking-wide text-accent">
-                        Section
-                      </p>
-                      <h2 className="mt-2 text-2xl font-semibold leading-8 tracking-tight">
-                        {surveyStep.section.title}
-                      </h2>
-                      {surveyStep.section.description ? (
-                        <p className="mt-2 text-sm leading-6 text-muted">
-                          {surveyStep.section.description}
+                return (
+                  <div
+                    key={question.id}
+                    data-survey-step={surveyStepNumber}
+                    className={cn(active ? "page-enter" : "hidden")}
+                    aria-hidden={!active}
+                  >
+                    <div data-question-id={question.id}>
+                      {surveyStep.sectionIntro && surveyStep.section ? (
+                        <div className="mb-4">
+                          <p className="text-xs font-semibold uppercase tracking-wide text-sage">
+                            {surveyStep.section.title}
+                          </p>
+                          {surveyStep.section.description ? (
+                            <p className="mt-1 text-sm leading-6 text-muted">
+                              {surveyStep.section.description}
+                            </p>
+                          ) : null}
+                        </div>
+                      ) : surveyStep.section ? (
+                        <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted">
+                          {surveyStep.section.title}
                         </p>
                       ) : null}
-                      <div className="mt-8 space-y-8">
-                        {surveyStep.questions.length === 0 ? (
-                          <p className="text-sm text-muted">
-                            No questions in this section yet.
-                          </p>
-                        ) : (
-                          surveyStep.questions.map((question) => (
-                          <div key={question.id} data-question-id={question.id}>
-                            <h3 className="text-lg font-semibold leading-7">
-                              {question.label}
-                              {question.required ? (
-                                <span className="ml-1 text-rose-600">*</span>
-                              ) : null}
-                            </h3>
-                            {question.description ? (
-                              <p className="mt-1 text-sm leading-6 text-muted">
-                                {question.description}
-                              </p>
-                            ) : null}
-                            <FieldView
-                              field={question}
-                              mode="live"
-                              presentation="survey"
-                            />
-                          </div>
-                          ))
-                        )}
-                      </div>
-                    </>
-                  ) : (
-                    <div data-question-id={surveyStep.question.id}>
-                      <p className="text-xs font-semibold uppercase tracking-wide text-muted">
-                        Question
-                      </p>
-                      <h2 className="mt-2 text-xl font-semibold leading-8 tracking-tight sm:text-2xl">
-                        {surveyStep.question.label}
-                        {surveyStep.question.required ? (
+                      <h2 className="text-xl font-semibold leading-7 tracking-tight sm:text-2xl">
+                        {question.label}
+                        {question.required ? (
                           <span className="ml-1 text-rose-600">*</span>
                         ) : null}
                       </h2>
-                      {surveyStep.question.description ? (
-                        <p className="mt-2 text-sm leading-6 text-muted">
-                          {surveyStep.question.description}
+                      {question.description ? (
+                        <p className="mt-1.5 text-sm leading-6 text-muted">
+                          {question.description}
                         </p>
                       ) : null}
-                      <div className="mt-6">
+                      <div className="mt-4">
                         <FieldView
-                          field={surveyStep.question}
+                          field={question}
                           mode="live"
                           presentation="survey"
+                          defaultAnswer={answers[question.id]}
                         />
                       </div>
                     </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
+                  </div>
+                );
+              })}
+            </div>
 
-          <div className="sticky bottom-0 mt-8 border-t border-border bg-card/95 px-0 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] backdrop-blur sm:app-radius sm:border sm:px-4 sm:pb-4">
-            <div className="flex items-center justify-between gap-3">
-              <button
-                type="button"
-                onClick={goBack}
-                className="inline-flex min-h-11 items-center gap-1.5 app-btn-secondary px-4 py-2.5 text-sm"
-              >
-                <ArrowLeft className="h-4 w-4" />
-                Back
-              </button>
-              {isLastStep ? (
-                previewMode ? (
-                  <button
-                    type="button"
-                    onClick={() =>
-                      toast("Preview only — nothing is submitted.", { tone: "success" })
-                    }
-                    className="inline-flex min-h-11 items-center gap-2 app-btn-primary px-5 py-2.5 text-sm"
-                  >
-                    <Send className="h-4 w-4" />
-                    End preview
-                  </button>
-                ) : (
-                  <PendingButton
-                    type="submit"
-                    className="inline-flex min-h-11 items-center gap-2 app-btn-primary px-5 py-2.5 text-sm"
-                  >
-                    <Send className="h-4 w-4" />
-                    Send feedback
-                  </PendingButton>
-                )
-              ) : (
+            <div className="shrink-0 border-t border-border bg-white px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+              <div className="flex items-center justify-between gap-3">
                 <button
                   type="button"
-                  onClick={goNext}
-                  className="inline-flex min-h-11 items-center gap-2 app-btn-primary px-5 py-2.5 text-sm"
+                  onClick={goBack}
+                  className="inline-flex min-h-10 items-center gap-1.5 app-btn-secondary px-4 py-2 text-sm"
                 >
-                  Next
-                  <ArrowRight className="h-4 w-4" />
+                  <ArrowLeft className="h-4 w-4" />
+                  Back
                 </button>
-              )}
+                {isLastStep ? (
+                  previewMode ? (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        toast("Preview only — nothing is submitted.", {
+                          tone: "success",
+                        })
+                      }
+                      className="inline-flex min-h-10 items-center gap-2 app-btn-primary px-5 py-2 text-sm"
+                    >
+                      <Send className="h-4 w-4" />
+                      End preview
+                    </button>
+                  ) : (
+                    <PendingButton
+                      type="submit"
+                      className="inline-flex min-h-10 items-center gap-2 app-btn-primary px-5 py-2 text-sm"
+                    >
+                      <Send className="h-4 w-4" />
+                      Send feedback
+                    </PendingButton>
+                  )
+                ) : (
+                  <button
+                    type="button"
+                    onClick={goNext}
+                    className="inline-flex min-h-10 items-center gap-2 app-btn-primary px-5 py-2 text-sm"
+                  >
+                    Next
+                    <ArrowRight className="h-4 w-4" />
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         </form>

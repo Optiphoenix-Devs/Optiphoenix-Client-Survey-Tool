@@ -3,27 +3,28 @@ import { prisma } from "@/lib/prisma";
 import type { UserRole } from "@/generated/prisma/client";
 import {
   UniqueNameError,
+  accessLevelCanWrite,
   getTeamsForUser,
   namesMatch,
   userCanManageTeam,
+  userCanViewTeam,
 } from "@/lib/teams";
 
 export type ClientInput = {
   name: string;
   email: string;
-  company?: string | null;
 };
 
 export type ClientDirectoryRow = {
   id: string;
   name: string;
   email: string | null;
-  company: string | null;
   teamId: string;
   teamName: string;
   formCount: number;
   href: string;
   updatedAt: string;
+  canManage: boolean;
 };
 
 export const getClientsForUser = cache(async function getClientsForUser(
@@ -43,16 +44,20 @@ export const getClientsForUser = cache(async function getClientsForUser(
     },
   });
 
+  const teamAccess = new Map(
+    teams.map((team) => [team.id, accessLevelCanWrite(team.accessLevel)])
+  );
+
   return clients.map((client) => ({
     id: client.id,
     name: client.name,
     email: client.email,
-    company: client.company,
     teamId: client.team.id,
     teamName: client.team.name,
     formCount: client._count.forms,
     href: `/dashboard/teams/${client.team.id}/clients/${client.id}`,
     updatedAt: client.updatedAt.toISOString(),
+    canManage: teamAccess.get(client.team.id) ?? false,
   }));
 });
 
@@ -85,7 +90,7 @@ export async function getTeamWithClients(
   role: UserRole,
   teamId: string
 ) {
-  const allowed = await userCanManageTeam(userId, role, teamId);
+  const allowed = await userCanViewTeam(userId, role, teamId);
   if (!allowed) {
     return null;
   }
@@ -123,7 +128,7 @@ export async function createClientForTeam(
       createdById: userId,
       name: data.name.trim(),
       email: data.email.trim(),
-      company: data.company || null,
+      company: null,
     },
   });
 }
@@ -155,7 +160,6 @@ export async function updateClientForTeam(
     data: {
       name: data.name.trim(),
       email: data.email.trim(),
-      company: data.company || null,
     },
   });
 }

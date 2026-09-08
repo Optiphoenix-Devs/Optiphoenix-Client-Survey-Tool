@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import type { QuestionType, UserRole } from "@/generated/prisma/client";
 import { Prisma } from "@/generated/prisma/client";
-import { userCanManageTeam } from "@/lib/teams";
+import { userCanManageTeam, userCanViewTeam } from "@/lib/teams";
 import { fieldNeedsOptions, fieldTypeMeta, getFieldType, minOptionsForType, parseFieldAnswer, getChoiceList, buildChoiceOptions, buildTextOptions } from "@/lib/question-types";
 import { buildQuestionLogic } from "@/lib/field-types/logic";
 import { getVisibleQuestionsForSubmit } from "@/lib/form-sections";
@@ -23,6 +23,33 @@ export function formsAccessibleWhere(
   };
 }
 
+async function assertCanUseTemplate(
+  userId: string,
+  role: UserRole,
+  templateId: string
+) {
+  if (role === "ADMIN") return;
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { email: true },
+  });
+  const shareOr: Prisma.FormTemplateShareWhereInput[] = [{ userId }];
+  if (user?.email) {
+    shareOr.push({ email: user.email.trim().toLowerCase() });
+  }
+  const allowed = await prisma.formTemplate.findFirst({
+    where: {
+      id: templateId,
+      OR: [
+        { createdById: userId },
+        { shares: { some: { OR: shareOr } } },
+      ],
+    },
+    select: { id: true },
+  });
+  if (!allowed) throw new Error("No access to that template.");
+}
+
 export async function userCanAccessFormRecord(
   userId: string,
   role: UserRole,
@@ -30,7 +57,7 @@ export async function userCanAccessFormRecord(
 ) {
   if (role === "ADMIN") return true;
   if (form.createdById === userId) return true;
-  if (form.teamId) return userCanManageTeam(userId, role, form.teamId);
+  if (form.teamId) return userCanViewTeam(userId, role, form.teamId);
   return false;
 }
 
@@ -41,7 +68,14 @@ export async function requireFormAccess(
 ) {
   const form = await prisma.form.findUnique({ where: { id: formId } });
   if (!form) throw new Error("Form not found");
-  if (!(await userCanAccessFormRecord(userId, role, form))) {
+  if (role === "ADMIN") return form;
+  if (form.teamId) {
+    if (!(await userCanManageTeam(userId, role, form.teamId))) {
+      throw new Error("No access");
+    }
+    return form;
+  }
+  if (form.createdById !== userId) {
     throw new Error("No access");
   }
   return form;
@@ -59,7 +93,7 @@ export async function getClientWorkspace(
   teamId: string,
   clientId: string
 ) {
-  const allowed = await userCanManageTeam(userId, role, teamId);
+  const allowed = await userCanViewTeam(userId, role, teamId);
   if (!allowed) return null;
 
   return prisma.client.findFirst({
@@ -153,10 +187,17 @@ export async function createFormForUser(
 
   const title = data.title.trim();
 
+  if (data.templateId) {
+    await assertCanUseTemplate(userId, role, data.templateId);
+  }
+
   const template = data.templateId
     ? await prisma.formTemplate.findUnique({
         where: { id: data.templateId },
-        include: { questions: { orderBy: { order: "asc" } } },
+        include: {
+          questions: { orderBy: { order: "asc" } },
+          sections: { orderBy: { order: "asc" } },
+        },
       })
     : null;
 
@@ -170,28 +211,57 @@ export async function createFormForUser(
       title,
       status: "DRAFT",
       sourceTemplateId: template?.id ?? null,
+      thankYouTitle: template?.thankYouTitle ?? null,
+      thankYouMessage: template?.thankYouMessage ?? null,
+      headerImageUrl: template?.headerImageUrl ?? null,
+      thankYouImageUrl: template?.thankYouImageUrl ?? null,
+      thankYouBgColor: template?.thankYouBgColor ?? null,
+      thankYouTextColor: template?.thankYouTextColor ?? null,
     },
   });
 
-  if (template && template.questions.length > 0) {
-    await prisma.question.createMany({
-      data: template.questions.map((question) => ({
-        formId: form.id,
-        type: question.type,
-        label: question.label,
-        description: question.description,
-        order: question.order,
-        required: question.required,
-        options:
-          question.options === null
-            ? Prisma.JsonNull
-            : (question.options as Prisma.InputJsonValue),
-        logic:
-          question.logic === null
-            ? Prisma.JsonNull
-            : (question.logic as Prisma.InputJsonValue),
-      })),
-    });
+  if (template) {
+    const sectionMap = new Map<string, string>();
+    for (const section of template.sections) {
+      const created = await prisma.formSection.create({
+        data: {
+          formId: form.id,
+          title: section.title,
+          description: section.description,
+          order: section.order,
+          branchValue: section.branchValue,
+          logic:
+            section.logic === null
+              ? Prisma.JsonNull
+              : (section.logic as Prisma.InputJsonValue),
+        },
+      });
+      sectionMap.set(section.id, created.id);
+    }
+
+    if (template.questions.length > 0) {
+      await prisma.question.createMany({
+        data: template.questions.map((question) => ({
+          formId: form.id,
+          sectionId: question.sectionId
+            ? sectionMap.get(question.sectionId) ?? null
+            : null,
+          type: question.type,
+          label: question.label,
+          description: question.description,
+          order: question.order,
+          required: question.required,
+          options:
+            question.options === null
+              ? Prisma.JsonNull
+              : (question.options as Prisma.InputJsonValue),
+          logic:
+            question.logic === null
+              ? Prisma.JsonNull
+              : (question.logic as Prisma.InputJsonValue),
+        })),
+      });
+    }
   }
 
   return form;
@@ -219,7 +289,8 @@ export async function updateClientForm(
   thankYouMessage?: string | null,
   headerImageUrl?: string | null | undefined,
   thankYouImageUrl?: string | null | undefined,
-  thankYouBgColor?: string | null | undefined
+  thankYouBgColor?: string | null | undefined,
+  thankYouTextColor?: string | null | undefined
 ) {
   await requireFormAccess(userId, role, formId);
 
@@ -236,6 +307,13 @@ export async function updateClientForm(
         ? {
             thankYouBgColor: thankYouBgColor?.trim()
               ? thankYouBgColor.trim()
+              : null,
+          }
+        : {}),
+      ...(thankYouTextColor !== undefined
+        ? {
+            thankYouTextColor: thankYouTextColor?.trim()
+              ? thankYouTextColor.trim()
               : null,
           }
         : {}),
@@ -260,10 +338,16 @@ export async function deleteClientForm(
   });
   if (!form) throw new Error("Form not found");
 
+  if (form.status === "CLOSED") {
+    throw new Error(
+      "This form is closed after a response was submitted and cannot be deleted."
+    );
+  }
+
   const hasFilled = form.surveys.some((survey) => survey._count.responses > 0);
   if (hasFilled) {
     throw new Error(
-      "This form has submitted responses. Unpublish it instead of deleting."
+      "This form has submitted responses and cannot be deleted."
     );
   }
 
@@ -282,9 +366,18 @@ export async function setClientFormPublish(
 
   const form = await prisma.form.findUnique({
     where: { id: formId },
-    include: { questions: { orderBy: { order: "asc" } } },
+    include: {
+      questions: { orderBy: { order: "asc" } },
+      surveys: { select: { _count: { select: { responses: true } } } },
+    },
   });
   if (!form) throw new Error("Form not found");
+
+  if (form.status === "CLOSED" || formHasSubmission(form.surveys)) {
+    throw new Error(
+      "This form is closed after a response was submitted and cannot be reopened."
+    );
+  }
 
   if (publish) {
     if (!form.clientId) {
@@ -733,6 +826,7 @@ export async function duplicateFormForUser(
       headerImageUrl: form.headerImageUrl,
       thankYouImageUrl: form.thankYouImageUrl,
       thankYouBgColor: form.thankYouBgColor,
+      thankYouTextColor: form.thankYouTextColor,
       status: "DRAFT",
       sourceTemplateId: form.sourceTemplateId,
     },
@@ -937,6 +1031,7 @@ export async function applyTemplateToForm(
   if (!templateId) {
     await prisma.$transaction([
       prisma.question.deleteMany({ where: { formId } }),
+      prisma.formSection.deleteMany({ where: { formId } }),
       prisma.form.update({
         where: { id: formId },
         data: { sourceTemplateId: null },
@@ -945,18 +1040,46 @@ export async function applyTemplateToForm(
     return getFormBuilder(userId, role, formId);
   }
 
+  await assertCanUseTemplate(userId, role, templateId);
+
   const template = await prisma.formTemplate.findUnique({
     where: { id: templateId },
-    include: { questions: { orderBy: { order: "asc" } } },
+    include: {
+      questions: { orderBy: { order: "asc" } },
+      sections: { orderBy: { order: "asc" } },
+    },
   });
   if (!template) throw new Error("Template not found");
 
   await prisma.$transaction(async (tx) => {
     await tx.question.deleteMany({ where: { formId } });
+    await tx.formSection.deleteMany({ where: { formId } });
+
+    const sectionMap = new Map<string, string>();
+    for (const section of template.sections) {
+      const created = await tx.formSection.create({
+        data: {
+          formId,
+          title: section.title,
+          description: section.description,
+          order: section.order,
+          branchValue: section.branchValue,
+          logic:
+            section.logic === null
+              ? Prisma.JsonNull
+              : (section.logic as Prisma.InputJsonValue),
+        },
+      });
+      sectionMap.set(section.id, created.id);
+    }
+
     if (template.questions.length > 0) {
       await tx.question.createMany({
         data: template.questions.map((question) => ({
           formId,
+          sectionId: question.sectionId
+            ? sectionMap.get(question.sectionId) ?? null
+            : null,
           type: question.type,
           label: question.label,
           description: question.description,
@@ -1113,6 +1236,10 @@ export async function submitPublicForm(
     await tx.clientSurvey.update({
       where: { id: survey.id },
       data: { status: "CLOSED", submittedAt: new Date() },
+    });
+    await tx.form.update({
+      where: { id: form.id },
+      data: { status: "CLOSED" },
     });
   });
 
