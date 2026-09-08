@@ -13,6 +13,8 @@ A workspace for delivery teams to collect structured client feedback: build form
 ![MySQL](https://img.shields.io/badge/MySQL-8-4479A1?logo=mysql&logoColor=white)
 ![Tailwind CSS](https://img.shields.io/badge/Tailwind-4-06B6D4?logo=tailwindcss&logoColor=white)
 
+**🌐 Live app · [opti-survery.vercel.app](https://opti-survery.vercel.app/)**
+
 </div>
 
 ---
@@ -73,6 +75,8 @@ stateDiagram-v2
 ---
 
 ## 🚀 Run it locally
+
+> Prefer to skip setup? The app is deployed at **[opti-survery.vercel.app](https://opti-survery.vercel.app/)**.
 
 ### 1. Prerequisites
 
